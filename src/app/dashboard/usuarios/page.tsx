@@ -13,6 +13,8 @@ interface Superintendencia {
 interface UsuarioProfile {
   id: string;
   nombre_completo: string;
+  dni: string;
+  legajo: string;
   username: string;
   email: string;
   rol: string;
@@ -103,7 +105,7 @@ export default function GestionUsuariosPage() {
     setCargando(false);
 
     if (res.success) {
-      setMensaje({ tipo: 'ok', texto: '¡Usuario creado correctamente!' });
+      setMensaje({ tipo: 'ok', texto: '¡Usuario creado correctamente con contraseña inicial ABCdef123!' });
       setModalAbierto(false);
       (e.target as HTMLFormElement).reset();
       
@@ -166,7 +168,7 @@ export default function GestionUsuariosPage() {
               <div key={u.id} className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h3 className="font-bold text-white text-sm uppercase">{u.nombre_completo || 'Sin nombre'}</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">Email: {u.email} | Legajo/DNI: {u.username || 'N/A'}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Email: {u.email} | DNI: {u.dni || 'N/A'} | Legajo: {u.legajo || 'N/A'}</p>
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase">
@@ -205,9 +207,16 @@ export default function GestionUsuariosPage() {
                 <input required name="nombre_completo" type="text" placeholder="Ej: Juan Pérez" className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-blue-500" />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold uppercase text-slate-300 mb-1.5">Legajo / DNI</label>
-                <input required name="legajo_o_dni" type="text" placeholder="Ej: 1234567" className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-blue-500" />
+              {/* CAMPOS SEPARADOS DE DNI Y LEGAJO */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold uppercase text-slate-300 mb-1.5">DNI</label>
+                  <input required name="dni" type="text" placeholder="Ej: 12345678" className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase text-slate-300 mb-1.5">Legajo</label>
+                  <input required name="legajo" type="text" placeholder="Ej: 123456" className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-blue-500" />
+                </div>
               </div>
 
               <div>
@@ -215,9 +224,12 @@ export default function GestionUsuariosPage() {
                 <input required name="email" type="text" placeholder="usuario@cop.estadistica.ar" className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-blue-500" />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold uppercase text-slate-300 mb-1.5">Contraseña Inicial</label>
-                <input required name="password" type="password" minLength={6} placeholder="Mínimo 6 caracteres" className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-blue-500" />
+              {/* AVISO DE CONTRASEÑA INICIAL FIJA */}
+              <div className="bg-slate-900/60 p-3 rounded-md border border-slate-800">
+                <span className="block text-xs font-semibold text-amber-400 uppercase">Contraseña Inicial Automática</span>
+                <p className="text-xs text-slate-400 mt-1">
+                  Se asignará por defecto: <code className="text-white bg-slate-800 px-1.5 py-0.5 rounded font-mono">ABCdef123</code>. El usuario deberá cambiarla obligatoriamente en su primer inicio de sesión.
+                </p>
               </div>
 
               <div>
@@ -237,9 +249,16 @@ export default function GestionUsuariosPage() {
                   <option value="consulta">CONSULTA (Solo lectura)</option>
                   <option value="supervisor">SUPERVISOR (Control)</option>
                   <option value="auditor">AUDITOR (Inspección)</option>
-                  {/* Los supervisores solo pueden crear estos roles o restringir si hace falta */}
-                  <option value="administrador">ADMINISTRADOR (Total)</option>
+                  {/* Si el usuario actual es administrador, permitimos crear administradores */}
+                  {rolNormalizado === 'administrador' && (
+                    <option value="administrador">ADMINISTRADOR (Total)</option>
+                  )}
                 </select>
+                {rolNormalizado === 'supervisor' && (
+                  <p className="text-[11px] text-amber-400/80 mt-1">
+                    * Como supervisor, no tienes permisos para asignar el rol de Administrador.
+                  </p>
+                )}
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-700 mt-6">

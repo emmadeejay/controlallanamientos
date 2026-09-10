@@ -28,14 +28,36 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Importante: refresca la sesión si está por expirar
+  // Refresca la sesión si está por expirar
   const { data: { user } } = await supabase.auth.getUser()
+  const pathname = request.nextUrl.pathname
 
-  // Si intenta entrar al dashboard sin estar autenticado
-  if (!user && request.nextUrl.pathname.startsWith('/dashboard')) {
+  // 1. Si intenta entrar al dashboard sin estar autenticado -> al login
+  if (!user && pathname.startsWith('/dashboard')) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
+  }
+
+  // 2. Si está autenticado, verificamos si requiere cambio de contraseña obligatoria
+  if (user && pathname.startsWith('/dashboard')) {
+    // Definimos cuál es la ruta permitida para cambiar la clave (ajusta la ruta si es distinta, ej: '/dashboard/cambiar-password')
+    const rutaCambioPassword = '/dashboard/cambiar-password' 
+
+    if (pathname !== rutaCambioPassword) {
+      // Consultamos el perfil del usuario para ver si requiere el cambio
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('requiere_cambio_clave')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      if (profile?.requiere_cambio_clave === true) {
+        const url = request.nextUrl.clone()
+        url.pathname = rutaCambioPassword
+        return NextResponse.redirect(url)
+      }
+    }
   }
 
   return supabaseResponse
