@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Trash2, Save, ShieldAlert, Building2 } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Save, ShieldAlert, Building2, Loader2, Lock } from 'lucide-react'
+
+const LOCAL_STORAGE_KEY = 'borrador_nuevo_allanamiento'
 
 export default function NuevoAllanamientosPage() {
   const router = useRouter()
@@ -13,6 +15,9 @@ export default function NuevoAllanamientosPage() {
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Control de Ventana Operativa (Lunes 08:00 hs a Miércoles 08:00 hs)
+  const [fueraDeVentana, setFueraDeVentana] = useState(false)
 
   // Rol y Permisos del Usuario Logueado
   const [esElevado, setEsElevado] = useState(false)
@@ -61,8 +66,59 @@ export default function NuevoAllanamientosPage() {
   const [detenidos, setDetenidos] = useState<{ subtipo: string; cantidad: number }[]>([])
 
   useEffect(() => {
+    verificarVentanaOperativa()
     inicializarDatos()
   }, [])
+
+  // Verificar la ventana temporal (Lunes 08:00 AM - Miércoles 08:00 AM)
+  const verificarVentanaOperativa = () => {
+    const ahora = new Date()
+    const dia = ahora.getDay() // 0 = Dom, 1 = Lun, 2 = Mar, 3 = Mié, 4 = Jue, 5 = Vie, 6 = Sáb
+    const hora = ahora.getHours()
+
+    // Lunes (1) desde las 8:00 hasta Miércoles (3) a las 07:59
+    let enVentana = false
+    if (dia === 1 && hora >= 8) enVentana = true
+    if (dia === 2) enVentana = true
+    if (dia === 3 && hora < 8) enVentana = true
+
+    setFueraDeVentana(!enVentana)
+  }
+
+  // Carga de borradores locales al iniciar
+  const cargarBorrador = () => {
+    try {
+      const borrador = localStorage.getItem(LOCAL_STORAGE_KEY)
+      if (borrador) {
+        const parsed = JSON.parse(borrador)
+        if (parsed.formData) setFormData(parsed.formData)
+        if (parsed.colaboraciones) setColaboraciones(parsed.colaboraciones)
+        if (parsed.armas) setArmas(parsed.armas)
+        if (parsed.vehiculos) setVehiculos(parsed.vehiculos)
+        if (parsed.detenidos) setDetenidos(parsed.detenidos)
+        if (parsed.horaEjecucion) setHoraEjecucion(parsed.horaEjecucion)
+        if (parsed.minutoEjecucion) setMinutoEjecucion(parsed.minutoEjecucion)
+      }
+    } catch (e) {
+      console.warn('No se pudo recuperar el borrador local:', e)
+    }
+  }
+
+  // Guardar borrador local automáticamente ante cambios
+  useEffect(() => {
+    if (!fueraDeVentana) {
+      const estadoCompleto = {
+        formData,
+        colaboraciones,
+        armas,
+        vehiculos,
+        detenidos,
+        horaEjecucion,
+        minutoEjecucion
+      }
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(estadoCompleto))
+    }
+  }, [formData, colaboraciones, armas, vehiculos, detenidos, horaEjecucion, minutoEjecucion, fueraDeVentana])
 
   async function inicializarDatos() {
     try {
@@ -106,6 +162,9 @@ export default function NuevoAllanamientosPage() {
       const { data: superData } = await supabase.from('superintendencias').select('id, nombre').order('nombre')
       if (superData) setSuperintendenciasList(superData)
 
+      // Cargar borrador si no es admin/elevado o si desea restaurar
+      cargarBorrador()
+
     } catch (err) {
       console.error('Error inicializando datos:', err)
     }
@@ -144,6 +203,13 @@ export default function NuevoAllanamientosPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // Si intenta enviar fuera de ventana (sin ser elevado), rebota
+    if (fueraDeVentana && !esElevado) {
+      setError('La ventana de carga se encuentra cerrada (Lunes 08:00hs a Miércoles 08:00hs).')
+      return
+    }
+
     setLoading(true)
     setError(null)
 
@@ -151,9 +217,6 @@ export default function NuevoAllanamientosPage() {
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       if (userError || !user) throw new Error('No se encontró una sesión de usuario activa.')
 
-      // Determinación de la Superintendencia final:
-      // - Si es Admin/Supervisor: usa la seleccionada del dropdown.
-      // - Si es Operador: asignación obligatoria mediante su perfil.
       let targetSuperintendenciaId = esElevado 
         ? superintendenciaSeleccionada 
         : superintendenciaUsuario
@@ -224,6 +287,9 @@ export default function NuevoAllanamientosPage() {
         if (colabError) throw colabError
       }
 
+      // Si se guardó con éxito, vaciar el borrador
+      localStorage.removeItem(LOCAL_STORAGE_KEY)
+
       router.push('/dashboard')
 
     } catch (err: any) {
@@ -232,6 +298,27 @@ export default function NuevoAllanamientosPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Render si está fuera de ventana y no es Administrador/Supervisor
+  if (fueraDeVentana && !esElevado) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-center mb-4 text-amber-400">
+          <Lock className="w-8 h-8" />
+        </div>
+        <h1 className="text-xl font-bold text-white mb-2">Fuera de Período de Carga</h1>
+        <p className="text-sm text-slate-400 max-w-md mb-6">
+          El sistema solo habilita el registro de allanamientos desde los <span className="text-amber-400 font-semibold">Lunes a las 08:00 hs</span> hasta los <span className="text-amber-400 font-semibold">Miércoles a las 08:00 hs</span>.
+        </p>
+        <button
+          onClick={() => router.push('/dashboard')}
+          className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 rounded-xl text-sm font-semibold transition"
+        >
+          Volver al Dashboard
+        </button>
+      </div>
+    )
   }
 
   return (
@@ -797,7 +884,17 @@ export default function NuevoAllanamientosPage() {
               disabled={loading}
               className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold transition flex items-center gap-2 shadow-lg shadow-blue-600/20 disabled:opacity-50"
             >
-              <Save className="w-4 h-4" /> {loading ? 'Guardando...' : 'Guardar Allanamientos'}
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Guardando...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  <span>Guardar Allanamientos</span>
+                </>
+              )}
             </button>
           </div>
 
