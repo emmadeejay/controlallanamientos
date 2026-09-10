@@ -1,17 +1,18 @@
-import { createBrowserClient } from '@supabase/ssr'
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Guardamos la instancia globalmente fuera de la función
-let browserClient: ReturnType<typeof createBrowserClient> | null = null
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-export function createClient() {
-  if (!browserClient) {
-    browserClient = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
-  }
-  return browserClient
+let supabaseInstance: SupabaseClient | null = null;
+
+export const supabase = supabaseInstance ?? createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+});
+
+if (typeof window !== 'undefined' && !supabaseInstance) {
+  supabaseInstance = supabase;
 }
-
-// Exportamos también la constante directa para compatibilidad
-export const supabase = createClient()
