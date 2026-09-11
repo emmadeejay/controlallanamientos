@@ -7,7 +7,6 @@ import { ArrowLeft, Plus, Trash2, Save, ShieldAlert, Loader2 } from 'lucide-reac
 
 export default function EditarAllanamientoPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
-  // Soporte para Next.js 15 (params asíncronos)
   const resolvedParams = use(params)
   const id = resolvedParams.id
 
@@ -104,7 +103,6 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         obsLimpia = obsPart.trim()
 
         if (secuestraPart) {
-          // Parsear Armas
           const matchArmas = secuestraPart.match(/Armas\s*\[(.*?)\]/)
           if (matchArmas && matchArmas[1]) {
             const items = matchArmas[1].split(',').map((item: string) => {
@@ -114,7 +112,6 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
             setArmas(items)
           }
 
-          // Parsear Vehículos
           const matchVeh = secuestraPart.match(/Vehículos\s*\[(.*?)\]/)
           if (matchVeh && matchVeh[1]) {
             const items = matchVeh[1].split(',').map((item: string) => {
@@ -124,7 +121,6 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
             setVehiculos(items)
           }
 
-          // Parsear Detenidos / Personas
           const matchDet = secuestraPart.match(/Personas\s*\[(.*?)\]/)
           if (matchDet && matchDet[1]) {
             const items = matchDet[1].split(',').map((item: string) => {
@@ -156,7 +152,6 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         observaciones: obsLimpia
       })
 
-      // Cargar colaboraciones vinculadas
       const { data: colabData } = await supabase
         .from('allanamiento_colaboraciones')
         .select('*')
@@ -184,7 +179,6 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
     setFormData(prev => ({ ...prev, [name]: value }))
   }
 
-  // Handlers colaboraciones y secuestros
   const addColaboracion = () => setColaboraciones(prev => [...prev, { especialidad: '', cant_solicitada: 1, cant_afectada: 1 }])
   const removeColaboracion = (index: number) => setColaboraciones(prev => prev.filter((_, i) => i !== index))
   const handleColabChange = (index: number, field: string, value: any) => {
@@ -222,7 +216,6 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         ].filter(Boolean).join(' | ')
       }
 
-      // Evitar duplicaciones limpiando antes de concatenar
       const obsBase = formData.observaciones.split(' - Secuestros:')[0].trim()
 
       const obsFinales = [obsBase, detalleSecuestrosTexto ? `Secuestros: ${detalleSecuestrosTexto}` : '']
@@ -258,7 +251,6 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
 
       if (updateErr) throw updateErr
 
-      // Reemplazar colaboraciones: Borrar anteriores y reinsertar
       await supabase.from('allanamiento_colaboraciones').delete().eq('allanamiento_id', id)
 
       if (colaboraciones.length > 0 && colaboraciones[0].especialidad) {
@@ -272,6 +264,8 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         if (colabError) throw colabError
       }
 
+      // Forzar revalidación de caché en Next.js antes de redirigir
+      router.refresh()
       router.push('/dashboard')
 
     } catch (err: any) {
