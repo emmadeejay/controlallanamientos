@@ -3,10 +3,10 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { Plus, Search, Edit3, Trash2, Lock, Upload } from 'lucide-react';
+import { Plus, Search, Edit3, Trash2, Lock, Upload, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, ShieldAlert } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
-// COMPONENTE DE IMPORTACIÓN EXCEL CON TODOS LOS CAMPOS DEL FORMULARIO
+// COMPONENTE DE IMPORTACIÓN EXCEL
 function BotonImportarExcel({ onImportSuccess }: { onImportSuccess?: () => void }) {
   const [permitido, setPermitido] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -147,12 +147,122 @@ function BotonImportarExcel({ onImportSuccess }: { onImportSuccess?: () => void 
   );
 }
 
+// COMPONENTE DE CONTROL SEMÁFORO POR SUPERINTENDENCIA
+function SemaforoSuperintendencias({ allanamientos }: { allanamientos: any[] }) {
+  const [superintendencias, setSuperintendencias] = useState<any[]>([]);
+  const [desplegado, setDesplegado] = useState(true);
+  const [cargandoSupers, setCargandoSupers] = useState(true);
+
+  useEffect(() => {
+    obtenerSuperintendencias();
+  }, []);
+
+  async function obtenerSuperintendencias() {
+    try {
+      const { data, error } = await supabase.from('superintendencias').select('id, nombre').order('nombre');
+      if (!error && data) {
+        setSuperintendencias(data);
+      }
+    } catch (err) {
+      console.error('Error al cargar superintendencias:', err);
+    } finally {
+      setCargandoSupers(false);
+    }
+  }
+
+  // Mapa de conteo por ID de superintendencia
+  const conteoPorSuper = allanamientos.reduce((acc: Record<string, number>, item) => {
+    if (item.superintendencia_id) {
+      acc[item.superintendencia_id] = (acc[item.superintendencia_id] || 0) + 1;
+    }
+    return acc;
+  }, {});
+
+  const activas = superintendencias.filter(s => (conteoPorSuper[s.id] || 0) > 0).length;
+  const sinRegistros = superintendencias.length - activas;
+
+  if (cargandoSupers) return null;
+
+  return (
+    <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow-xl backdrop-blur-md transition-all">
+      {/* Encabezado colapsable */}
+      <div 
+        onClick={() => setDesplegado(!desplegado)}
+        className="px-5 py-4 bg-slate-950/80 border-b border-slate-800/80 flex items-center justify-between cursor-pointer hover:bg-slate-900/90 transition"
+      >
+        <div className="flex items-center gap-3">
+          <ShieldAlert className="w-5 h-5 text-blue-400" />
+          <div>
+            <h3 className="text-sm font-bold text-white tracking-tight">
+              Control de Presentación Semanal por Superintendencia
+            </h3>
+            <p className="text-[11px] text-slate-400">
+              Estado de actividad en la ventana actual (Mínimo 1 registro requerido)
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <CheckCircle2 className="w-3.5 h-3.5" /> {activas} Activas
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20">
+              <AlertCircle className="w-3.5 h-3.5" /> {sinRegistros} Sin Registros
+            </span>
+          </div>
+
+          <button className="text-slate-400 hover:text-white transition">
+            {desplegado ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+          </button>
+        </div>
+      </div>
+
+      {/* Rejilla de tarjetas binarias */}
+      {desplegado && (
+        <div className="p-5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-96 overflow-y-auto custom-scrollbar">
+          {superintendencias.map((sup) => {
+            const cantidad = conteoPorSuper[sup.id] || 0;
+            const tieneRegistros = cantidad > 0;
+
+            return (
+              <div 
+                key={sup.id}
+                className={`p-3 rounded-xl border flex items-center justify-between gap-2 transition-all ${
+                  tieneRegistros
+                    ? 'bg-slate-950/40 border-slate-800/80 hover:border-emerald-500/30'
+                    : 'bg-red-950/10 border-red-900/30 hover:border-red-500/40'
+                }`}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-semibold text-slate-200 truncate" title={sup.nombre}>
+                    {sup.nombre}
+                  </p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    {tieneRegistros ? `${cantidad} ${cantidad === 1 ? 'registro' : 'registros'}` : 'Sin datos presentados'}
+                  </p>
+                </div>
+
+                <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${tieneRegistros ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50' : 'bg-red-500 animate-pulse shadow-sm shadow-red-500/50'}`} />
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [allanamientos, setAllanamientos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState('');
   const [puedeEditar, setPuedeEditar] = useState(false);
+
+  // ESTADOS DE PAGINACIÓN
+  const [paginaActual, setPaginaActual] = useState(1);
+  const [registrosPorPagina, setRegistrosPorPagina] = useState(10);
 
   useEffect(() => {
     checkPeriodoYUsuario();
@@ -236,6 +346,16 @@ export default function DashboardPage() {
     item.superintendencias?.nombre?.toLowerCase().includes(busqueda.toLowerCase())
   );
 
+  // CÁLCULOS DE PAGINACIÓN
+  const totalPaginas = Math.ceil(filtrados.length / registrosPorPagina);
+  const indiceInicio = (paginaActual - 1) * registrosPorPagina;
+  const registrosPaginados = filtrados.slice(indiceInicio, indiceInicio + registrosPorPagina);
+
+  // Reiniciar a la página 1 cuando cambia la búsqueda
+  useEffect(() => {
+    setPaginaActual(1);
+  }, [busqueda, registrosPorPagina]);
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 space-y-6">
       
@@ -280,7 +400,7 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Tabla de Resultados */}
+      {/* Tabla de Resultados con Paginación */}
       <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow-xl backdrop-blur-md">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-300">
@@ -301,14 +421,14 @@ export default function DashboardPage() {
                     Cargando registros...
                   </td>
                 </tr>
-              ) : filtrados.length === 0 ? (
+              ) : registrosPaginados.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-8 text-center text-slate-500">
                     No se encontraron allanamientos.
                   </td>
                 </tr>
               ) : (
-                filtrados.map((item) => (
+                registrosPaginados.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-800/30 transition">
                     <td className="px-4 py-3">
                       <div className="font-semibold text-white">{item.numero_ipp}</div>
@@ -366,7 +486,57 @@ export default function DashboardPage() {
             </tbody>
           </table>
         </div>
+
+        {/* PIE DE TABLA CON PAGINACIÓN */}
+        {!loading && filtrados.length > 0 && (
+          <div className="px-4 py-3 bg-slate-950/80 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
+            <div className="flex items-center gap-3">
+              <div>
+                Mostrando <span className="font-semibold text-white">{indiceInicio + 1}</span> a{' '}
+                <span className="font-semibold text-white">
+                  {Math.min(indiceInicio + registrosPorPagina, filtrados.length)}
+                </span>{' '}
+                de <span className="font-semibold text-white">{filtrados.length}</span> registros
+              </div>
+
+              <select
+                value={registrosPorPagina}
+                onChange={(e) => setRegistrosPorPagina(Number(e.target.value))}
+                className="bg-slate-900 border border-slate-800 text-slate-300 text-[11px] rounded-lg px-2 py-1 focus:outline-none focus:border-blue-500"
+              >
+                <option value={10}>10 por pág.</option>
+                <option value={25}>25 por pág.</option>
+                <option value={50}>50 por pág.</option>
+                <option value={100}>100 por pág.</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPaginaActual((prev) => Math.max(prev - 1, 1))}
+                disabled={paginaActual === 1}
+                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition"
+              >
+                Anterior
+              </button>
+              <span className="text-slate-500 font-medium px-2">
+                Página {paginaActual} de {totalPaginas || 1}
+              </span>
+              <button
+                onClick={() => setPaginaActual((prev) => Math.min(prev + 1, totalPaginas))}
+                disabled={paginaActual === totalPaginas || totalPaginas === 0}
+                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition"
+              >
+                Siguiente
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* COMPONENTE DE CONTROL SEMÁFORO DE SUPERINTENDENCIAS */}
+      <SemaforoSuperintendencias allanamientos={allanamientos} />
+
     </div>
   );
 }
