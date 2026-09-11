@@ -11,7 +11,7 @@ import * as XLSX from 'xlsx';
 // HELPER: Obtener el inicio de la semana actual (Lunes a las 00:00:00 hs)
 function getInicioSemanaActual(): Date {
   const ahora = new Date();
-  const diaSemana = ahora.getDay?.() ?? ahora.getDay();
+  const diaSemana = ahora.getDay();
   const diffLunes = (diaSemana === 0 ? -6 : 1) - diaSemana;
 
   const lunesActual = new Date(ahora);
@@ -351,9 +351,9 @@ function BotonImportarExcel({ onImportSuccess }: { onImportSuccess?: () => void 
             cantidad_objetivos: row.cantidad_objetivos || 1,
             personal_colaboracion: row.colaboracion || null,
             resultado_secuestros: row.resultado_secuestros || 'Positivo',
-            armas_secuestradas: row.armas || null,
-            vehiculos_secuestrados: row.vehiculos || null,
-            detenidos_aprehendidos: row.personas || null,
+            armas_secuestradas: Number(row.armas || row.armas_secuestradas || 0),
+            vehiculos_secuestrados: Number(row.vehiculos || row.vehiculos_secuestrados || 0),
+            detenidos_aprehendidos: Number(row.personas || row.detenidos_aprehendidos || 0),
             observaciones: row.observaciones || 'Carga masiva Excel'
           };
         });

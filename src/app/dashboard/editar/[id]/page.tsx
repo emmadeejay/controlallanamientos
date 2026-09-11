@@ -204,7 +204,15 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
       const horarioFinal = `${horaEjecucion}:${minutoEjecucion}`
 
       let detalleSecuestrosTexto = ''
+      let totalArmas = 0
+      let totalVehiculos = 0
+      let totalDetenidos = 0
+
       if (formData.resultado_secuestros === 'Positivo') {
+        totalArmas = armas.reduce((acc, a) => acc + (Number(a.cantidad) || 0), 0)
+        totalVehiculos = vehiculos.reduce((acc, v) => acc + (Number(v.cantidad) || 0), 0)
+        totalDetenidos = detenidos.reduce((acc, d) => acc + (Number(d.cantidad) || 0), 0)
+
         const resumenArmas = armas.filter(a => a.cantidad > 0).map(a => `${a.subtipo}: ${a.cantidad}`).join(', ')
         const resumenVehiculos = vehiculos.filter(v => v.cantidad > 0).map(v => `${v.subtipo}: ${v.cantidad}`).join(', ')
         const resumenDetenidos = detenidos.filter(d => d.cantidad > 0).map(d => `${d.subtipo}: ${d.cantidad}`).join(', ')
@@ -238,6 +246,9 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         resultado_medida: formData.resultado_medida,
         es_positivo: formData.resultado_medida === 'Positivo',
         resultado_secuestros: formData.resultado_secuestros,
+        armas_secuestradas: totalArmas,
+        vehiculos_secuestrados: totalVehiculos,
+        detenidos_aprehendidos: totalDetenidos,
         orden_servicio_propia: formData.orden_servicio_propia || 'S/N',
         orden_servicio_cop: formData.orden_servicio_cop || null,
         numero_parte_urgente: formData.numero_parte_urgente || null,
