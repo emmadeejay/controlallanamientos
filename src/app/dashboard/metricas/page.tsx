@@ -7,7 +7,6 @@ import {
 } from 'recharts';
 import { Calendar, ShieldCheck, ShieldAlert, Car, Shield, UserCheck, TrendingUp } from 'lucide-react';
 
-// Tipos basados en las opciones del formulario
 type DesgloseArmas = {
   'Arma Corta': number;
   'Arma Larga': number;
@@ -27,10 +26,9 @@ type DesglosePersonas = {
   'Aprehendido': number;
 };
 
-// HELPER: Inicio de semana actual (Lunes 00:00:00 hs)
 function getInicioSemanaActual(): Date {
   const ahora = new Date();
-  const diaSemana = ahora.getDay(); // 0: Dom, 1: Lun, 2: Mar...
+  const diaSemana = ahora.getDay();
   const diffLunes = (diaSemana === 0 ? -6 : 1) - diaSemana;
 
   const lunes = new Date(ahora);
@@ -39,31 +37,73 @@ function getInicioSemanaActual(): Date {
   return lunes;
 }
 
-// HELPER: Inicio del mes actual (Día 1, 00:00:00 hs)
 function getInicioMesActual(): Date {
   const ahora = new Date();
   return new Date(ahora.getFullYear(), ahora.getMonth(), 1, 0, 0, 0);
 }
 
+// Función flexible para extraer conteos desde arrays JSONB en cualquier formato
+function procesarDetalles(registros: any[], tipoBuscado: 'armas' | 'vehiculos' | 'detenidos') {
+  const conteo: Record<string, number> = {};
+
+  registros.forEach(item => {
+    Object.keys(item).forEach(key => {
+      const valor = item[key];
+      const keyLower = key.toLowerCase();
+
+      const esCampoCoincidente = keyLower.includes(tipoBuscado) || 
+        (tipoBuscado === 'detenidos' && (keyLower.includes('personas') || keyLower.includes('aprehendidos')));
+
+      if (esCampoCoincidente && valor) {
+        let lista = valor;
+        
+        if (typeof valor === 'string') {
+          try { lista = JSON.parse(valor); } catch { lista = []; }
+        }
+
+        if (Array.isArray(lista)) {
+          lista.forEach((element: any) => {
+            if (element && typeof element === 'object') {
+              const categoria = element.tipo || 
+                                element.tipo_arma || 
+                                element.tipo_vehiculo || 
+                                element.tipo_persona || 
+                                element.categoria || 
+                                element.subtipo || 
+                                element.especialidad;
+
+              const cantidad = parseInt(element.cantidad || element.cant || 1, 10);
+              
+              if (categoria && typeof categoria === 'string') {
+                conteo[categoria] = (conteo[categoria] || 0) + (isNaN(cantidad) ? 1 : cantidad);
+              }
+            } else if (typeof element === 'string') {
+              conteo[element] = (conteo[element] || 0) + 1;
+            }
+          });
+        }
+      }
+    });
+  });
+
+  return conteo;
+}
+
 export default function MetricasPage() {
   const [loading, setLoading] = useState(true);
   
-  // KPIs
   const [rendicionSemanal, setRendicionSemanal] = useState(0);
   const [totalMensual, setTotalMensual] = useState(0);
   const [efectividad, setEfectividad] = useState(100);
   
-  // Secuestros filtrados por SEMANA ACTUAL
   const [armasSemana, setArmasSemana] = useState(0);
   const [vehiculosSemana, setVehiculosSemana] = useState(0);
   const [detenidosSemana, setDetenidosSemana] = useState(0);
 
-  // Totales mensuales para referencia secundaria
   const [armasMes, setArmasMes] = useState(0);
   const [vehiculosMes, setVehiculosMes] = useState(0);
   const [detenidosMes, setDetenidosMes] = useState(0);
 
-  // Desgloses por categoría (Semana Actual)
   const [desgloseArmas, setDesgloseArmas] = useState<DesgloseArmas>({
     'Arma Corta': 0, 'Arma Larga': 0, 'Arma Blanca': 0, 'Réplica': 0
   });
@@ -74,7 +114,6 @@ export default function MetricasPage() {
     'Detenido': 0, 'Aprehendido': 0
   });
 
-  // Datos para gráficos
   const [datosEvolucion, setDatosEvolucion] = useState<any[]>([]);
   const [datosPartidos, setDatosPartidos] = useState<any[]>([]);
   const [datosSuperintendencias, setDatosSuperintendencias] = useState<any[]>([]);
@@ -83,26 +122,6 @@ export default function MetricasPage() {
   useEffect(() => {
     cargarMetricas();
   }, []);
-
-  // Función para procesar y contar items de JSONB
-  function procesarDetalles(registros: any[], campoJSON: string) {
-    const conteo: Record<string, number> = {};
-
-    registros.forEach(item => {
-      const lista = item[campoJSON] || item[`${campoJSON}_detalles`] || item[`secuestro_${campoJSON}`] || [];
-      if (Array.isArray(lista)) {
-        lista.forEach((element: any) => {
-          const tipo = element.tipo || element.categoria || element.subtipo || element;
-          const cantidad = parseInt(element.cantidad || 1, 10);
-          if (tipo && typeof tipo === 'string') {
-            conteo[tipo] = (conteo[tipo] || 0) + (isNaN(cantidad) ? 1 : cantidad);
-          }
-        });
-      }
-    });
-
-    return conteo;
-  }
 
   async function cargarMetricas() {
     setLoading(true);
@@ -116,25 +135,20 @@ export default function MetricasPage() {
       const inicioSemana = getInicioSemanaActual();
       const inicioMes = getInicioMesActual();
 
-      // 1. Filtrar registros por períodos
       const registrosSemana = data.filter(item => new Date(item.created_at || item.fecha_ejecucion) >= inicioSemana);
       const registrosMes = data.filter(item => new Date(item.created_at || item.fecha_ejecucion) >= inicioMes);
 
-      // 2. Cálculos KPIs principales
       setRendicionSemanal(registrosSemana.length);
       setTotalMensual(registrosMes.length);
 
-      // Efectividad (positivos sobre el total de la semana)
       const positivosSemana = registrosSemana.filter(i => (i.resultado_medida || '').toLowerCase() === 'positivo').length;
       setEfectividad(registrosSemana.length > 0 ? Math.round((positivosSemana / registrosSemana.length) * 100) : 100);
 
-      // 3. Totales de Secuestros - FILTRADOS POR LA SEMANA EN CURSO
       const parseNum = (val: any) => {
         const n = parseInt(val, 10);
         return isNaN(n) ? 0 : n;
       };
 
-      // Conteos Generales
       setArmasSemana(registrosSemana.reduce((acc, curr) => acc + parseNum(curr.armas_secuestradas), 0));
       setVehiculosSemana(registrosSemana.reduce((acc, curr) => acc + parseNum(curr.vehiculos_secuestrados), 0));
       setDetenidosSemana(registrosSemana.reduce((acc, curr) => acc + parseNum(curr.detenidos_aprehendidos || curr.detenidos_aprehendidos_cant), 0));
@@ -143,7 +157,7 @@ export default function MetricasPage() {
       setVehiculosMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.vehiculos_secuestrados), 0));
       setDetenidosMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.detenidos_aprehendidos || curr.detenidos_aprehendidos_cant), 0));
 
-      // 4. Calcular Desgloses Específicos para Armas, Vehículos y Personas
+      // Extraer desgloses de categorías
       const armasConteo = procesarDetalles(registrosSemana, 'armas');
       setDesgloseArmas({
         'Arma Corta': armasConteo['Arma Corta'] || 0,
@@ -166,7 +180,7 @@ export default function MetricasPage() {
         'Aprehendido': personasConteo['Aprehendido'] || 0,
       });
 
-      // 5. Gráfico: Evolución Semanal
+      // Gráficos
       const semanas = [0, 1, 2, 3].map(offset => {
         const inicio = new Date(inicioSemana);
         inicio.setDate(inicio.getDate() - (offset * 7));
@@ -184,7 +198,6 @@ export default function MetricasPage() {
 
       setDatosEvolucion(semanas);
 
-      // 6. Gráfico: Top 5 Partidos
       const conteoPartidos: Record<string, number> = {};
       data.forEach(item => {
         const p = item.partido || 'Sin Especificar';
@@ -198,7 +211,6 @@ export default function MetricasPage() {
 
       setDatosPartidos(topPartidos);
 
-      // 7. Gráfico: Distribución Operativa por Superintendencias
       const conteoSupers: Record<string, number> = {};
       data.forEach(item => {
         const s = item.superintendencias?.nombre || item.superintendencia || 'Sin Especificar';
@@ -211,7 +223,6 @@ export default function MetricasPage() {
 
       setDatosSuperintendencias(arrSupers);
 
-      // 8. Gráfico: Top 5 Especialidades / Colaboradores
       const conteoEspecialidades: Record<string, number> = {};
       data.forEach(item => {
         const esp = item.personal_colaboracion || 'No se Solicitó';
@@ -246,7 +257,6 @@ export default function MetricasPage() {
       {/* TARJETAS KPI SUPERIORES */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         
-        {/* Rendición Semanal */}
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-[11px] font-semibold uppercase tracking-wider">Rendición Semanal</span>
@@ -256,7 +266,6 @@ export default function MetricasPage() {
           <p className="text-[10px] text-slate-500 mt-1">Lunes a Domingo en curso</p>
         </div>
 
-        {/* Total Mensual */}
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-[11px] font-semibold uppercase tracking-wider">Total Mensual</span>
@@ -266,7 +275,6 @@ export default function MetricasPage() {
           <p className="text-[10px] text-slate-500 mt-1">Acumulado del mes actual</p>
         </div>
 
-        {/* Efectividad Medidas */}
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-[11px] font-semibold uppercase tracking-wider">Efectividad Medidas</span>
@@ -341,7 +349,6 @@ export default function MetricasPage() {
       {/* SECCIÓN DE GRÁFICOS INFERIORES */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
-        {/* Gráfico 1: Evolución Semanal */}
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
           <h3 className="text-xs font-bold text-white mb-4 flex items-center gap-2">
             <Calendar className="w-4 h-4 text-blue-400" /> Evolución Semanal de Procedimientos
@@ -361,7 +368,6 @@ export default function MetricasPage() {
           </div>
         </div>
 
-        {/* Gráfico 2: Top 5 Partidos */}
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
           <h3 className="text-xs font-bold text-white mb-4 flex items-center gap-2">
             <Shield className="w-4 h-4 text-emerald-400" /> Top 5 Partidos con Mayor Registros
@@ -381,7 +387,6 @@ export default function MetricasPage() {
           </div>
         </div>
 
-        {/* Gráfico 3: Distribución Operativa por Superintendencias */}
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
           <h3 className="text-xs font-bold text-white mb-4 flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-cyan-400" /> Distribución Operativa por Superintendencias
@@ -401,7 +406,6 @@ export default function MetricasPage() {
           </div>
         </div>
 
-        {/* Gráfico 4: Top 5 Especialidades / Colaboradores */}
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
           <h3 className="text-xs font-bold text-white mb-4 flex items-center gap-2">
             <UserCheck className="w-4 h-4 text-purple-400" /> Top 5 de Especialidades / Colaboradores
