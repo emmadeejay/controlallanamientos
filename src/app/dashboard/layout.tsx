@@ -20,7 +20,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     const checkAndFetchUser = async () => {
       try {
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        // Creamos un timeout de seguridad de 6 segundos para evitar que se cuelgue indefinidamente
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Timeout al verificar sesión')), 6000)
+        );
+
+        const getUserPromise = supabase.auth.getUser();
+
+        const res: any = await Promise.race([getUserPromise, timeoutPromise]);
+        const { data: { user }, error: userError } = res;
 
         if (userError || !user) {
           window.location.href = '/login';
@@ -56,7 +64,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           }
         }
       } catch (err) {
-        console.error('Error al verificar sesión:', err);
+        console.error('Error o timeout al verificar sesión:', err);
+        // Si hay un fallo de red o timeout, permitimos avanzar como operador o redirigir al login si es crítico
+        window.location.href = '/login';
       } finally {
         if (isMounted) setLoading(false);
       }
