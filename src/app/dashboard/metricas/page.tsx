@@ -3,9 +3,29 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell 
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid 
 } from 'recharts';
 import { Calendar, ShieldCheck, ShieldAlert, Car, Shield, UserCheck, TrendingUp } from 'lucide-react';
+
+// Tipos basados en las opciones del formulario
+type DesgloseArmas = {
+  'Arma Corta': number;
+  'Arma Larga': number;
+  'Arma Blanca': number;
+  'Réplica': number;
+};
+
+type DesgloseVehiculos = {
+  'Auto': number;
+  'Moto': number;
+  'Camioneta': number;
+  'Otros': number;
+};
+
+type DesglosePersonas = {
+  'Detenido': number;
+  'Aprehendido': number;
+};
 
 // HELPER: Inicio de semana actual (Lunes 00:00:00 hs)
 function getInicioSemanaActual(): Date {
@@ -43,6 +63,17 @@ export default function MetricasPage() {
   const [vehiculosMes, setVehiculosMes] = useState(0);
   const [detenidosMes, setDetenidosMes] = useState(0);
 
+  // Desgloses por categoría (Semana Actual)
+  const [desgloseArmas, setDesgloseArmas] = useState<DesgloseArmas>({
+    'Arma Corta': 0, 'Arma Larga': 0, 'Arma Blanca': 0, 'Réplica': 0
+  });
+  const [desgloseVehiculos, setDesgloseVehiculos] = useState<DesgloseVehiculos>({
+    'Auto': 0, 'Moto': 0, 'Camioneta': 0, 'Otros': 0
+  });
+  const [desglosePersonas, setDesglosePersonas] = useState<DesglosePersonas>({
+    'Detenido': 0, 'Aprehendido': 0
+  });
+
   // Datos para gráficos
   const [datosEvolucion, setDatosEvolucion] = useState<any[]>([]);
   const [datosPartidos, setDatosPartidos] = useState<any[]>([]);
@@ -52,6 +83,26 @@ export default function MetricasPage() {
   useEffect(() => {
     cargarMetricas();
   }, []);
+
+  // Función para procesar y contar items de JSONB
+  function procesarDetalles(registros: any[], campoJSON: string) {
+    const conteo: Record<string, number> = {};
+
+    registros.forEach(item => {
+      const lista = item[campoJSON] || item[`${campoJSON}_detalles`] || item[`secuestro_${campoJSON}`] || [];
+      if (Array.isArray(lista)) {
+        lista.forEach((element: any) => {
+          const tipo = element.tipo || element.categoria || element.subtipo || element;
+          const cantidad = parseInt(element.cantidad || 1, 10);
+          if (tipo && typeof tipo === 'string') {
+            conteo[tipo] = (conteo[tipo] || 0) + (isNaN(cantidad) ? 1 : cantidad);
+          }
+        });
+      }
+    });
+
+    return conteo;
+  }
 
   async function cargarMetricas() {
     setLoading(true);
@@ -83,17 +134,39 @@ export default function MetricasPage() {
         return isNaN(n) ? 0 : n;
       };
 
+      // Conteos Generales
       setArmasSemana(registrosSemana.reduce((acc, curr) => acc + parseNum(curr.armas_secuestradas), 0));
       setVehiculosSemana(registrosSemana.reduce((acc, curr) => acc + parseNum(curr.vehiculos_secuestrados), 0));
-      setDetenidosSemana(registrosSemana.reduce((acc, curr) => acc + parseNum(curr.detenidos_aprehendidos), 0));
+      setDetenidosSemana(registrosSemana.reduce((acc, curr) => acc + parseNum(curr.detenidos_aprehendidos || curr.detenidos_aprehendidos_cant), 0));
 
-      // Acumulados mensuales para texto secundario
       setArmasMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.armas_secuestradas), 0));
       setVehiculosMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.vehiculos_secuestrados), 0));
-      setDetenidosMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.detenidos_aprehendidos), 0));
+      setDetenidosMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.detenidos_aprehendidos || curr.detenidos_aprehendidos_cant), 0));
 
-      // 4. Gráfico: Evolución Semanal (Últimas 4 semanas)
-      const ahora = new Date();
+      // 4. Calcular Desgloses Específicos para Armas, Vehículos y Personas
+      const armasConteo = procesarDetalles(registrosSemana, 'armas');
+      setDesgloseArmas({
+        'Arma Corta': armasConteo['Arma Corta'] || 0,
+        'Arma Larga': armasConteo['Arma Larga'] || 0,
+        'Arma Blanca': armasConteo['Arma Blanca'] || 0,
+        'Réplica': armasConteo['Réplica'] || 0,
+      });
+
+      const vehiculosConteo = procesarDetalles(registrosSemana, 'vehiculos');
+      setDesgloseVehiculos({
+        'Auto': vehiculosConteo['Auto'] || 0,
+        'Moto': vehiculosConteo['Moto'] || 0,
+        'Camioneta': vehiculosConteo['Camioneta'] || 0,
+        'Otros': vehiculosConteo['Otros'] || 0,
+      });
+
+      const personasConteo = procesarDetalles(registrosSemana, 'detenidos');
+      setDesglosePersonas({
+        'Detenido': personasConteo['Detenido'] || 0,
+        'Aprehendido': personasConteo['Aprehendido'] || 0,
+      });
+
+      // 5. Gráfico: Evolución Semanal
       const semanas = [0, 1, 2, 3].map(offset => {
         const inicio = new Date(inicioSemana);
         inicio.setDate(inicio.getDate() - (offset * 7));
@@ -111,7 +184,7 @@ export default function MetricasPage() {
 
       setDatosEvolucion(semanas);
 
-      // 5. Gráfico: Top 5 Partidos con Mayor Registros
+      // 6. Gráfico: Top 5 Partidos
       const conteoPartidos: Record<string, number> = {};
       data.forEach(item => {
         const p = item.partido || 'Sin Especificar';
@@ -125,7 +198,7 @@ export default function MetricasPage() {
 
       setDatosPartidos(topPartidos);
 
-      // 6. Gráfico: Distribución Operativa por Superintendencias (BARRAS)
+      // 7. Gráfico: Distribución Operativa por Superintendencias
       const conteoSupers: Record<string, number> = {};
       data.forEach(item => {
         const s = item.superintendencias?.nombre || item.superintendencia || 'Sin Especificar';
@@ -138,7 +211,7 @@ export default function MetricasPage() {
 
       setDatosSuperintendencias(arrSupers);
 
-      // 7. Gráfico: Top 5 Especialidades / Colaboradores
+      // 8. Gráfico: Top 5 Especialidades / Colaboradores
       const conteoEspecialidades: Record<string, number> = {};
       data.forEach(item => {
         const esp = item.personal_colaboracion || 'No se Solicitó';
@@ -205,37 +278,62 @@ export default function MetricasPage() {
 
       </div>
 
-      {/* TARJETAS DE RESULTADOS Y SECUESTROS (FILTRADOS POR SEMANA) */}
+      {/* TARJETAS DE RESULTADOS Y SECUESTROS CON DESGLOSE */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         
         {/* Armas Secuestradas */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Armas Secuestradas</span>
-            <ShieldAlert className="w-4 h-4 text-red-400" />
+        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-slate-400 mb-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wider">Armas Secuestradas</span>
+              <ShieldAlert className="w-4 h-4 text-red-400" />
+            </div>
+            <div className="text-3xl font-extrabold text-white">{armasSemana}</div>
+            <p className="text-[10px] text-slate-500 mt-1">Esta semana ({armasMes} en el mes)</p>
           </div>
-          <div className="text-3xl font-extrabold text-white">{armasSemana}</div>
-          <p className="text-[10px] text-slate-500 mt-1">Esta semana ({armasMes} en el mes)</p>
+
+          <div className="grid grid-cols-2 gap-1.5 pt-3 mt-3 border-t border-slate-800/80 text-[11px]">
+            <div className="text-slate-400">Corta: <span className="font-semibold text-white">{desgloseArmas['Arma Corta']}</span></div>
+            <div className="text-slate-400">Larga: <span className="font-semibold text-white">{desgloseArmas['Arma Larga']}</span></div>
+            <div className="text-slate-400">Blanca: <span className="font-semibold text-white">{desgloseArmas['Arma Blanca']}</span></div>
+            <div className="text-slate-400">Réplica: <span className="font-semibold text-white">{desgloseArmas['Réplica']}</span></div>
+          </div>
         </div>
 
         {/* Vehículos Secuestrados */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Vehículos Secuestrados</span>
-            <Car className="w-4 h-4 text-cyan-400" />
+        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-slate-400 mb-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wider">Vehículos Secuestrados</span>
+              <Car className="w-4 h-4 text-cyan-400" />
+            </div>
+            <div className="text-3xl font-extrabold text-white">{vehiculosSemana}</div>
+            <p className="text-[10px] text-slate-500 mt-1">Esta semana ({vehiculosMes} en el mes)</p>
           </div>
-          <div className="text-3xl font-extrabold text-white">{vehiculosSemana}</div>
-          <p className="text-[10px] text-slate-500 mt-1">Esta semana ({vehiculosMes} en el mes)</p>
+
+          <div className="grid grid-cols-2 gap-1.5 pt-3 mt-3 border-t border-slate-800/80 text-[11px]">
+            <div className="text-slate-400">Auto: <span className="font-semibold text-white">{desgloseVehiculos['Auto']}</span></div>
+            <div className="text-slate-400">Moto: <span className="font-semibold text-white">{desgloseVehiculos['Moto']}</span></div>
+            <div className="text-slate-400">Camioneta: <span className="font-semibold text-white">{desgloseVehiculos['Camioneta']}</span></div>
+            <div className="text-slate-400">Otros: <span className="font-semibold text-white">{desgloseVehiculos['Otros']}</span></div>
+          </div>
         </div>
 
         {/* Detenidos / Aprehendidos */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Detenidos / Aprehendidos</span>
-            <UserCheck className="w-4 h-4 text-purple-400" />
+        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-slate-400 mb-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wider">Detenidos / Aprehendidos</span>
+              <UserCheck className="w-4 h-4 text-purple-400" />
+            </div>
+            <div className="text-3xl font-extrabold text-white">{detenidosSemana}</div>
+            <p className="text-[10px] text-slate-500 mt-1">Esta semana ({detenidosMes} en el mes)</p>
           </div>
-          <div className="text-3xl font-extrabold text-white">{detenidosSemana}</div>
-          <p className="text-[10px] text-slate-500 mt-1">Esta semana ({detenidosMes} en el mes)</p>
+
+          <div className="grid grid-cols-2 gap-1.5 pt-3 mt-3 border-t border-slate-800/80 text-[11px]">
+            <div className="text-slate-400">Detenido: <span className="font-semibold text-white">{desglosePersonas['Detenido']}</span></div>
+            <div className="text-slate-400">Aprehendido: <span className="font-semibold text-white">{desglosePersonas['Aprehendido']}</span></div>
+          </div>
         </div>
 
       </div>
@@ -283,7 +381,7 @@ export default function MetricasPage() {
           </div>
         </div>
 
-        {/* Gráfico 3: Distribución Operativa por Superintendencias (BARRAS REEMPLAZANDO DONA) */}
+        {/* Gráfico 3: Distribución Operativa por Superintendencias */}
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
           <h3 className="text-xs font-bold text-white mb-4 flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-cyan-400" /> Distribución Operativa por Superintendencias
