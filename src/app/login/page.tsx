@@ -19,8 +19,6 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
-    // Si ingresó un email completo con '@', lo respeta.
-    // Si ingresó legajo o usuario, le añade el dominio institucional.
     const emailFinal = userInput.includes('@')
       ? userInput.trim()
       : `${userInput.trim()}@cop.estadistica.ar`;
@@ -33,22 +31,23 @@ export default function LoginPage() {
 
       if (authError) {
         setError('Usuario o contraseña incorrectos.');
-        setLoading(false);
         return;
       }
 
-      if (data.session) {
+      if (data?.session) {
         router.push('/dashboard');
         router.refresh();
+      } else {
+        setError('No se pudo establecer la sesión.');
       }
     } catch (err) {
       console.error('Error al iniciar sesión:', err);
       setError('Ocurrió un error inesperado al intentar ingresar.');
+    } finally {
       setLoading(false);
     }
   };
 
-  // Función para solicitar el reseteo por email
   const handleRecuperarPassword = async () => {
     const emailInput = prompt("Ingresá tu usuario o correo electrónico institucional:");
     if (!emailInput) return;
@@ -72,7 +71,6 @@ export default function LoginPage() {
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans text-slate-100">
       <div className="w-full max-w-md bg-slate-900/80 border border-slate-800 backdrop-blur-xl rounded-2xl p-8 shadow-2xl">
         
-        {/* Encabezado con Logo */}
         <div className="flex flex-col items-center text-center mb-8">
           <div className="w-20 h-20 bg-slate-950/50 border border-slate-800 rounded-2xl p-3 flex items-center justify-center shadow-inner mb-4">
             <img 
@@ -87,7 +85,6 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Mensaje de Error */}
         {error && (
           <div className="mb-6 bg-red-500/10 border border-red-500/20 rounded-xl p-3.5 flex items-center gap-3 text-red-400 text-xs">
             <AlertCircle className="w-4 h-4 shrink-0" />
@@ -95,7 +92,6 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* Formulario de Login sin Autocompletado molesto */}
         <form onSubmit={handleLogin} autoComplete="off" className="space-y-5">
           <div>
             <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
@@ -155,7 +151,6 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Botón de recuperación de contraseña */}
         <div className="text-center mt-6">
           <button 
             type="button" 
