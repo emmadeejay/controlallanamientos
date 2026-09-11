@@ -3,13 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { Plus, Search, Edit3, Trash2, Lock, Upload } from 'lucide-react';
+import { Plus, Search, Edit3, Trash2, Lock, Upload, Eye, X, Shield, Calendar, MapPin, FileText, UserCheck, Crosshair, Car } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 // HELPER: Obtener el inicio de la semana actual (Lunes a las 00:00:00 hs)
 function getInicioSemanaActual(): Date {
   const ahora = new Date();
-  const diaSemana = ahora.getDay(); // 0: Dom, 1: Lun, 2: Mar...
+  const diaSemana = ahora.getDay();
   const diffLunes = (diaSemana === 0 ? -6 : 1) - diaSemana;
 
   const lunesActual = new Date(ahora);
@@ -18,7 +18,143 @@ function getInicioSemanaActual(): Date {
   return lunesActual;
 }
 
-// COMPONENTE DE IMPORTACIÓN EXCEL
+// COMPONENTE VISTA PREVIA RESPONSIVA (Modal / Bottom Sheet Mobile)
+function ModalVistaPrevia({ item, onClose, puedeEditar, onEdit }: { item: any; onClose: () => void; puedeEditar: boolean; onEdit: () => void }) {
+  if (!item) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all">
+      {/* Cierre al tocar el fondo */}
+      <div className="absolute inset-0" onClick={onClose} />
+
+      {/* Contenedor Adaptable: Sheet en móvil, Modal centrado en PC */}
+      <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-t-3xl sm:rounded-2xl max-h-[85vh] sm:max-h-[90vh] flex flex-col overflow-hidden shadow-2xl z-10 transition-all animate-in slide-in-from-bottom sm:zoom-in-95">
+        
+        {/* Barra superior de arrastre / cabecera */}
+        <div className="px-6 py-4 bg-slate-950/90 border-b border-slate-800 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2">
+            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+              item.resultado_medida === 'Positivo' 
+                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                : 'bg-red-500/10 text-red-400 border border-red-500/20'
+            }`}>
+              {item.resultado_medida || 'Sin Resultado'}
+            </span>
+            <h3 className="text-sm font-bold text-white truncate max-w-xs sm:max-w-md">
+              IPP: {item.numero_ipp}
+            </h3>
+          </div>
+
+          <button 
+            onClick={onClose}
+            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Contenido con scroll optimizado para toque */}
+        <div className="p-6 overflow-y-auto space-y-5 text-xs text-slate-300">
+          
+          {/* Carátula */}
+          <div className="bg-slate-950/50 p-3.5 rounded-xl border border-slate-800/80">
+            <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Carátula / Causa</p>
+            <p className="text-white font-medium text-sm leading-snug">{item.caratula || 'Sin Carátula Registrada'}</p>
+          </div>
+
+          {/* Rejilla Ubicación e Identificación */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/60 flex items-start gap-3">
+              <Shield className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[10px] font-bold text-slate-500 uppercase">Superintendencia</p>
+                <p className="text-slate-200 font-semibold mt-0.5">{item.superintendencias?.nombre || item.superintendencia || 'N/A'}</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/60 flex items-start gap-3">
+              <MapPin className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[10px] font-bold text-slate-500 uppercase">Ubicación y Dependencia</p>
+                <p className="text-slate-200 font-semibold mt-0.5">{item.partido || 'Sin Partido'}</p>
+                <p className="text-[11px] text-slate-400">{item.dependencia || 'Sin especificación'}</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/60 flex items-start gap-3">
+              <Calendar className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[10px] font-bold text-slate-500 uppercase">Fecha y Hora Ejecución</p>
+                <p className="text-slate-200 font-semibold mt-0.5">{item.fecha_ejecucion || 'N/A'}</p>
+                <p className="text-[11px] text-slate-400">{item.horario_ejecucion ? `${item.horario_ejecucion} hs` : '--:-- hs'}</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/60 flex items-start gap-3">
+              <FileText className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[10px] font-bold text-slate-500 uppercase">UFI / Juzgado</p>
+                <p className="text-slate-200 font-semibold mt-0.5">{item.ufi_juzgado || 'No informado'}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Detalle Operativo / Resultados */}
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/60 text-center">
+              <Crosshair className="w-4 h-4 text-rose-400 mx-auto mb-1" />
+              <p className="text-[9px] uppercase font-bold text-slate-500">Armas</p>
+              <p className="text-sm font-bold text-white mt-0.5">{item.armas_secuestradas || 0}</p>
+            </div>
+
+            <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/60 text-center">
+              <Car className="w-4 h-4 text-cyan-400 mx-auto mb-1" />
+              <p className="text-[9px] uppercase font-bold text-slate-500">Vehículos</p>
+              <p className="text-sm font-bold text-white mt-0.5">{item.vehiculos_secuestrados || 0}</p>
+            </div>
+
+            <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/60 text-center">
+              <UserCheck className="w-4 h-4 text-purple-400 mx-auto mb-1" />
+              <p className="text-[9px] uppercase font-bold text-slate-500">Detenidos</p>
+              <p className="text-sm font-bold text-white mt-0.5">{item.detenidos_aprehendidos || 0}</p>
+            </div>
+          </div>
+
+          {/* Observaciones */}
+          {item.observaciones && (
+            <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/60">
+              <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Observaciones / Notas</p>
+              <p className="text-slate-300 text-[11px] leading-relaxed">{item.observaciones}</p>
+            </div>
+          )}
+
+        </div>
+
+        {/* Acciones inferiores */}
+        <div className="p-4 bg-slate-950/90 border-t border-slate-800 flex items-center justify-between gap-3 shrink-0">
+          <button
+            onClick={onClose}
+            className="w-full sm:w-auto px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition"
+          >
+            Cerrar
+          </button>
+
+          {puedeEditar && (
+            <button
+              onClick={onEdit}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold rounded-xl transition shadow-lg shadow-amber-600/20"
+            >
+              <Edit3 className="w-4 h-4" /> Editar Allanamiento
+            </button>
+          )}
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// COMPONENTE IMPORTAR EXCEL
 function BotonImportarExcel({ onImportSuccess }: { onImportSuccess?: () => void }) {
   const [permitido, setPermitido] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -159,7 +295,7 @@ function BotonImportarExcel({ onImportSuccess }: { onImportSuccess?: () => void 
   );
 }
 
-// COMPONENTE DE CONTROL SEMÁFORO POR SUPERINTENDENCIA (SEMANAL)
+// COMPONENTE CONTROL SEMÁFORO
 function SemaforoSuperintendencias({ allanamientos }: { allanamientos: any[] }) {
   const [superintendencias, setSuperintendencias] = useState<any[]>([]);
   const [desplegado, setDesplegado] = useState(true);
@@ -182,7 +318,6 @@ function SemaforoSuperintendencias({ allanamientos }: { allanamientos: any[] }) 
     }
   }
 
-  // CORRECCIÓN CLAVE: Filtrar registros presentados SOLAMENTE en la semana actual (desde Lunes 00:00 hs)
   const inicioSemana = getInicioSemanaActual();
 
   const conteoPorSuper = allanamientos
@@ -204,7 +339,6 @@ function SemaforoSuperintendencias({ allanamientos }: { allanamientos: any[] }) 
 
   return (
     <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow-xl backdrop-blur-md transition-all">
-      {/* Encabezado colapsable */}
       <div 
         onClick={() => setDesplegado(!desplegado)}
         className="px-5 py-4 bg-slate-950/80 border-b border-slate-800/80 flex items-center justify-between cursor-pointer hover:bg-slate-900/90 transition"
@@ -237,7 +371,6 @@ function SemaforoSuperintendencias({ allanamientos }: { allanamientos: any[] }) 
         </div>
       </div>
 
-      {/* Rejilla de tarjetas binarias */}
       {desplegado && (
         <div className="p-5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-96 overflow-y-auto custom-scrollbar">
           {superintendencias.map((sup) => {
@@ -278,8 +411,9 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState('');
   const [puedeEditar, setPuedeEditar] = useState(false);
+  const [itemSeleccionado, setItemSeleccionado] = useState<any | null>(null);
 
-  // ESTADOS DE PAGINACIÓN
+  // PAGINACIÓN
   const [paginaActual, setPaginaActual] = useState(1);
   const [registrosPorPagina, setRegistrosPorPagina] = useState(10);
 
@@ -348,14 +482,21 @@ export default function DashboardPage() {
     }
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation(); // Evitar abrir la vista previa al presionar borrar
     if (!puedeEditar) return;
     if (!confirm('¿Está seguro de eliminar este registro?')) return;
 
     const { error } = await supabase.from('allanamientos').delete().eq('id', id);
     if (!error) {
       setAllanamientos(prev => prev.filter(item => item.id !== id));
+      if (itemSeleccionado?.id === id) setItemSeleccionado(null);
     }
+  };
+
+  const handleEditClick = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation(); // Evitar abrir la vista previa al presionar editar
+    router.push(`/dashboard/editar/${id}`);
   };
 
   const filtrados = allanamientos.filter(item =>
@@ -365,12 +506,10 @@ export default function DashboardPage() {
     item.superintendencias?.nombre?.toLowerCase().includes(busqueda.toLowerCase())
   );
 
-  // CÁLCULOS DE PAGINACIÓN
   const totalPaginas = Math.ceil(filtrados.length / registrosPorPagina);
   const indiceInicio = (paginaActual - 1) * registrosPorPagina;
   const registrosPaginados = filtrados.slice(indiceInicio, indiceInicio + registrosPorPagina);
 
-  // Reiniciar a la página 1 cuando cambia la búsqueda
   useEffect(() => {
     setPaginaActual(1);
   }, [busqueda, registrosPorPagina]);
@@ -385,7 +524,7 @@ export default function DashboardPage() {
             Control de Allanamientos
           </h1>
           <p className="text-xs text-slate-400">
-            Módulo de gestión y seguimiento operativo
+            Haz clic en cualquier registro para ver su detalle rápido
           </p>
         </div>
 
@@ -419,7 +558,7 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Tabla de Resultados con Paginación */}
+      {/* Tabla con evento onClick en cada fila */}
       <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow-xl backdrop-blur-md">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-300">
@@ -448,9 +587,16 @@ export default function DashboardPage() {
                 </tr>
               ) : (
                 registrosPaginados.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-800/30 transition">
+                  <tr 
+                    key={item.id} 
+                    onClick={() => setItemSeleccionado(item)}
+                    className="hover:bg-slate-800/50 cursor-pointer transition-all active:scale-[0.99]"
+                  >
                     <td className="px-4 py-3">
-                      <div className="font-semibold text-white">{item.numero_ipp}</div>
+                      <div className="font-semibold text-white flex items-center gap-1.5">
+                        <Eye className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                        {item.numero_ipp}
+                      </div>
                       <div className="text-[11px] text-slate-400 truncate max-w-xs">{item.caratula}</div>
                     </td>
                     <td className="px-4 py-3">
@@ -479,14 +625,14 @@ export default function DashboardPage() {
                       {puedeEditar ? (
                         <>
                           <button
-                            onClick={() => router.push(`/dashboard/editar/${item.id}`)}
+                            onClick={(e) => handleEditClick(e, item.id)}
                             className="p-1.5 text-amber-400 hover:bg-amber-500/10 rounded-lg transition"
                             title="Editar"
                           >
                             <Edit3 className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => handleDelete(item.id)}
+                            onClick={(e) => handleDelete(e, item.id)}
                             className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg transition"
                             title="Eliminar"
                           >
@@ -506,7 +652,7 @@ export default function DashboardPage() {
           </table>
         </div>
 
-        {/* PIE DE TABLA CON PAGINACIÓN */}
+        {/* Paginación */}
         {!loading && filtrados.length > 0 && (
           <div className="px-4 py-3 bg-slate-950/80 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
             <div className="flex items-center gap-3">
@@ -553,8 +699,18 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* COMPONENTE DE CONTROL SEMÁFORO DE SUPERINTENDENCIAS */}
+      {/* Control Semáforo */}
       <SemaforoSuperintendencias allanamientos={allanamientos} />
+
+      {/* VISTA PREVIA INTERACTIVA */}
+      <ModalVistaPrevia
+        item={itemSeleccionado}
+        onClose={() => setItemSeleccionado(null)}
+        puedeEditar={puedeEditar}
+        onEdit={() => {
+          if (itemSeleccionado) router.push(`/dashboard/editar/${itemSeleccionado.id}`);
+        }}
+      />
 
     </div>
   );
