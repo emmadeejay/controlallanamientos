@@ -1,4 +1,3 @@
-// src/middleware.ts
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
@@ -20,22 +19,33 @@ export async function middleware(request: NextRequest) {
           supabaseResponse = NextResponse.next({
             request,
           })
-          cookiesToSet.forEach(({ name, value, options }) =>
+          cookiesToSet.forEach(({ name, value, options }) => {
             supabaseResponse.cookies.set(name, value, options)
-          )
+          })
         },
       },
     }
   )
 
-  // Refresca la sesión de forma segura
-  const { data: { user } } = await supabase.auth.getUser()
+  // Importante: No llamar a supabase.auth.getUser() sin lógica de manejo de token en Server Components,
+  // pero para refrescar la sesión del middleware se usa de forma segura:
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
   const pathname = request.nextUrl.pathname
 
-  // Si intenta entrar a cualquier ruta de /dashboard sin estar logueado -> al login
+  // Proteger rutas de dashboard
   if (!user && pathname.startsWith('/dashboard')) {
     const url = request.nextUrl.clone()
-    url.pathname = '/login'
+    url.pathname = '/'
+    return NextResponse.redirect(url)
+  }
+
+  // Si ya está logueado y va al login, redirigir al dashboard
+  if (user && pathname === '/') {
+    const url = request.nextUrl.clone()
+    url.pathname = '/dashboard'
     return NextResponse.redirect(url)
   }
 
