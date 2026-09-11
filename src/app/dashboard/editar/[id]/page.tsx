@@ -1,13 +1,15 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { ArrowLeft, Plus, Trash2, Save, ShieldAlert, Loader2 } from 'lucide-react'
 
-export default function EditarAllanamientoPage({ params }: { params: { id: string } }) {
+export default function EditarAllanamientoPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
-  const { id } = params
+  // Soporte para Next.js 15 (params asíncronos)
+  const resolvedParams = use(params)
+  const id = resolvedParams.id
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -52,6 +54,7 @@ export default function EditarAllanamientoPage({ params }: { params: { id: strin
 
   useEffect(() => {
     async function init() {
+      if (!id) return
       await fetchMaestras()
       await fetchAllanamiento()
     }
@@ -79,7 +82,12 @@ export default function EditarAllanamientoPage({ params }: { params: { id: strin
         .eq('id', id)
         .single()
 
-      if (fetchErr || !data) throw new Error('No se pudo encontrar el registro solicitado.')
+      if (fetchErr) {
+        console.error('Error Supabase fetch:', fetchErr)
+        throw new Error(fetchErr.message || 'No se pudo encontrar el registro solicitado.')
+      }
+
+      if (!data) throw new Error('No se encontró el registro solicitado.')
 
       // Cargar hora de ejecución
       if (data.horario_ejecucion) {
