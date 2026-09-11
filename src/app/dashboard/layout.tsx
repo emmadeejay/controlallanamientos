@@ -20,23 +20,35 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     const checkAndFetchUser = async () => {
       try {
-        // Creamos un timeout de seguridad de 6 segundos para evitar que se cuelgue indefinidamente
+        // 1. Intentar cargar instantáneamente desde caché local si existe
+        const cachedEmail = localStorage.getItem('cop_user_email');
+        const cachedRole = localStorage.getItem('cop_user_role');
+
+        if (cachedEmail && cachedRole) {
+          if (isMounted) {
+            setUserEmail(cachedEmail);
+            setUserRole(cachedRole);
+            setLoading(false); // Liberamos la pantalla de carga de inmediato
+          }
+        }
+
+        // 2. Timeout de seguridad de 6 segundos para la llamada a Supabase
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Timeout al verificar sesión')), 6000)
         );
 
         const getUserPromise = supabase.auth.getUser();
-
         const res: any = await Promise.race([getUserPromise, timeoutPromise]);
         const { data: { user }, error: userError } = res;
 
         if (userError || !user) {
+          localStorage.clear();
           window.location.href = '/login';
           return;
         }
 
         const email = user.email || '';
-        if (isMounted) setUserEmail(email);
+        let rolFinal = 'operador';
 
         let { data: profile } = await supabase
           .from('profiles')
@@ -54,19 +66,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           if (profileByEmail) profile = profileByEmail;
         }
 
+        if (profile && profile.rol) {
+          rolFinal = String(profile.rol).trim().toLowerCase();
+        } else if (email === '1234567@cop.estadistica.ar' || email.includes('cop.estadistica.ar')) {
+          rolFinal = 'administrador';
+        }
+
+        // 3. Actualizar la caché local con los datos reales y frescos
+        localStorage.setItem('cop_user_email', email);
+        localStorage.setItem('cop_user_role', rolFinal);
+
         if (isMounted) {
-          if (profile && profile.rol) {
-            setUserRole(String(profile.rol).trim().toLowerCase());
-          } else if (email === '1234567@cop.estadistica.ar' || email.includes('cop.estadistica.ar')) {
-            setUserRole('administrador');
-          } else {
-            setUserRole('operador');
-          }
+          setUserEmail(email);
+          setUserRole(rolFinal);
         }
       } catch (err) {
         console.error('Error o timeout al verificar sesión:', err);
-        // Si hay un fallo de red o timeout, permitimos avanzar como operador o redirigir al login si es crítico
-        window.location.href = '/login';
+        // Si no hay caché previa y falla la red, redirigimos al login por seguridad
+        if (!localStorage.getItem('cop_user_email')) {
+          window.location.href = '/login';
+        }
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -76,6 +95,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT') {
+        localStorage.clear();
         setUserEmail(null);
         setUserRole('operador');
         window.location.href = '/login';
@@ -90,9 +110,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const handleLogout = async () => {
     setLoading(true);
-    await supabase.auth.signOut();
     localStorage.clear();
     sessionStorage.clear();
+    await supabase.auth.signOut();
     window.location.href = '/login';
   };
 
@@ -103,7 +123,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-xs text-slate-400 font-medium">Verificando Credenciales...</p>
+          <p className="text-xs text-slate-400 font-medium">Cargando Sistema COP...</p>
         </div>
       </div>
     );
