@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -9,7 +11,7 @@ import * as XLSX from 'xlsx';
 // HELPER: Obtener el inicio de la semana actual (Lunes a las 00:00:00 hs)
 function getInicioSemanaActual(): Date {
   const ahora = new Date();
-  const diaSemana = ahora.getDay();
+  const diaSemana = ahora.getDay?.() ?? ahora.getDay();
   const diffLunes = (diaSemana === 0 ? -6 : 1) - diaSemana;
 
   const lunesActual = new Date(ahora);
@@ -18,19 +20,126 @@ function getInicioSemanaActual(): Date {
   return lunesActual;
 }
 
+// COMPONENTE CONTROL SEMÁFORO
+function SemaforoSuperintendencias({ allanamientos }: { allanamientos: any[] }) {
+  const [superintendencias, setSuperintendencias] = useState<any[]>([]);
+  const [desplegado, setDesplegado] = useState(true);
+  const [cargandoSupers, setCargandoSupers] = useState(true);
+
+  useEffect(() => {
+    obtenerSuperintendencias();
+  }, []);
+
+  async function obtenerSuperintendencias() {
+    try {
+      const { data, error } = await supabase.from('superintendencias').select('id, nombre').order('nombre');
+      if (!error && data) {
+        setSuperintendencias(data);
+      }
+    } catch (err) {
+      console.error('Error al cargar superintendencias:', err);
+    } finally {
+      setCargandoSupers(false);
+    }
+  }
+
+  const inicioSemana = getInicioSemanaActual();
+
+  const conteoPorSuper = allanamientos
+    .filter(item => {
+      const fechaRegistro = new Date(item.created_at || item.fecha_ejecucion);
+      return fechaRegistro >= inicioSemana;
+    })
+    .reduce((acc: Record<string, number>, item) => {
+      if (item.superintendencia_id) {
+        acc[item.superintendencia_id] = (acc[item.superintendencia_id] || 0) + 1;
+      }
+      return acc;
+    }, {});
+
+  const activas = superintendencias.filter(s => (conteoPorSuper[s.id] || 0) > 0).length;
+  const sinRegistros = superintendencias.length - activas;
+
+  if (cargandoSupers) return null;
+
+  return (
+    <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow-xl backdrop-blur-md transition-all">
+      <div 
+        onClick={() => setDesplegado(!desplegado)}
+        className="px-5 py-4 bg-slate-950/80 border-b border-slate-800/80 flex items-center justify-between cursor-pointer hover:bg-slate-900/90 transition"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-3 h-3 rounded-full bg-blue-500 animate-pulse" />
+          <div>
+            <h3 className="text-sm font-bold text-white tracking-tight">
+              Control de Presentación Semanal por Superintendencia
+            </h3>
+            <p className="text-[11px] text-slate-400">
+              Estado de actividad en la semana en curso (Lunes a Domingo - Mínimo 1 registro requerido)
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              ✓ {activas} Activas
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20">
+              ✕ {sinRegistros} Sin Registros
+            </span>
+          </div>
+
+          <button className="text-slate-400 hover:text-white transition text-xs font-bold px-2">
+            {desplegado ? '▲' : '▼'}
+          </button>
+        </div>
+      </div>
+
+      {desplegado && (
+        <div className="p-5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-96 overflow-y-auto custom-scrollbar">
+          {superintendencias.map((sup) => {
+            const cantidad = conteoPorSuper[sup.id] || 0;
+            const tieneRegistros = cantidad > 0;
+
+            return (
+              <div 
+                key={sup.id}
+                className={`p-3 rounded-xl border flex items-center justify-between gap-2 transition-all ${
+                  tieneRegistros
+                    ? 'bg-slate-950/40 border-slate-800/80 hover:border-emerald-500/30'
+                    : 'bg-red-950/10 border-red-900/30 hover:border-red-500/40'
+                }`}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-semibold text-slate-200 truncate" title={sup.nombre}>
+                    {sup.nombre}
+                  </p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    {tieneRegistros ? `${cantidad} ${cantidad === 1 ? 'registro esta semana' : 'registros esta semana'}` : 'Sin datos esta semana'}
+                  </p>
+                </div>
+
+                <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${tieneRegistros ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50' : 'bg-red-500 animate-pulse shadow-sm shadow-red-500/50'}`} />
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // COMPONENTE VISTA PREVIA RESPONSIVA (Modal / Bottom Sheet Mobile)
 function ModalVistaPrevia({ item, onClose, puedeEditar, onEdit }: { item: any; onClose: () => void; puedeEditar: boolean; onEdit: () => void }) {
   if (!item) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all">
-      {/* Cierre al tocar el fondo */}
       <div className="absolute inset-0" onClick={onClose} />
 
-      {/* Contenedor Adaptable: Sheet en móvil, Modal centrado en PC */}
       <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-t-3xl sm:rounded-2xl max-h-[85vh] sm:max-h-[90vh] flex flex-col overflow-hidden shadow-2xl z-10 transition-all animate-in slide-in-from-bottom sm:zoom-in-95">
         
-        {/* Barra superior de arrastre / cabecera */}
         <div className="px-6 py-4 bg-slate-950/90 border-b border-slate-800 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
@@ -53,16 +162,12 @@ function ModalVistaPrevia({ item, onClose, puedeEditar, onEdit }: { item: any; o
           </button>
         </div>
 
-        {/* Contenido con scroll optimizado para toque */}
         <div className="p-6 overflow-y-auto space-y-5 text-xs text-slate-300">
-          
-          {/* Carátula */}
           <div className="bg-slate-950/50 p-3.5 rounded-xl border border-slate-800/80">
             <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Carátula / Causa</p>
             <p className="text-white font-medium text-sm leading-snug">{item.caratula || 'Sin Carátula Registrada'}</p>
           </div>
 
-          {/* Rejilla Ubicación e Identificación */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/60 flex items-start gap-3">
               <Shield className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
@@ -99,7 +204,6 @@ function ModalVistaPrevia({ item, onClose, puedeEditar, onEdit }: { item: any; o
             </div>
           </div>
 
-          {/* Detalle Operativo / Resultados */}
           <div className="grid grid-cols-3 gap-2">
             <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/60 text-center">
               <Crosshair className="w-4 h-4 text-rose-400 mx-auto mb-1" />
@@ -120,17 +224,14 @@ function ModalVistaPrevia({ item, onClose, puedeEditar, onEdit }: { item: any; o
             </div>
           </div>
 
-          {/* Observaciones */}
           {item.observaciones && (
             <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/60">
               <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Observaciones / Notas</p>
               <p className="text-slate-300 text-[11px] leading-relaxed">{item.observaciones}</p>
             </div>
           )}
-
         </div>
 
-        {/* Acciones inferiores */}
         <div className="p-4 bg-slate-950/90 border-t border-slate-800 flex items-center justify-between gap-3 shrink-0">
           <button
             onClick={onClose}
@@ -148,7 +249,6 @@ function ModalVistaPrevia({ item, onClose, puedeEditar, onEdit }: { item: any; o
             </button>
           )}
         </div>
-
       </div>
     </div>
   );
@@ -295,116 +395,6 @@ function BotonImportarExcel({ onImportSuccess }: { onImportSuccess?: () => void 
   );
 }
 
-// COMPONENTE CONTROL SEMÁFORO
-function SemaforoSuperintendencias({ allanamientos }: { allanamientos: any[] }) {
-  const [superintendencias, setSuperintendencias] = useState<any[]>([]);
-  const [desplegado, setDesplegado] = useState(true);
-  const [cargandoSupers, setCargandoSupers] = useState(true);
-
-  useEffect(() => {
-    obtenerSuperintendencias();
-  }, []);
-
-  async function obtenerSuperintendencias() {
-    try {
-      const { data, error } = await supabase.from('superintendencias').select('id, nombre').order('nombre');
-      if (!error && data) {
-        setSuperintendencias(data);
-      }
-    } catch (err) {
-      console.error('Error al cargar superintendencias:', err);
-    } finally {
-      setCargandoSupers(false);
-    }
-  }
-
-  const inicioSemana = getInicioSemanaActual();
-
-  const conteoPorSuper = allanamientos
-    .filter(item => {
-      const fechaRegistro = new Date(item.created_at || item.fecha_ejecucion);
-      return fechaRegistro >= inicioSemana;
-    })
-    .reduce((acc: Record<string, number>, item) => {
-      if (item.superintendencia_id) {
-        acc[item.superintendencia_id] = (acc[item.superintendencia_id] || 0) + 1;
-      }
-      return acc;
-    }, {});
-
-  const activas = superintendencias.filter(s => (conteoPorSuper[s.id] || 0) > 0).length;
-  const sinRegistros = superintendencias.length - activas;
-
-  if (cargandoSupers) return null;
-
-  return (
-    <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow-xl backdrop-blur-md transition-all">
-      <div 
-        onClick={() => setDesplegado(!desplegado)}
-        className="px-5 py-4 bg-slate-950/80 border-b border-slate-800/80 flex items-center justify-between cursor-pointer hover:bg-slate-900/90 transition"
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-3 h-3 rounded-full bg-blue-500 animate-pulse" />
-          <div>
-            <h3 className="text-sm font-bold text-white tracking-tight">
-              Control de Presentación Semanal por Superintendencia
-            </h3>
-            <p className="text-[11px] text-slate-400">
-              Estado de actividad en la semana en curso (Lunes a Domingo - Mínimo 1 registro requerido)
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              ✓ {activas} Activas
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20">
-              ✕ {sinRegistros} Sin Registros
-            </span>
-          </div>
-
-          <button className="text-slate-400 hover:text-white transition text-xs font-bold px-2">
-            {desplegado ? '▲' : '▼'}
-          </button>
-        </div>
-      </div>
-
-      {desplegado && (
-        <div className="p-5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-96 overflow-y-auto custom-scrollbar">
-          {superintendencias.map((sup) => {
-            const cantidad = conteoPorSuper[sup.id] || 0;
-            const tieneRegistros = cantidad > 0;
-
-            return (
-              <div 
-                key={sup.id}
-                className={`p-3 rounded-xl border flex items-center justify-between gap-2 transition-all ${
-                  tieneRegistros
-                    ? 'bg-slate-950/40 border-slate-800/80 hover:border-emerald-500/30'
-                    : 'bg-red-950/10 border-red-900/30 hover:border-red-500/40'
-                }`}
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-semibold text-slate-200 truncate" title={sup.nombre}>
-                    {sup.nombre}
-                  </p>
-                  <p className="text-[10px] text-slate-500 mt-0.5">
-                    {tieneRegistros ? `${cantidad} ${cantidad === 1 ? 'registro esta semana' : 'registros esta semana'}` : 'Sin datos esta semana'}
-                  </p>
-                </div>
-
-                <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${tieneRegistros ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50' : 'bg-red-500 animate-pulse shadow-sm shadow-red-500/50'}`} />
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function DashboardPage() {
   const router = useRouter();
   const [allanamientos, setAllanamientos] = useState<any[]>([]);
@@ -483,7 +473,7 @@ export default function DashboardPage() {
   }
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation(); // Evitar abrir la vista previa al presionar borrar
+    e.stopPropagation();
     if (!puedeEditar) return;
     if (!confirm('¿Está seguro de eliminar este registro?')) return;
 
@@ -495,7 +485,7 @@ export default function DashboardPage() {
   };
 
   const handleEditClick = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation(); // Evitar abrir la vista previa al presionar editar
+    e.stopPropagation();
     router.push(`/dashboard/editar/${id}`);
   };
 
@@ -545,6 +535,9 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Control Semáforo General */}
+      <SemaforoSuperintendencias allanamientos={allanamientos} />
 
       {/* Buscador */}
       <div className="relative">
@@ -698,9 +691,6 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
-
-      {/* Control Semáforo */}
-      <SemaforoSuperintendencias allanamientos={allanamientos} />
 
       {/* VISTA PREVIA INTERACTIVA */}
       <ModalVistaPrevia
