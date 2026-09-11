@@ -42,7 +42,7 @@ function getInicioMesActual(): Date {
   return new Date(ahora.getFullYear(), ahora.getMonth(), 1, 0, 0, 0);
 }
 
-// Función flexible para extraer conteos desde arrays JSONB en cualquier formato
+// Extrae y cuenta subtipos buscando en cualquier columna o propiedad JSON/String
 function procesarDetalles(registros: any[], tipoBuscado: 'armas' | 'vehiculos' | 'detenidos') {
   const conteo: Record<string, number> = {};
 
@@ -132,6 +132,9 @@ export default function MetricasPage() {
 
       if (error || !data) return;
 
+      // Impresión de depuración para la consola (F12)
+      console.log('Datos traídos de Supabase:', data);
+
       const inicioSemana = getInicioSemanaActual();
       const inicioMes = getInicioMesActual();
 
@@ -157,16 +160,18 @@ export default function MetricasPage() {
       setVehiculosMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.vehiculos_secuestrados), 0));
       setDetenidosMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.detenidos_aprehendidos || curr.detenidos_aprehendidos_cant), 0));
 
-      // Extraer desgloses de categorías
-      const armasConteo = procesarDetalles(registrosSemana, 'armas');
+      // Procesamos el desglose sobre TODOS los registros (Mes/Total) para no perder datos si no concuerdan las fechas
+      const fuenteProcesamiento = registrosSemana.length > 0 ? registrosSemana : registrosMes;
+
+      const armasConteo = procesarDetalles(fuenteProcesamiento, 'armas');
       setDesgloseArmas({
-        'Arma Corta': armasConteo['Arma Corta'] || 0,
-        'Arma Larga': armasConteo['Arma Larga'] || 0,
-        'Arma Blanca': armasConteo['Arma Blanca'] || 0,
+        'Arma Corta': armasConteo['Arma Corta'] || armasConteo['Corta'] || 0,
+        'Arma Larga': armasConteo['Arma Larga'] || armasConteo['Larga'] || 0,
+        'Arma Blanca': armasConteo['Arma Blanca'] || armasConteo['Blanca'] || 0,
         'Réplica': armasConteo['Réplica'] || 0,
       });
 
-      const vehiculosConteo = procesarDetalles(registrosSemana, 'vehiculos');
+      const vehiculosConteo = procesarDetalles(fuenteProcesamiento, 'vehiculos');
       setDesgloseVehiculos({
         'Auto': vehiculosConteo['Auto'] || 0,
         'Moto': vehiculosConteo['Moto'] || 0,
@@ -174,7 +179,7 @@ export default function MetricasPage() {
         'Otros': vehiculosConteo['Otros'] || 0,
       });
 
-      const personasConteo = procesarDetalles(registrosSemana, 'detenidos');
+      const personasConteo = procesarDetalles(fuenteProcesamiento, 'detenidos');
       setDesglosePersonas({
         'Detenido': personasConteo['Detenido'] || 0,
         'Aprehendido': personasConteo['Aprehendido'] || 0,
