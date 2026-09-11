@@ -42,45 +42,62 @@ function getInicioMesActual(): Date {
   return new Date(ahora.getFullYear(), ahora.getMonth(), 1, 0, 0, 0);
 }
 
-// Extrae y cuenta subtipos buscando en cualquier columna o propiedad JSON/String
-function procesarDetalles(registros: any[], tipoBuscado: 'armas' | 'vehiculos' | 'detenidos') {
+// Procesa tanto arrays/JSONB como campos individuales numéricos o de texto
+function procesarDetallesExhaustivo(registros: any[], tipoBuscado: 'arma' | 'vehiculo' | 'detenido') {
   const conteo: Record<string, number> = {};
 
   registros.forEach(item => {
     Object.keys(item).forEach(key => {
       const valor = item[key];
+      if (!valor) return;
+
       const keyLower = key.toLowerCase();
+      const esCoincidencia = keyLower.includes(tipoBuscado) || 
+        (tipoBuscado === 'detenido' && (keyLower.includes('persona') || keyLower.includes('aprehendido')));
 
-      const esCampoCoincidente = keyLower.includes(tipoBuscado) || 
-        (tipoBuscado === 'detenidos' && (keyLower.includes('personas') || keyLower.includes('aprehendidos')));
-
-      if (esCampoCoincidente && valor) {
+      if (esCoincidencia) {
         let lista = valor;
-        
+
         if (typeof valor === 'string') {
-          try { lista = JSON.parse(valor); } catch { lista = []; }
+          try {
+            lista = JSON.parse(valor);
+          } catch {
+            // Es un string simple, p. ej. "Arma Corta"
+            const texto = valor.toLowerCase();
+            if (texto.includes('corta')) conteo['Arma Corta'] = (conteo['Arma Corta'] || 0) + 1;
+            else if (texto.includes('larga')) conteo['Arma Larga'] = (conteo['Arma Larga'] || 0) + 1;
+            else if (texto.includes('blanca')) conteo['Arma Blanca'] = (conteo['Arma Blanca'] || 0) + 1;
+            else if (texto.includes('replica') || texto.includes('réplica')) conteo['Réplica'] = (conteo['Réplica'] || 0) + 1;
+            else if (texto.includes('auto')) conteo['Auto'] = (conteo['Auto'] || 0) + 1;
+            else if (texto.includes('moto')) conteo['Moto'] = (conteo['Moto'] || 0) + 1;
+            else if (texto.includes('camioneta')) conteo['Camioneta'] = (conteo['Camioneta'] || 0) + 1;
+            else if (texto.includes('detenido')) conteo['Detenido'] = (conteo['Detenido'] || 0) + 1;
+            else if (texto.includes('aprehendido')) conteo['Aprehendido'] = (conteo['Aprehendido'] || 0) + 1;
+            return;
+          }
         }
 
         if (Array.isArray(lista)) {
           lista.forEach((element: any) => {
             if (element && typeof element === 'object') {
-              const categoria = element.tipo || 
-                                element.tipo_arma || 
-                                element.tipo_vehiculo || 
-                                element.tipo_persona || 
-                                element.categoria || 
-                                element.subtipo || 
-                                element.especialidad;
-
-              const cantidad = parseInt(element.cantidad || element.cant || 1, 10);
-              
-              if (categoria && typeof categoria === 'string') {
-                conteo[categoria] = (conteo[categoria] || 0) + (isNaN(cantidad) ? 1 : cantidad);
-              }
+              const cat = element.tipo || element.tipo_arma || element.tipo_vehiculo || element.categoria || element.subtipo || '';
+              const cant = parseInt(element.cantidad || element.cant || 1, 10);
+              if (cat) conteo[cat] = (conteo[cat] || 0) + (isNaN(cant) ? 1 : cant);
             } else if (typeof element === 'string') {
               conteo[element] = (conteo[element] || 0) + 1;
             }
           });
+        } else if (typeof valor === 'number' && valor > 0) {
+          // Si el campo es numérico directo (ej: armas_cortas_cant: 2)
+          if (keyLower.includes('corta')) conteo['Arma Corta'] = (conteo['Arma Corta'] || 0) + valor;
+          if (keyLower.includes('larga')) conteo['Arma Larga'] = (conteo['Arma Larga'] || 0) + valor;
+          if (keyLower.includes('blanca')) conteo['Arma Blanca'] = (conteo['Arma Blanca'] || 0) + valor;
+          if (keyLower.includes('replica') || keyLower.includes('réplica')) conteo['Réplica'] = (conteo['Réplica'] || 0) + valor;
+          if (keyLower.includes('auto')) conteo['Auto'] = (conteo['Auto'] || 0) + valor;
+          if (keyLower.includes('moto')) conteo['Moto'] = (conteo['Moto'] || 0) + valor;
+          if (keyLower.includes('camioneta')) conteo['Camioneta'] = (conteo['Camioneta'] || 0) + valor;
+          if (keyLower.includes('detenido')) conteo['Detenido'] = (conteo['Detenido'] || 0) + valor;
+          if (keyLower.includes('aprehendido')) conteo['Aprehendido'] = (conteo['Aprehendido'] || 0) + valor;
         }
       }
     });
@@ -132,8 +149,10 @@ export default function MetricasPage() {
 
       if (error || !data) return;
 
-      // Impresión de depuración para la consola (F12)
-      console.log('Datos traídos de Supabase:', data);
+      if (data.length > 0) {
+        console.log('--- CAMPOS DISPONIBLES EN LA TABLA ---', Object.keys(data[0]));
+        console.log('--- PRIMER REGISTRO COMPLETO ---', data[0]);
+      }
 
       const inicioSemana = getInicioSemanaActual();
       const inicioMes = getInicioMesActual();
@@ -160,10 +179,9 @@ export default function MetricasPage() {
       setVehiculosMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.vehiculos_secuestrados), 0));
       setDetenidosMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.detenidos_aprehendidos || curr.detenidos_aprehendidos_cant), 0));
 
-      // Procesamos el desglose sobre TODOS los registros (Mes/Total) para no perder datos si no concuerdan las fechas
-      const fuenteProcesamiento = registrosSemana.length > 0 ? registrosSemana : registrosMes;
+      const fuenteProcesamiento = data;
 
-      const armasConteo = procesarDetalles(fuenteProcesamiento, 'armas');
+      const armasConteo = procesarDetallesExhaustivo(fuenteProcesamiento, 'arma');
       setDesgloseArmas({
         'Arma Corta': armasConteo['Arma Corta'] || armasConteo['Corta'] || 0,
         'Arma Larga': armasConteo['Arma Larga'] || armasConteo['Larga'] || 0,
@@ -171,7 +189,7 @@ export default function MetricasPage() {
         'Réplica': armasConteo['Réplica'] || 0,
       });
 
-      const vehiculosConteo = procesarDetalles(fuenteProcesamiento, 'vehiculos');
+      const vehiculosConteo = procesarDetallesExhaustivo(fuenteProcesamiento, 'vehiculo');
       setDesgloseVehiculos({
         'Auto': vehiculosConteo['Auto'] || 0,
         'Moto': vehiculosConteo['Moto'] || 0,
@@ -179,13 +197,12 @@ export default function MetricasPage() {
         'Otros': vehiculosConteo['Otros'] || 0,
       });
 
-      const personasConteo = procesarDetalles(fuenteProcesamiento, 'detenidos');
+      const personasConteo = procesarDetallesExhaustivo(fuenteProcesamiento, 'detenido');
       setDesglosePersonas({
         'Detenido': personasConteo['Detenido'] || 0,
         'Aprehendido': personasConteo['Aprehendido'] || 0,
       });
 
-      // Gráficos
       const semanas = [0, 1, 2, 3].map(offset => {
         const inicio = new Date(inicioSemana);
         inicio.setDate(inicio.getDate() - (offset * 7));
@@ -209,12 +226,12 @@ export default function MetricasPage() {
         conteoPartidos[p] = (conteoPartidos[p] || 0) + 1;
       });
 
-      const topPartidos = Object.entries(conteoPartidos)
-        .map(([name, total]) => ({ name, total }))
-        .sort((a, b) => b.total - a.total)
-        .slice(0, 5);
-
-      setDatosPartidos(topPartidos);
+      setDatosPartidos(
+        Object.entries(conteoPartidos)
+          .map(([name, total]) => ({ name, total }))
+          .sort((a, b) => b.total - a.total)
+          .slice(0, 5)
+      );
 
       const conteoSupers: Record<string, number> = {};
       data.forEach(item => {
@@ -222,11 +239,11 @@ export default function MetricasPage() {
         conteoSupers[s] = (conteoSupers[s] || 0) + 1;
       });
 
-      const arrSupers = Object.entries(conteoSupers)
-        .map(([name, total]) => ({ name, total }))
-        .sort((a, b) => b.total - a.total);
-
-      setDatosSuperintendencias(arrSupers);
+      setDatosSuperintendencias(
+        Object.entries(conteoSupers)
+          .map(([name, total]) => ({ name, total }))
+          .sort((a, b) => b.total - a.total)
+      );
 
       const conteoEspecialidades: Record<string, number> = {};
       data.forEach(item => {
@@ -234,12 +251,12 @@ export default function MetricasPage() {
         conteoEspecialidades[esp] = (conteoEspecialidades[esp] || 0) + 1;
       });
 
-      const topEspecialidades = Object.entries(conteoEspecialidades)
-        .map(([name, total]) => ({ name, total }))
-        .sort((a, b) => b.total - a.total)
-        .slice(0, 5);
-
-      setDatosEspecialidades(topEspecialidades);
+      setDatosEspecialidades(
+        Object.entries(conteoEspecialidades)
+          .map(([name, total]) => ({ name, total }))
+          .sort((a, b) => b.total - a.total)
+          .slice(0, 5)
+      );
 
     } catch (err) {
       console.error('Error cargando métricas:', err);
@@ -258,10 +275,7 @@ export default function MetricasPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 space-y-6">
-      
-      {/* TARJETAS KPI SUPERIORES */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-[11px] font-semibold uppercase tracking-wider">Rendición Semanal</span>
@@ -288,13 +302,9 @@ export default function MetricasPage() {
           <div className="text-3xl font-extrabold text-white">{efectividad}%</div>
           <p className="text-[10px] text-slate-500 mt-1">Allanamientos con resultado positivo</p>
         </div>
-
       </div>
 
-      {/* TARJETAS DE RESULTADOS Y SECUESTROS CON DESGLOSE */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        
-        {/* Armas Secuestradas */}
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between text-slate-400 mb-2">
@@ -313,7 +323,6 @@ export default function MetricasPage() {
           </div>
         </div>
 
-        {/* Vehículos Secuestrados */}
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between text-slate-400 mb-2">
@@ -332,7 +341,6 @@ export default function MetricasPage() {
           </div>
         </div>
 
-        {/* Detenidos / Aprehendidos */}
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between text-slate-400 mb-2">
@@ -348,12 +356,9 @@ export default function MetricasPage() {
             <div className="text-slate-400">Aprehendido: <span className="font-semibold text-white">{desglosePersonas['Aprehendido']}</span></div>
           </div>
         </div>
-
       </div>
 
-      {/* SECCIÓN DE GRÁFICOS INFERIORES */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
           <h3 className="text-xs font-bold text-white mb-4 flex items-center gap-2">
             <Calendar className="w-4 h-4 text-blue-400" /> Evolución Semanal de Procedimientos
@@ -364,9 +369,7 @@ export default function MetricasPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                 <XAxis dataKey="name" stroke="#64748b" fontSize={10} />
                 <YAxis stroke="#64748b" fontSize={10} allowDecimals={false} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '11px' }} 
-                />
+                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '11px' }} />
                 <Bar dataKey="total" fill="#2563eb" radius={[4, 4, 0, 0]} name="Allanamientos" />
               </BarChart>
             </ResponsiveContainer>
@@ -383,9 +386,7 @@ export default function MetricasPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                 <XAxis type="number" stroke="#64748b" fontSize={10} allowDecimals={false} />
                 <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={10} width={100} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '11px' }} 
-                />
+                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '11px' }} />
                 <Bar dataKey="total" fill="#10b981" radius={[0, 4, 4, 0]} name="Registros" />
               </BarChart>
             </ResponsiveContainer>
@@ -402,9 +403,7 @@ export default function MetricasPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                 <XAxis type="number" stroke="#64748b" fontSize={10} allowDecimals={false} />
                 <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={9} width={130} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '11px' }} 
-                />
+                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '11px' }} />
                 <Bar dataKey="total" fill="#06b6d4" radius={[0, 4, 4, 0]} name="Procedimientos" />
               </BarChart>
             </ResponsiveContainer>
@@ -421,17 +420,13 @@ export default function MetricasPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                 <XAxis type="number" stroke="#64748b" fontSize={10} allowDecimals={false} />
                 <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={10} width={100} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '11px' }} 
-                />
+                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '11px' }} />
                 <Bar dataKey="total" fill="#a855f7" radius={[0, 4, 4, 0]} name="Intervenciones" />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
-
       </div>
-
     </div>
   );
 }
