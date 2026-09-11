@@ -26,7 +26,7 @@ function BotonImportarExcel({ onImportSuccess }: { onImportSuccess?: () => void 
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
       const rawRole = userMetaRole || profile?.role || profile?.rol || '';
       const rol = String(rawRole).toLowerCase().trim();
@@ -167,33 +167,40 @@ export default function DashboardPage() {
 
   async function checkPeriodoYUsuario() {
     setLoading(true);
-    const estaEnVentana = evaluarVentanaEdicion();
+    try {
+      const estaEnVentana = evaluarVentanaEdicion();
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      router.push('/login');
-      return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.push('/login');
+        return;
+      }
+
+      const userMetaRole = session.user.user_metadata?.role || session.user.app_metadata?.role;
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      const rawRole = userMetaRole || profile?.role || profile?.rol || '';
+      const rolNormalizado = String(rawRole).toLowerCase().trim();
+
+      const esElevado = 
+        rolNormalizado === 'supervisor' || 
+        rolNormalizado === 'admin' || 
+        rolNormalizado === 'superadmin' ||
+        profile?.role_id === 2 || 
+        profile?.role_id === 3;
+
+      setPuedeEditar(esElevado || estaEnVentana);
+      await fetchData(esElevado, profile?.superintendencia_id);
+    } catch (err) {
+      console.error('Error al verificar permisos:', err);
+      await fetchData(false);
+    } finally {
+      setLoading(false);
     }
-
-    const userMetaRole = session.user.user_metadata?.role || session.user.app_metadata?.role;
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', session.user.id)
-      .single();
-
-    const rawRole = userMetaRole || profile?.role || profile?.rol || '';
-    const rolNormalizado = String(rawRole).toLowerCase().trim();
-
-    const esElevado = 
-      rolNormalizado === 'supervisor' || 
-      rolNormalizado === 'admin' || 
-      rolNormalizado === 'superadmin' ||
-      profile?.role_id === 2 || 
-      profile?.role_id === 3;
-
-    setPuedeEditar(esElevado || estaEnVentana);
-    fetchData(esElevado, profile?.superintendencia_id);
   }
 
   async function fetchData(esElevado: boolean, superintendenciaId?: string) {
@@ -210,7 +217,6 @@ export default function DashboardPage() {
     if (!error && data) {
       setAllanamientos(data);
     }
-    setLoading(false);
   }
 
   const handleDelete = async (id: string) => {
