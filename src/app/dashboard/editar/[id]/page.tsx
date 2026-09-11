@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { ArrowLeft, Plus, Trash2, Save, ShieldAlert, Loader2 } from 'lucide-react'
 
-export default function EditarAllanamientoPage({ params }: { params: Promise<{ id: string }> }) {
+export default function EditarAllanamientoPage({ params }: { params: { id: string } }) {
   const router = useRouter()
-  const { id } = use(params)
+  const { id } = params
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -88,6 +88,46 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         if (m) setMinutoEjecucion(m.padStart(2, '0'))
       }
 
+      // Parsear observaciones y secuestros guardados previamente
+      let obsLimpia = data.observaciones || ''
+
+      if (obsLimpia.includes('Secuestros:')) {
+        const [obsPart, secuestraPart] = obsLimpia.split(' - Secuestros:')
+        obsLimpia = obsPart.trim()
+
+        if (secuestraPart) {
+          // Parsear Armas
+          const matchArmas = secuestraPart.match(/Armas\s*\[(.*?)\]/)
+          if (matchArmas && matchArmas[1]) {
+            const items = matchArmas[1].split(',').map((item: string) => {
+              const [subtipo, cant] = item.split(':').map((s: string) => s.trim())
+              return { subtipo, cantidad: parseInt(cant) || 1 }
+            })
+            setArmas(items)
+          }
+
+          // Parsear Vehículos
+          const matchVeh = secuestraPart.match(/Vehículos\s*\[(.*?)\]/)
+          if (matchVeh && matchVeh[1]) {
+            const items = matchVeh[1].split(',').map((item: string) => {
+              const [subtipo, cant] = item.split(':').map((s: string) => s.trim())
+              return { subtipo, cantidad: parseInt(cant) || 1 }
+            })
+            setVehiculos(items)
+          }
+
+          // Parsear Detenidos / Personas
+          const matchDet = secuestraPart.match(/Personas\s*\[(.*?)\]/)
+          if (matchDet && matchDet[1]) {
+            const items = matchDet[1].split(',').map((item: string) => {
+              const [subtipo, cant] = item.split(':').map((s: string) => s.trim())
+              return { subtipo, cantidad: parseInt(cant) || 1 }
+            })
+            setDetenidos(items)
+          }
+        }
+      }
+
       setFormData({
         superintendencia_id: data.superintendencia_id || '',
         numero_ipp: data.numero_ipp || '',
@@ -105,7 +145,7 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         numero_parte_urgente: data.numero_parte_urgente || '',
         orden_servicio_propia: data.orden_servicio_propia || '',
         orden_servicio_cop: data.orden_servicio_cop || '',
-        observaciones: data.observaciones || ''
+        observaciones: obsLimpia
       })
 
       // Cargar colaboraciones vinculadas
@@ -174,7 +214,10 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         ].filter(Boolean).join(' | ')
       }
 
-      const obsFinales = [formData.observaciones, detalleSecuestrosTexto ? `Secuestros: ${detalleSecuestrosTexto}` : '']
+      // Evitar duplicaciones limpiando antes de concatenar
+      const obsBase = formData.observaciones.split(' - Secuestros:')[0].trim()
+
+      const obsFinales = [obsBase, detalleSecuestrosTexto ? `Secuestros: ${detalleSecuestrosTexto}` : '']
         .filter(Boolean)
         .join(' - ')
 
