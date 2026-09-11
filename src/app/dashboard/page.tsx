@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { Plus, Search, Edit3, Trash2, Lock, Upload, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, ShieldAlert } from 'lucide-react';
+import { Plus, Search, Edit3, Trash2, Lock, Upload } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 // COMPONENTE DE IMPORTACIÓN EXCEL
@@ -191,7 +191,7 @@ function SemaforoSuperintendencias({ allanamientos }: { allanamientos: any[] }) 
         className="px-5 py-4 bg-slate-950/80 border-b border-slate-800/80 flex items-center justify-between cursor-pointer hover:bg-slate-900/90 transition"
       >
         <div className="flex items-center gap-3">
-          <ShieldAlert className="w-5 h-5 text-blue-400" />
+          <div className="w-3 h-3 rounded-full bg-blue-500 animate-pulse" />
           <div>
             <h3 className="text-sm font-bold text-white tracking-tight">
               Control de Presentación Semanal por Superintendencia
@@ -205,15 +205,15 @@ function SemaforoSuperintendencias({ allanamientos }: { allanamientos: any[] }) 
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <CheckCircle2 className="w-3.5 h-3.5" /> {activas} Activas
+              ✓ {activas} Activas
             </span>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20">
-              <AlertCircle className="w-3.5 h-3.5" /> {sinRegistros} Sin Registros
+              ✕ {sinRegistros} Sin Registros
             </span>
           </div>
 
-          <button className="text-slate-400 hover:text-white transition">
-            {desplegado ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+          <button className="text-slate-400 hover:text-white transition text-xs font-bold px-2">
+            {desplegado ? '▲' : '▼'}
           </button>
         </div>
       </div>
