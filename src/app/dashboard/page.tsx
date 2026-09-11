@@ -6,6 +6,18 @@ import { supabase } from '@/lib/supabase';
 import { Plus, Search, Edit3, Trash2, Lock, Upload } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
+// HELPER: Obtener el inicio de la semana actual (Lunes a las 00:00:00 hs)
+function getInicioSemanaActual(): Date {
+  const ahora = new Date();
+  const diaSemana = ahora.getDay(); // 0: Dom, 1: Lun, 2: Mar...
+  const diffLunes = (diaSemana === 0 ? -6 : 1) - diaSemana;
+
+  const lunesActual = new Date(ahora);
+  lunesActual.setDate(ahora.getDate() + diffLunes);
+  lunesActual.setHours(0, 0, 0, 0);
+  return lunesActual;
+}
+
 // COMPONENTE DE IMPORTACIÓN EXCEL
 function BotonImportarExcel({ onImportSuccess }: { onImportSuccess?: () => void }) {
   const [permitido, setPermitido] = useState(false);
@@ -147,7 +159,7 @@ function BotonImportarExcel({ onImportSuccess }: { onImportSuccess?: () => void 
   );
 }
 
-// COMPONENTE DE CONTROL SEMÁFORO POR SUPERINTENDENCIA
+// COMPONENTE DE CONTROL SEMÁFORO POR SUPERINTENDENCIA (SEMANAL)
 function SemaforoSuperintendencias({ allanamientos }: { allanamientos: any[] }) {
   const [superintendencias, setSuperintendencias] = useState<any[]>([]);
   const [desplegado, setDesplegado] = useState(true);
@@ -170,13 +182,20 @@ function SemaforoSuperintendencias({ allanamientos }: { allanamientos: any[] }) 
     }
   }
 
-  // Mapa de conteo por ID de superintendencia
-  const conteoPorSuper = allanamientos.reduce((acc: Record<string, number>, item) => {
-    if (item.superintendencia_id) {
-      acc[item.superintendencia_id] = (acc[item.superintendencia_id] || 0) + 1;
-    }
-    return acc;
-  }, {});
+  // CORRECCIÓN CLAVE: Filtrar registros presentados SOLAMENTE en la semana actual (desde Lunes 00:00 hs)
+  const inicioSemana = getInicioSemanaActual();
+
+  const conteoPorSuper = allanamientos
+    .filter(item => {
+      const fechaRegistro = new Date(item.created_at || item.fecha_ejecucion);
+      return fechaRegistro >= inicioSemana;
+    })
+    .reduce((acc: Record<string, number>, item) => {
+      if (item.superintendencia_id) {
+        acc[item.superintendencia_id] = (acc[item.superintendencia_id] || 0) + 1;
+      }
+      return acc;
+    }, {});
 
   const activas = superintendencias.filter(s => (conteoPorSuper[s.id] || 0) > 0).length;
   const sinRegistros = superintendencias.length - activas;
@@ -197,7 +216,7 @@ function SemaforoSuperintendencias({ allanamientos }: { allanamientos: any[] }) 
               Control de Presentación Semanal por Superintendencia
             </h3>
             <p className="text-[11px] text-slate-400">
-              Estado de actividad en la ventana actual (Mínimo 1 registro requerido)
+              Estado de actividad en la semana en curso (Lunes a Domingo - Mínimo 1 registro requerido)
             </p>
           </div>
         </div>
@@ -239,7 +258,7 @@ function SemaforoSuperintendencias({ allanamientos }: { allanamientos: any[] }) 
                     {sup.nombre}
                   </p>
                   <p className="text-[10px] text-slate-500 mt-0.5">
-                    {tieneRegistros ? `${cantidad} ${cantidad === 1 ? 'registro' : 'registros'}` : 'Sin datos presentados'}
+                    {tieneRegistros ? `${cantidad} ${cantidad === 1 ? 'registro esta semana' : 'registros esta semana'}` : 'Sin datos esta semana'}
                   </p>
                 </div>
 
