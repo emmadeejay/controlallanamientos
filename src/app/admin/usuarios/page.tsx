@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { crearUsuarioAction, resetearPasswordAction } from '@/app/actions/usuarios';
 import { supabase } from '@/lib/supabase';
-import { UserPlus, X, ShieldAlert, CheckCircle2, ArrowLeft, Shield } from 'lucide-react';
+import { UserPlus, X, ShieldAlert, CheckCircle2, ArrowLeft, Shield, LogOut, User } from 'lucide-react';
 
 interface Superintendencia {
   id: string;
@@ -38,15 +39,14 @@ export default function GestionUsuariosAdminPage() {
   const [superintendencias, setSuperintendencias] = useState<Superintendencia[]>([]);
   const [usuarios, setUsuarios] = useState<UsuarioProfile[]>([]);
 
-  // Estados para el reseteo de contraseña
+  // Modales y contraseña
   const [usuarioAEditar, setUsuarioAEditar] = useState<string | null>(null);
   const [nuevaPass, setNuevaPass] = useState('');
-
-  // Selección de módulos para el nuevo usuario
   const [modulosSeleccionados, setModulosSeleccionados] = useState<string[]>(['allanamientos']);
 
-  // Datos dinámicos del usuario en sesión
+  // Datos del usuario en sesión
   const [miUsuarioId, setMiUsuarioId] = useState<string>('');
+  const [miEmail, setMiEmail] = useState<string>('');
   const [miRolActual, setMiRolActual] = useState<string>('operador');
 
   useEffect(() => {
@@ -57,6 +57,7 @@ export default function GestionUsuariosAdminPage() {
 
       if (session?.user) {
         setMiUsuarioId(session.user.id);
+        setMiEmail(session.user.email || '');
 
         const { data: profile } = await supabase
           .from('profiles')
@@ -81,26 +82,23 @@ export default function GestionUsuariosAdminPage() {
 
       if (supData) setSuperintendencias(supData);
 
-      // Consulta de perfiles condicionada
+      // Traer usuarios
       let query = supabase.from('profiles').select('*');
-
       if (rolDetectado === 'supervisor') {
         query = query.neq('rol', 'administrador');
       }
 
-      const { data: usersData, error: userError } = await query.order('nombre_completo', { ascending: true });
-
-      if (userError) {
-        console.error('Error al cargar perfiles:', userError.message);
-      }
-
-      if (usersData) {
-        setUsuarios(usersData);
-      }
+      const { data: usersData } = await query.order('nombre_completo', { ascending: true });
+      if (usersData) setUsuarios(usersData);
     }
 
     initData();
   }, []);
+
+  const handleCerrarSesion = async () => {
+    await supabase.auth.signOut();
+    router.push('/login');
+  };
 
   const rolNormalizado = miRolActual?.toLowerCase();
   const puedeCrearUsuarios = rolNormalizado === 'administrador' || rolNormalizado === 'supervisor';
@@ -122,7 +120,6 @@ export default function GestionUsuariosAdminPage() {
     formData.append('modulos_permitidos', JSON.stringify(modulosSeleccionados));
 
     const res = await crearUsuarioAction(formData, miUsuarioId);
-
     setCargando(false);
 
     if (res.success) {
@@ -143,51 +140,88 @@ export default function GestionUsuariosAdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-cyan-500 selection:text-slate-900">
+    <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col justify-between selection:bg-cyan-500 selection:text-slate-900">
+      
+      {/* Header Institucional Estilo Select-App */}
+      <header className="w-full border-b border-slate-800/80 bg-[#0c0f17]/90 backdrop-blur-md px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 relative flex-shrink-0">
+            <Image
+              src="/logo.png"
+              alt="Logo C.O.P"
+              width={40}
+              height={40}
+              className="object-contain"
+              priority
+            />
+          </div>
+          <div>
+            <h1 className="text-sm font-bold text-white tracking-wide uppercase">Sistema Operativo COP</h1>
+            <p className="text-[10px] text-slate-400 uppercase tracking-widest">Plataforma de Gestión</p>
+          </div>
+        </div>
+
+        {/* Info Sesión Usuario */}
+        <div className="flex items-center gap-3 text-xs">
+          <div className="flex items-center gap-2 bg-[#131824] px-3 py-1.5 rounded-xl border border-slate-800">
+            <User className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="text-slate-300 font-mono text-[11px]">{miEmail || 'usuario@cop.estadistica.ar'}</span>
+            <span className="text-slate-600">|</span>
+            <span className="bg-cyan-950/80 text-cyan-400 border border-cyan-800/80 px-2 py-0.5 rounded text-[10px] font-bold uppercase">
+              {miRolActual}
+            </span>
+          </div>
+
+          <button
+            onClick={handleCerrarSesion}
+            className="flex items-center gap-1.5 bg-red-950/40 hover:bg-red-900/60 text-red-400 hover:text-red-300 border border-red-900/50 px-3 py-1.5 rounded-xl transition text-xs font-semibold"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Cerrar Sesión</span>
+          </button>
+        </div>
+      </header>
+
       {/* Contenido Principal */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-1">
+      <main className="max-w-6xl mx-auto w-full px-4 sm:px-6 py-8 flex-1 space-y-6">
         
-        {/* Header de la Vista */}
-        <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800/80 rounded-2xl p-6 mb-8 shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
+        {/* Banner de Control Superior */}
+        <div className="bg-[#0f1420]/90 border border-slate-800 rounded-2xl p-6 backdrop-blur-md shadow-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.push('/select-app')}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors text-sm font-medium border border-slate-700/50"
+              className="flex items-center gap-2 px-3.5 py-2 bg-[#161c2e] hover:bg-[#1d253d] text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition border border-slate-700/60 shadow-md"
             >
               <ArrowLeft className="w-4 h-4" />
-              Módulos
+              <span>Módulos</span>
             </button>
             <div>
-              <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold text-white tracking-wide flex items-center gap-2">
                 <Shield className="w-5 h-5 text-cyan-400" />
-                <h1 className="text-xl font-bold text-slate-100 tracking-tight">
-                  Gestión Centralizada de Usuarios
-                </h1>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Alta de operadores y asignación de permisos por sistema
-              </p>
+                Gestión Centralizada de Usuarios
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">Alta de operadores y asignación de permisos por sistema</p>
             </div>
           </div>
 
           {puedeCrearUsuarios && (
             <button
               onClick={() => setModalAbierto(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-sm transition-all shadow-lg shadow-cyan-950/50 hover:shadow-cyan-500/20 active:scale-95"
+              className="w-full sm:w-auto bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-cyan-950/60 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-wider"
             >
               <UserPlus className="w-4 h-4" />
-              NUEVO USUARIO
+              <span>Nuevo Usuario</span>
             </button>
           )}
         </div>
 
-        {/* Mensajes de feedback */}
+        {/* Feedback Messages */}
         {mensaje && (
           <div
-            className={`p-4 mb-6 rounded-xl text-sm font-medium border flex items-center gap-3 ${
+            className={`p-4 rounded-xl text-xs font-medium border flex items-center gap-3 ${
               mensaje.tipo === 'ok'
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                : 'bg-red-500/10 border-red-500/30 text-red-400'
+                ? 'bg-emerald-950/40 border-emerald-800/80 text-emerald-400'
+                : 'bg-red-950/40 border-red-800/80 text-red-400'
             }`}
           >
             {mensaje.tipo === 'ok' ? <CheckCircle2 className="w-5 h-5 flex-shrink-0" /> : <ShieldAlert className="w-5 h-5 flex-shrink-0" />}
@@ -195,35 +229,28 @@ export default function GestionUsuariosAdminPage() {
           </div>
         )}
 
-        {/* Tarjeta de Nómina de Usuarios */}
-        <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-6 shadow-xl backdrop-blur-sm">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Nómina de usuarios registrados ({usuarios.length})
-            </h2>
-          </div>
-
+        {/* Nómina de Usuarios */}
+        <div className="bg-[#0f1420]/80 border border-slate-800/90 rounded-2xl p-6 shadow-2xl backdrop-blur-md">
+          <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-4">
+            Nómina de usuarios registrados ({usuarios.length})
+          </h3>
+          
           {usuarios.length === 0 ? (
-            <p className="text-xs text-slate-500 py-6 text-center">No se encontraron usuarios para mostrar.</p>
+            <p className="text-xs text-slate-500 py-8 text-center">No se encontraron usuarios para mostrar.</p>
           ) : (
             <div className="space-y-3">
               {usuarios.map((u) => (
-                <div 
-                  key={u.id} 
-                  className="bg-slate-900/80 border border-slate-800 hover:border-slate-700/80 rounded-xl p-4 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
-                >
+                <div key={u.id} className="bg-[#131826] border border-slate-800/90 hover:border-slate-700/80 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all">
                   <div className="space-y-1">
-                    <h3 className="font-bold text-slate-100 uppercase text-sm tracking-wide">
-                      {u.nombre_completo || 'Sin nombre'}
-                    </h3>
+                    <h4 className="font-bold text-white text-sm tracking-wide uppercase">{u.nombre_completo || 'Sin nombre'}</h4>
                     <p className="text-xs text-slate-400 font-mono">
-                      Email: <span className="text-slate-300">{u.email}</span> | DNI: <span className="text-slate-300">{u.dni || 'N/A'}</span> | Legajo: <span className="text-slate-300">{u.legajo || 'N/A'}</span>
+                      Email: <span className="text-slate-300">{u.email}</span> | DNI: {u.dni || 'N/A'} | Legajo: {u.legajo || 'N/A'}
                     </p>
                     
                     {u.modulos_permitidos && u.modulos_permitidos.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 pt-1">
+                      <div className="flex flex-wrap gap-1.5 pt-1.5">
                         {u.modulos_permitidos.map((mod) => (
-                          <span key={mod} className="px-2 py-0.5 bg-slate-950 border border-slate-800 text-[10px] text-cyan-400 rounded-md uppercase font-semibold">
+                          <span key={mod} className="px-2 py-0.5 bg-[#0b0e17] border border-slate-800 text-[10px] text-cyan-400 rounded-md uppercase font-semibold">
                             {mod}
                           </span>
                         ))}
@@ -232,18 +259,14 @@ export default function GestionUsuariosAdminPage() {
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <span className={`px-3 py-1 rounded-lg text-xs font-bold tracking-wider uppercase border ${
-                      ['administrador', 'admin', 'supervisor'].includes(u.rol?.toLowerCase())
-                        ? 'bg-cyan-950/60 border-cyan-800/80 text-cyan-400'
-                        : 'bg-slate-800/80 border-slate-700 text-slate-300'
-                    }`}>
+                    <span className="px-3 py-1 bg-cyan-950/60 border border-cyan-800/80 text-cyan-400 rounded-lg text-[10px] font-extrabold uppercase tracking-wider">
                       {u.rol || 'OPERADOR'}
                     </span>
                     
                     {rolNormalizado === 'administrador' && (
                       <button
                         onClick={() => setUsuarioAEditar(u.id)}
-                        className="text-xs text-cyan-400 hover:text-cyan-300 font-semibold underline ml-2"
+                        className="text-xs text-cyan-400 hover:text-cyan-300 font-semibold underline ml-1"
                       >
                         Cambiar Clave
                       </button>
@@ -258,10 +281,10 @@ export default function GestionUsuariosAdminPage() {
 
       {/* Modal Alta de Usuario */}
       {modalAbierto && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
-            <div className="bg-slate-950 p-4 border-b border-slate-800 flex justify-between items-center px-6">
-              <h2 className="font-bold text-sm text-white uppercase tracking-wider flex items-center gap-2">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0f1420] border border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="bg-[#090c13] p-4 border-b border-slate-800 flex justify-between items-center px-6">
+              <h2 className="font-bold text-xs text-white uppercase tracking-wider flex items-center gap-2">
                 <UserPlus className="w-4 h-4 text-cyan-400" />
                 Alta de Nuevo Usuario
               </h2>
@@ -273,26 +296,26 @@ export default function GestionUsuariosAdminPage() {
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Nombre y Apellido</label>
-                <input required name="nombre_completo" type="text" placeholder="Ej: Juan Pérez" className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500" />
+                <input required name="nombre_completo" type="text" placeholder="Ej: Juan Pérez" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500" />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">DNI</label>
-                  <input required name="dni" type="text" placeholder="Ej: 12345678" className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500" />
+                  <input required name="dni" type="text" placeholder="Ej: 12345678" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500" />
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Legajo</label>
-                  <input required name="legajo" type="text" placeholder="Ej: 123456" className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500" />
+                  <input required name="legajo" type="text" placeholder="Ej: 123456" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500" />
                 </div>
               </div>
 
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Correo Electrónico (Usuario)</label>
-                <input required name="email" type="text" placeholder="usuario@cop.estadistica.ar" className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500" />
+                <input required name="email" type="text" placeholder="usuario@cop.estadistica.ar" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500" />
               </div>
 
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+              <div className="bg-[#090c13] p-3 rounded-xl border border-slate-800">
                 <span className="block text-[10px] font-bold text-amber-400 uppercase">Contraseña Inicial Automática</span>
                 <p className="text-xs text-slate-400 mt-0.5">
                   Se asignará por defecto: <code className="text-white bg-slate-800 px-1.5 py-0.5 rounded font-mono">ABCdef123</code>.
@@ -301,7 +324,7 @@ export default function GestionUsuariosAdminPage() {
 
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Superintendencia Asignada</label>
-                <select required name="superintendencia_id" className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500">
+                <select required name="superintendencia_id" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500">
                   <option value="">-- Seleccionar Superintendencia --</option>
                   {superintendencias.map((sup) => (
                     <option key={sup.id} value={sup.id}>{sup.nombre}</option>
@@ -311,7 +334,7 @@ export default function GestionUsuariosAdminPage() {
 
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Rol de Usuario</label>
-                <select required name="rol" className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500">
+                <select required name="rol" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500">
                   <option value="operador">OPERADOR (Carga diaria)</option>
                   <option value="consulta">CONSULTA (Solo lectura)</option>
                   <option value="supervisor">SUPERVISOR (Control)</option>
@@ -334,7 +357,7 @@ export default function GestionUsuariosAdminPage() {
                         className={`p-2.5 rounded-xl border cursor-pointer flex items-center justify-between transition-all ${
                           checked
                             ? 'bg-cyan-950/60 border-cyan-800/80 text-white'
-                            : 'bg-slate-950 border-slate-800 text-slate-500 hover:border-slate-700'
+                            : 'bg-[#090c13] border-slate-800 text-slate-500 hover:border-slate-700'
                         }`}
                       >
                         <span className="font-semibold text-[11px]">{mod.label}</span>
@@ -352,7 +375,7 @@ export default function GestionUsuariosAdminPage() {
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-800 mt-4">
                 <button type="button" onClick={() => setModalAbierto(false)} className="px-4 py-2 text-xs font-semibold uppercase text-slate-400 hover:text-white">Cancelar</button>
-                <button disabled={cargando} type="submit" className="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold rounded-xl text-xs uppercase transition-all shadow-lg shadow-cyan-950/50">
+                <button disabled={cargando} type="submit" className="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl text-xs uppercase transition-all shadow-lg shadow-cyan-950/60">
                   {cargando ? 'Guardando...' : 'Crear Usuario'}
                 </button>
               </div>
@@ -363,15 +386,15 @@ export default function GestionUsuariosAdminPage() {
 
       {/* Modal Resetear Contraseña */}
       {usuarioAEditar && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
-            <h2 className="text-sm font-bold text-white uppercase tracking-wider">Cambiar Contraseña</h2>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0f1420] border border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <h2 className="text-xs font-bold text-white uppercase tracking-wider">Cambiar Contraseña</h2>
             <p className="text-xs text-slate-400">Ingresá una nueva clave para el usuario.</p>
             
             <input
               type="password"
               placeholder="Nueva contraseña"
-              className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500"
+              className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500"
               onChange={(e) => setNuevaPass(e.target.value)}
             />
 
@@ -396,7 +419,7 @@ export default function GestionUsuariosAdminPage() {
                     alert(res.error);
                   }
                 }}
-                className="flex-1 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold rounded-xl text-xs uppercase transition shadow-lg shadow-cyan-950/50"
+                className="flex-1 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold rounded-xl text-xs uppercase transition shadow-lg shadow-cyan-950/60"
               >
                 {cargando ? 'Guardando...' : 'Confirmar'}
               </button>
@@ -405,9 +428,12 @@ export default function GestionUsuariosAdminPage() {
         </div>
       )}
 
-      {/* Footer Unificado */}
-      <footer className="w-full border-t border-slate-800/60 bg-slate-950/80 backdrop-blur-md py-6 mt-12 text-center">
-        <p className="text-xs text-slate-500 tracking-wide font-medium">
+      {/* Footer Unificado con Firma */}
+      <footer className="w-full border-t border-slate-800/80 bg-[#0c0f17]/90 backdrop-blur-md py-6 text-center space-y-1">
+        <p className="text-xs text-slate-400">
+          Desarrollado por <span className="text-blue-400 font-semibold">Emmanuel Machado</span>
+        </p>
+        <p className="text-[10px] text-slate-600 tracking-wide font-medium">
           Plataforma integral de gestión <span className="text-slate-700">|</span> Sistema de estadísticas C.O.P
         </p>
       </footer>
