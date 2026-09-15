@@ -16,6 +16,10 @@ export async function crearUsuarioAction(formData: FormData, creadorId: string) 
     const superintendencia_id = formData.get('superintendencia_id') as string;
     const rol = formData.get('rol') as string;
 
+    // Recuperamos los módulos permitidos desde el FormData
+    const modulosRaw = formData.get('modulos_permitidos') as string;
+    const modulos_permitidos = modulosRaw ? JSON.parse(modulosRaw) : ['allanamientos'];
+
     if (!email || !nombre_completo || !dni || !legajo || !superintendencia_id || !rol) {
       return { success: false, error: 'Todos los campos son obligatorios.' };
     }
@@ -35,7 +39,6 @@ export async function crearUsuarioAction(formData: FormData, creadorId: string) 
       return { success: false, error: 'No tienes permisos para crear un usuario con rol de Administrador.' };
     }
 
-    // Usamos el email tal cual lo ingresa el usuario, sin concatenar dominios forzados si ya trae uno
     const formattedEmail = email.trim().toLowerCase();
 
     // 2. Contraseña por defecto obligatoria
@@ -50,7 +53,7 @@ export async function crearUsuarioAction(formData: FormData, creadorId: string) 
 
     if (authError) return { success: false, error: authError.message };
 
-    // 3. Guardar en la tabla profiles
+    // 3. Guardar en la tabla profiles incluyendo los módulos autorizados
     const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
       id: authData.user!.id,
       email: formattedEmail,
@@ -59,6 +62,7 @@ export async function crearUsuarioAction(formData: FormData, creadorId: string) 
       nombre_completo,
       rol,
       superintendencia_id,
+      modulos_permitidos,
       requiere_cambio_clave: true,
     });
 
