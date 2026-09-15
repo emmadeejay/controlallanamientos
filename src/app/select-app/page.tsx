@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { Shield, Users, FileText, ArrowRight, LogOut, User } from 'lucide-react';
+import { Shield, Users, FileText, ArrowRight, LogOut, User, Trophy, ShieldAlert, Bike } from 'lucide-react';
 
 const LOGO_URL = '/logo_cop.png';
 
@@ -134,7 +134,7 @@ export default function SelectAppPage() {
       </header>
 
       {/* Contenido Principal / Selección de Módulos */}
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex-1 flex flex-col justify-center">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex-1 flex flex-col justify-center">
         <div className="mb-8 text-center sm:text-left">
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
             Selecciona un Módulo
@@ -144,8 +144,8 @@ export default function SelectAppPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Tarjeta Allanamientos */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* 1. Módulo Allanamientos */}
           <div
             onClick={() => router.push('/allanamientos')}
             className="group relative bg-slate-900 border border-slate-800 hover:border-blue-500/50 rounded-2xl p-6 cursor-pointer transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/10 flex flex-col justify-between"
@@ -169,11 +169,83 @@ export default function SelectAppPage() {
             </div>
           </div>
 
-          {/* Tarjeta Usuarios (Solo Admin / Supervisor) */}
+          {/* 2. Módulo Seguridad en el Deporte */}
+          <div
+            onClick={() => router.push('/seguridad-deporte')}
+            className="group relative bg-slate-900 border border-slate-800 hover:border-emerald-500/50 rounded-2xl p-6 cursor-pointer transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-500/10 flex flex-col justify-between"
+          >
+            <div className="space-y-4">
+              <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
+                <Trophy className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white group-hover:text-emerald-400 transition-colors">
+                  Seguridad en el Deporte
+                </h3>
+                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                  Control de eventos deportivos, operativos en estadios y actas de admisión.
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 flex items-center gap-2 text-xs font-semibold text-emerald-400">
+              <span>Ingresar al módulo</span>
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </div>
+
+          {/* 3. Módulo Contravenciones */}
+          <div
+            onClick={() => router.push('/contravenciones')}
+            className="group relative bg-slate-900 border border-slate-800 hover:border-amber-500/50 rounded-2xl p-6 cursor-pointer transition-all duration-300 hover:shadow-2xl hover:shadow-amber-500/10 flex flex-col justify-between"
+          >
+            <div className="space-y-4">
+              <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white group-hover:text-amber-400 transition-colors">
+                  Módulo Contravenciones
+                </h3>
+                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                  Registro y seguimiento de actas de contravención y faltas jurisdiccionales.
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 flex items-center gap-2 text-xs font-semibold text-amber-400">
+              <span>Ingresar al módulo</span>
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </div>
+
+          {/* 4. Módulo Operación Motochorros */}
+          <div
+            onClick={() => router.push('/motochorros')}
+            className="group relative bg-slate-900 border border-slate-800 hover:border-cyan-500/50 rounded-2xl p-6 cursor-pointer transition-all duration-300 hover:shadow-2xl hover:shadow-cyan-500/10 flex flex-col justify-between"
+          >
+            <div className="space-y-4">
+              <div className="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 group-hover:scale-110 transition-transform">
+                <Bike className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white group-hover:text-cyan-400 transition-colors">
+                  Operación Motochorros
+                </h3>
+                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                  Control de interceptaciones, secuestros vehiculares y operativos focalizados.
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 flex items-center gap-2 text-xs font-semibold text-cyan-400">
+              <span>Ingresar al módulo</span>
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </div>
+
+          {/* 5. Tarjeta Usuarios (Solo Admin / Supervisor) */}
           {esAdminOSupervisor && (
             <div
               onClick={() => router.push('/admin/usuarios')}
-              className="group relative bg-slate-900 border border-slate-800 hover:border-blue-500/50 rounded-2xl p-6 cursor-pointer transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/10 flex flex-col justify-between"
+              className="group relative bg-slate-900 border border-slate-800 hover:border-purple-500/50 rounded-2xl p-6 cursor-pointer transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/10 flex flex-col justify-between"
             >
               <div className="space-y-4">
                 <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform">
@@ -197,13 +269,13 @@ export default function SelectAppPage() {
         </div>
       </main>
 
-      {/* Footer */}
+      {/* Footer Solicitado */}
       <footer className="border-t border-slate-800/80 py-6 text-center text-xs text-slate-500 bg-slate-900/40 backdrop-blur-sm">
         <p className="font-medium text-slate-400">
           Desarrollado por <span className="text-blue-400 font-semibold">Emmanuel Machado</span>
         </p>
         <p className="mt-1 text-[10px] text-slate-600">
-          Sistema Operativo COP | Centro de Operaciones Policiales
+          Plataforma integral de gestión | Sistema de estadísticas C.O.P
         </p>
       </footer>
     </div>
