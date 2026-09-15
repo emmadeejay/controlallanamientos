@@ -35,7 +35,7 @@ export default function LoginPage() {
       }
 
       if (data?.session) {
-        router.push('/dashboard');
+        router.push('/select-app');
         router.refresh();
       } else {
         setError('No se pudo establecer la sesión.');
@@ -81,7 +81,7 @@ export default function LoginPage() {
           </div>
           <h1 className="text-2xl font-bold text-white tracking-tight">SISTEMA COP</h1>
           <p className="text-xs font-semibold text-slate-400 tracking-wider uppercase mt-1">
-            Registro & Gestión de Allanamientos
+            Plataforma Integral de Gestión
           </p>
         </div>
 

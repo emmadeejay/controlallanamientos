@@ -415,7 +415,8 @@ export default function DashboardPage() {
     const ahora = new Date();
     const dia = ahora.getDay(); 
     const hora = ahora.getHours();
-    return (dia === 1 && hora >= 8) || dia === 2 || (dia === 3 && hora < 8);
+    // Lunes todo el día (dia === 1), Martes todo el día (dia === 2) o Miércoles hasta las 07:59 hs
+    return dia === 1 || dia === 2 || (dia === 3 && hora < 8);
   }
 
   async function checkPeriodoYUsuario() {
@@ -486,7 +487,7 @@ export default function DashboardPage() {
 
   const handleEditClick = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    router.push(`/dashboard/editar/${id}`);
+    router.push(`/allanamientos/editar/${id}`);
   };
 
   const filtrados = allanamientos.filter(item =>
@@ -523,20 +524,20 @@ export default function DashboardPage() {
 
           {puedeEditar ? (
             <button
-              onClick={() => router.push('/dashboard/nuevo')}
+              onClick={() => router.push('/allanamientos/nuevo')}
               className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-blue-600/20 transition cursor-pointer"
             >
               <Plus className="w-4 h-4" /> Nuevo Allanamiento
             </button>
           ) : (
             <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-2 rounded-xl">
-              <Lock className="w-4 h-4" /> Fuera de período de carga (Lun 08hs a Mié 08hs)
+              <Lock className="w-4 h-4" /> Fuera de período de carga (Lun 00hs a Mié 08hs)
             </div>
           )}
         </div>
       </div>
 
-      {/* 2. BUSCADOR Y TABLA (AQUÍ ARRIBA) */}
+      {/* 2. BUSCADOR Y TABLA */}
       <div className="space-y-4">
         {/* Buscador */}
         <div className="relative">
@@ -692,7 +693,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 3. CONTROL SEMÁFORO GENERAL (AQUÍ ABAJO) */}
+      {/* 3. CONTROL SEMÁFORO GENERAL */}
       <SemaforoSuperintendencias allanamientos={allanamientos} />
 
       {/* VISTA PREVIA INTERACTIVA */}
@@ -701,7 +702,7 @@ export default function DashboardPage() {
         onClose={() => setItemSeleccionado(null)}
         puedeEditar={puedeEditar}
         onEdit={() => {
-          if (itemSeleccionado) router.push(`/dashboard/editar/${itemSeleccionado.id}`);
+          if (itemSeleccionado) router.push(`/allanamientos/editar/${itemSeleccionado.id}`);
         }}
       />
 
