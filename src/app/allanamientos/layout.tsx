@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { LogOut, User, Shield, Users, FileText, BarChart3, Grid } from 'lucide-react';
+import { LogOut, User, Shield, FileText, BarChart3, Grid } from 'lucide-react';
 
 const LOGO_URL = '/logo_cop.png';
 
@@ -112,8 +112,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     window.location.href = '/login';
   };
 
-  const esAdminOSupervisor = userRole === 'administrador' || userRole === 'supervisor';
-
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center">
@@ -131,12 +129,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
             
-            {/* Logo y Navegación */}
+            {/* Logo y Navegación del Módulo */}
             <div className="flex items-center gap-3 sm:gap-6">
               <div 
                 onClick={() => router.push('/select-app')} 
                 className="flex items-center gap-3 cursor-pointer hover:opacity-90 transition-opacity"
-                title="Volver a Selección de Módulos"
+                title="Volver al Menú Principal"
               >
                 <div className="w-10 h-10 flex items-center justify-center shrink-0">
                   <img src={LOGO_URL} alt="Logo" className="max-h-full max-w-full object-contain" />
@@ -151,16 +149,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </div>
               </div>
 
-              {/* Botón para volver al selector de apps */}
+              {/* Botón rápido para volver al menú de aplicaciones */}
               <button
                 onClick={() => router.push('/select-app')}
-                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition sm:hidden"
-                title="Menú Principal"
+                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition"
+                title="Menú Principal de Apps"
               >
                 <Grid className="w-4 h-4" />
               </button>
 
-              {/* Pestañas de navegación */}
+              {/* Pestañas exclusivas de Allanamientos */}
               <nav className="flex items-center gap-1 border-l border-slate-800 pl-3 sm:pl-6">
                 <Link
                   href="/allanamientos"
@@ -185,20 +183,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <BarChart3 className="w-3.5 h-3.5" />
                   <span>Estadísticas</span>
                 </Link>
-
-                {esAdminOSupervisor && (
-                  <Link
-                    href="/admin/usuarios"
-                    className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition ${
-                      pathname.includes('/admin/usuarios')
-                        ? 'bg-blue-600 text-white'
-                        : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                    }`}
-                  >
-                    <Users className="w-3.5 h-3.5" />
-                    <span className="hidden md:inline">Usuarios</span>
-                  </Link>
-                )}
               </nav>
             </div>
 
