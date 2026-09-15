@@ -68,8 +68,13 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans text-slate-100">
-      <div className="w-full max-w-md bg-slate-900/80 border border-slate-800 backdrop-blur-xl rounded-2xl p-8 shadow-2xl">
+    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-between p-6 font-sans text-slate-100">
+      
+      {/* Contenedor Vacio Superior para Balancear Flex Centrado */}
+      <div />
+
+      {/* Tarjeta Login */}
+      <div className="w-full max-w-md bg-slate-900/80 border border-slate-800 backdrop-blur-xl rounded-2xl p-8 shadow-2xl my-auto">
         
         <div className="flex flex-col items-center text-center mb-8">
           <div className="w-20 h-20 bg-slate-950/50 border border-slate-800 rounded-2xl p-3 flex items-center justify-center shadow-inner mb-4">
@@ -79,8 +84,10 @@ export default function LoginPage() {
               className="max-h-full max-w-full object-contain"
             />
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">SISTEMA COP</h1>
-          <p className="text-xs font-semibold text-slate-400 tracking-wider uppercase mt-1">
+          <h1 className="text-xl font-extrabold text-white tracking-tight uppercase">
+            SISTEMA ESTADÍSTICAS C.O.P.
+          </h1>
+          <p className="text-[11px] font-semibold text-slate-400 tracking-wider uppercase mt-1">
             Plataforma Integral de Gestión
           </p>
         </div>
@@ -162,6 +169,12 @@ export default function LoginPage() {
         </div>
 
       </div>
+
+      {/* Footer / Firma */}
+      <footer className="text-center text-[11px] text-slate-500 py-2">
+        Diseñado por <span className="font-semibold text-slate-300">EMMANUEL MACHADO</span>
+      </footer>
+
     </div>
   );
 }
