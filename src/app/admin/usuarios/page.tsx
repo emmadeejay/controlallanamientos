@@ -140,17 +140,17 @@ export default function GestionUsuariosAdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col justify-between selection:bg-cyan-500 selection:text-slate-900">
+    <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col justify-between selection:bg-blue-600 selection:text-white">
       
-      {/* Header Institucional Estilo Select-App */}
-      <header className="w-full border-b border-slate-800/80 bg-[#0c0f17]/90 backdrop-blur-md px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+      {/* Header Institucional Unificado */}
+      <header className="w-full border-b border-slate-800/80 bg-[#0c0f17]/90 backdrop-blur-md px-6 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 relative flex-shrink-0">
+          <div className="w-9 h-9 relative flex-shrink-0">
             <Image
               src="/logo.png"
               alt="Logo C.O.P"
-              width={40}
-              height={40}
+              width={36}
+              height={36}
               className="object-contain"
               priority
             />
@@ -163,18 +163,18 @@ export default function GestionUsuariosAdminPage() {
 
         {/* Info Sesión Usuario */}
         <div className="flex items-center gap-3 text-xs">
-          <div className="flex items-center gap-2 bg-[#131824] px-3 py-1.5 rounded-xl border border-slate-800">
-            <User className="w-3.5 h-3.5 text-cyan-400" />
+          <div className="flex items-center gap-2 bg-[#131824] px-3 py-1.5 rounded-lg border border-slate-800">
+            <User className="w-3.5 h-3.5 text-slate-400" />
             <span className="text-slate-300 font-mono text-[11px]">{miEmail || 'usuario@cop.estadistica.ar'}</span>
-            <span className="text-slate-600">|</span>
-            <span className="bg-cyan-950/80 text-cyan-400 border border-cyan-800/80 px-2 py-0.5 rounded text-[10px] font-bold uppercase">
+            <span className="text-slate-700">|</span>
+            <span className="bg-emerald-950/60 text-emerald-400 border border-emerald-800/60 px-2 py-0.5 rounded text-[10px] font-bold uppercase">
               {miRolActual}
             </span>
           </div>
 
           <button
             onClick={handleCerrarSesion}
-            className="flex items-center gap-1.5 bg-red-950/40 hover:bg-red-900/60 text-red-400 hover:text-red-300 border border-red-900/50 px-3 py-1.5 rounded-xl transition text-xs font-semibold"
+            className="flex items-center gap-1.5 bg-red-950/30 hover:bg-red-900/50 text-red-400 hover:text-red-300 border border-red-900/40 px-3 py-1.5 rounded-lg transition text-xs font-semibold"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span>Cerrar Sesión</span>
@@ -186,7 +186,7 @@ export default function GestionUsuariosAdminPage() {
       <main className="max-w-6xl mx-auto w-full px-4 sm:px-6 py-8 flex-1 space-y-6">
         
         {/* Banner de Control Superior */}
-        <div className="bg-[#0f1420]/90 border border-slate-800 rounded-2xl p-6 backdrop-blur-md shadow-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="bg-[#0f1420]/90 border border-slate-800/90 rounded-2xl p-6 backdrop-blur-md shadow-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.push('/select-app')}
@@ -197,7 +197,7 @@ export default function GestionUsuariosAdminPage() {
             </button>
             <div>
               <h2 className="text-lg font-bold text-white tracking-wide flex items-center gap-2">
-                <Shield className="w-5 h-5 text-cyan-400" />
+                <Shield className="w-5 h-5 text-blue-500" />
                 Gestión Centralizada de Usuarios
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">Alta de operadores y asignación de permisos por sistema</p>
@@ -207,7 +207,7 @@ export default function GestionUsuariosAdminPage() {
           {puedeCrearUsuarios && (
             <button
               onClick={() => setModalAbierto(true)}
-              className="w-full sm:w-auto bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-cyan-950/60 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-wider"
+              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-blue-900/40 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-wider"
             >
               <UserPlus className="w-4 h-4" />
               <span>Nuevo Usuario</span>
@@ -250,7 +250,7 @@ export default function GestionUsuariosAdminPage() {
                     {u.modulos_permitidos && u.modulos_permitidos.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 pt-1.5">
                         {u.modulos_permitidos.map((mod) => (
-                          <span key={mod} className="px-2 py-0.5 bg-[#0b0e17] border border-slate-800 text-[10px] text-cyan-400 rounded-md uppercase font-semibold">
+                          <span key={mod} className="px-2 py-0.5 bg-[#0b0e17] border border-slate-800 text-[10px] text-blue-400 rounded-md uppercase font-semibold">
                             {mod}
                           </span>
                         ))}
@@ -259,14 +259,14 @@ export default function GestionUsuariosAdminPage() {
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <span className="px-3 py-1 bg-cyan-950/60 border border-cyan-800/80 text-cyan-400 rounded-lg text-[10px] font-extrabold uppercase tracking-wider">
+                    <span className="px-3 py-1 bg-emerald-950/60 border border-emerald-800/60 text-emerald-400 rounded-lg text-[10px] font-extrabold uppercase tracking-wider">
                       {u.rol || 'OPERADOR'}
                     </span>
                     
                     {rolNormalizado === 'administrador' && (
                       <button
                         onClick={() => setUsuarioAEditar(u.id)}
-                        className="text-xs text-cyan-400 hover:text-cyan-300 font-semibold underline ml-1"
+                        className="text-xs text-blue-400 hover:text-blue-300 font-semibold underline ml-1"
                       >
                         Cambiar Clave
                       </button>
@@ -285,7 +285,7 @@ export default function GestionUsuariosAdminPage() {
           <div className="bg-[#0f1420] border border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
             <div className="bg-[#090c13] p-4 border-b border-slate-800 flex justify-between items-center px-6">
               <h2 className="font-bold text-xs text-white uppercase tracking-wider flex items-center gap-2">
-                <UserPlus className="w-4 h-4 text-cyan-400" />
+                <UserPlus className="w-4 h-4 text-blue-500" />
                 Alta de Nuevo Usuario
               </h2>
               <button onClick={() => setModalAbierto(false)} className="text-slate-500 hover:text-white">
@@ -296,23 +296,23 @@ export default function GestionUsuariosAdminPage() {
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Nombre y Apellido</label>
-                <input required name="nombre_completo" type="text" placeholder="Ej: Juan Pérez" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500" />
+                <input required name="nombre_completo" type="text" placeholder="Ej: Juan Pérez" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500" />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">DNI</label>
-                  <input required name="dni" type="text" placeholder="Ej: 12345678" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500" />
+                  <input required name="dni" type="text" placeholder="Ej: 12345678" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500" />
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Legajo</label>
-                  <input required name="legajo" type="text" placeholder="Ej: 123456" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500" />
+                  <input required name="legajo" type="text" placeholder="Ej: 123456" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500" />
                 </div>
               </div>
 
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Correo Electrónico (Usuario)</label>
-                <input required name="email" type="text" placeholder="usuario@cop.estadistica.ar" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500" />
+                <input required name="email" type="text" placeholder="usuario@cop.estadistica.ar" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500" />
               </div>
 
               <div className="bg-[#090c13] p-3 rounded-xl border border-slate-800">
@@ -324,7 +324,7 @@ export default function GestionUsuariosAdminPage() {
 
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Superintendencia Asignada</label>
-                <select required name="superintendencia_id" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500">
+                <select required name="superintendencia_id" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500">
                   <option value="">-- Seleccionar Superintendencia --</option>
                   {superintendencias.map((sup) => (
                     <option key={sup.id} value={sup.id}>{sup.nombre}</option>
@@ -334,7 +334,7 @@ export default function GestionUsuariosAdminPage() {
 
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Rol de Usuario</label>
-                <select required name="rol" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500">
+                <select required name="rol" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500">
                   <option value="operador">OPERADOR (Carga diaria)</option>
                   <option value="consulta">CONSULTA (Solo lectura)</option>
                   <option value="supervisor">SUPERVISOR (Control)</option>
@@ -356,7 +356,7 @@ export default function GestionUsuariosAdminPage() {
                         onClick={() => toggleModulo(mod.id)}
                         className={`p-2.5 rounded-xl border cursor-pointer flex items-center justify-between transition-all ${
                           checked
-                            ? 'bg-cyan-950/60 border-cyan-800/80 text-white'
+                            ? 'bg-blue-950/60 border-blue-800/80 text-white'
                             : 'bg-[#090c13] border-slate-800 text-slate-500 hover:border-slate-700'
                         }`}
                       >
@@ -365,7 +365,7 @@ export default function GestionUsuariosAdminPage() {
                           type="checkbox"
                           checked={checked}
                           onChange={() => {}}
-                          className="rounded border-slate-800 text-cyan-600 focus:ring-0"
+                          className="rounded border-slate-800 text-blue-600 focus:ring-0"
                         />
                       </div>
                     );
@@ -375,7 +375,7 @@ export default function GestionUsuariosAdminPage() {
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-800 mt-4">
                 <button type="button" onClick={() => setModalAbierto(false)} className="px-4 py-2 text-xs font-semibold uppercase text-slate-400 hover:text-white">Cancelar</button>
-                <button disabled={cargando} type="submit" className="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl text-xs uppercase transition-all shadow-lg shadow-cyan-950/60">
+                <button disabled={cargando} type="submit" className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs uppercase transition-all shadow-lg shadow-blue-900/40">
                   {cargando ? 'Guardando...' : 'Crear Usuario'}
                 </button>
               </div>
@@ -394,7 +394,7 @@ export default function GestionUsuariosAdminPage() {
             <input
               type="password"
               placeholder="Nueva contraseña"
-              className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500"
+              className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
               onChange={(e) => setNuevaPass(e.target.value)}
             />
 
@@ -419,7 +419,7 @@ export default function GestionUsuariosAdminPage() {
                     alert(res.error);
                   }
                 }}
-                className="flex-1 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold rounded-xl text-xs uppercase transition shadow-lg shadow-cyan-950/60"
+                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs uppercase transition shadow-lg shadow-blue-900/40"
               >
                 {cargando ? 'Guardando...' : 'Confirmar'}
               </button>
