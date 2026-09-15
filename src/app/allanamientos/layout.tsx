@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { LogOut, User, Shield, Users, FileText, BarChart3 } from 'lucide-react';
+import { LogOut, User, Shield, Users, FileText, BarChart3, Grid } from 'lucide-react';
 
 const LOGO_URL = '/logo_cop.png';
 
@@ -20,7 +20,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     const checkAndFetchUser = async () => {
       try {
-        // 1. Intentar cargar instantáneamente desde caché local si existe
         const cachedEmail = localStorage.getItem('cop_user_email');
         const cachedRole = localStorage.getItem('cop_user_role');
 
@@ -28,11 +27,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           if (isMounted) {
             setUserEmail(cachedEmail);
             setUserRole(cachedRole);
-            setLoading(false); // Liberamos la pantalla de carga de inmediato
+            setLoading(false);
           }
         }
 
-        // 2. Timeout de seguridad de 6 segundos para la llamada a Supabase
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Timeout al verificar sesión')), 6000)
         );
@@ -72,7 +70,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           rolFinal = 'administrador';
         }
 
-        // 3. Actualizar la caché local con los datos reales y frescos
         localStorage.setItem('cop_user_email', email);
         localStorage.setItem('cop_user_role', rolFinal);
 
@@ -82,7 +79,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         }
       } catch (err) {
         console.error('Error o timeout al verificar sesión:', err);
-        // Si no hay caché previa y falla la red, redirigimos al login por seguridad
         if (!localStorage.getItem('cop_user_email')) {
           window.location.href = '/login';
         }
@@ -138,8 +134,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {/* Logo y Navegación */}
             <div className="flex items-center gap-3 sm:gap-6">
               <div 
-                onClick={() => router.push('/dashboard')} 
+                onClick={() => router.push('/select-app')} 
                 className="flex items-center gap-3 cursor-pointer hover:opacity-90 transition-opacity"
+                title="Volver a Selección de Módulos"
               >
                 <div className="w-10 h-10 flex items-center justify-center shrink-0">
                   <img src={LOGO_URL} alt="Logo" className="max-h-full max-w-full object-contain" />
@@ -154,12 +151,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </div>
               </div>
 
-              {/* Pestañas de navegación visibles siempre */}
+              {/* Botón para volver al selector de apps */}
+              <button
+                onClick={() => router.push('/select-app')}
+                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition sm:hidden"
+                title="Menú Principal"
+              >
+                <Grid className="w-4 h-4" />
+              </button>
+
+              {/* Pestañas de navegación */}
               <nav className="flex items-center gap-1 border-l border-slate-800 pl-3 sm:pl-6">
                 <Link
-                  href="/dashboard"
+                  href="/allanamientos"
                   className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition ${
-                    pathname === '/dashboard'
+                    pathname === '/allanamientos'
                       ? 'bg-blue-600 text-white'
                       : 'text-slate-400 hover:text-white hover:bg-slate-800'
                   }`}
@@ -169,7 +175,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </Link>
 
                 <Link
-                  href="/dashboard/metricas"
+                  href="/allanamientos/metricas"
                   className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition ${
                     pathname.includes('/metricas')
                       ? 'bg-blue-600 text-white'
@@ -182,9 +188,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
                 {esAdminOSupervisor && (
                   <Link
-                    href="/dashboard/usuarios"
+                    href="/admin/usuarios"
                     className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition ${
-                      pathname.includes('/usuarios')
+                      pathname.includes('/admin/usuarios')
                         ? 'bg-blue-600 text-white'
                         : 'text-slate-400 hover:text-white hover:bg-slate-800'
                     }`}
@@ -196,7 +202,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </nav>
             </div>
 
-            {/* Información Perfil & Logout */}
+            {/* Perfil & Logout */}
             <div className="flex items-center gap-2 sm:gap-4">
               <div className="hidden md:flex items-center gap-3 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl">
                 <div className="flex items-center gap-1.5 text-xs text-slate-300">
@@ -226,7 +232,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <main className="pt-6">{children}</main>
       </div>
 
-      {/* Pie de página */}
       <footer className="border-t border-slate-800/80 py-6 mt-12 text-center text-xs text-slate-500 bg-slate-900/40 backdrop-blur-sm">
         <p className="font-medium text-slate-400">
           Desarrollado por <span className="text-blue-400 font-semibold">Emmanuel Machado</span>

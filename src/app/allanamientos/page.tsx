@@ -8,7 +8,6 @@ import { supabase } from '@/lib/supabase';
 import { Plus, Search, Edit3, Trash2, Lock, Upload, Eye, X, Shield, Calendar, MapPin, FileText, UserCheck, Crosshair, Car } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
-// HELPER: Obtener el inicio de la semana actual (Lunes a las 00:00:00 hs)
 function getInicioSemanaActual(): Date {
   const ahora = new Date();
   const diaSemana = ahora.getDay();
@@ -20,7 +19,6 @@ function getInicioSemanaActual(): Date {
   return lunesActual;
 }
 
-// COMPONENTE CONTROL SEMÁFORO
 function SemaforoSuperintendencias({ allanamientos }: { allanamientos: any[] }) {
   const [superintendencias, setSuperintendencias] = useState<any[]>([]);
   const [desplegado, setDesplegado] = useState(true);
@@ -130,7 +128,6 @@ function SemaforoSuperintendencias({ allanamientos }: { allanamientos: any[] }) 
   );
 }
 
-// COMPONENTE VISTA PREVIA RESPONSIVA (Modal / Bottom Sheet Mobile)
 function ModalVistaPrevia({ item, onClose, puedeEditar, onEdit }: { item: any; onClose: () => void; puedeEditar: boolean; onEdit: () => void }) {
   if (!item) return null;
 
@@ -254,7 +251,6 @@ function ModalVistaPrevia({ item, onClose, puedeEditar, onEdit }: { item: any; o
   );
 }
 
-// COMPONENTE IMPORTAR EXCEL
 function BotonImportarExcel({ onImportSuccess }: { onImportSuccess?: () => void }) {
   const [permitido, setPermitido] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -403,7 +399,6 @@ export default function DashboardPage() {
   const [puedeEditar, setPuedeEditar] = useState(false);
   const [itemSeleccionado, setItemSeleccionado] = useState<any | null>(null);
 
-  // PAGINACIÓN
   const [paginaActual, setPaginaActual] = useState(1);
   const [registrosPorPagina, setRegistrosPorPagina] = useState(10);
 
@@ -415,7 +410,6 @@ export default function DashboardPage() {
     const ahora = new Date();
     const dia = ahora.getDay(); 
     const hora = ahora.getHours();
-    // Lunes todo el día (dia === 1), Martes todo el día (dia === 2) o Miércoles hasta las 07:59 hs
     return dia === 1 || dia === 2 || (dia === 3 && hora < 8);
   }
 
@@ -539,7 +533,6 @@ export default function DashboardPage() {
 
       {/* 2. BUSCADOR Y TABLA */}
       <div className="space-y-4">
-        {/* Buscador */}
         <div className="relative">
           <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-500" />
           <input
@@ -551,7 +544,6 @@ export default function DashboardPage() {
           />
         </div>
 
-        {/* Tabla con evento onClick en cada fila */}
         <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow-xl backdrop-blur-md">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-300">
@@ -645,7 +637,6 @@ export default function DashboardPage() {
             </table>
           </div>
 
-          {/* Paginación */}
           {!loading && filtrados.length > 0 && (
             <div className="px-4 py-3 bg-slate-950/80 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
               <div className="flex items-center gap-3">
