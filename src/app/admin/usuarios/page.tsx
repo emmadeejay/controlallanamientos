@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { crearUsuarioAction, resetearPasswordAction } from '@/app/actions/usuarios';
 import { supabase } from '@/lib/supabase';
-import { UserPlus, X, ShieldAlert, CheckCircle2, ArrowLeft, Shield, LogOut, User } from 'lucide-react';
+import { UserPlus, X, ShieldAlert, CheckCircle2, ArrowLeft, Users, LogOut, User } from 'lucide-react';
 
 interface Superintendencia {
   id: string;
@@ -147,7 +147,7 @@ export default function GestionUsuariosAdminPage() {
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 relative flex-shrink-0">
             <Image
-              src="/logo.png"
+              src="/logo_cop.png"
               alt="Logo C.O.P"
               width={36}
               height={36}
@@ -197,7 +197,7 @@ export default function GestionUsuariosAdminPage() {
             </button>
             <div>
               <h2 className="text-lg font-bold text-white tracking-wide flex items-center gap-2">
-                <Shield className="w-5 h-5 text-blue-500" />
+                <Users className="w-5 h-5 text-blue-500" />
                 Gestión Centralizada de Usuarios
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">Alta de operadores y asignación de permisos por sistema</p>
