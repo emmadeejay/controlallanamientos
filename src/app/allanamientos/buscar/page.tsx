@@ -16,13 +16,9 @@ export default function BuscarAllanamientosPage() {
 
   // Listas para Selects
   const [partidosList, setPartidosList] = useState<string[]>([])
-  const [superintendenciasList, setSuperintendenciasList] = useState<{ id: string; nombre: string }[]>([])
-  const [especialidadesList, setEspecialidadesList] = useState<string[]>([])
 
   // Estado de Filtros Principales
   const [partidoSel, setPartidoSel] = useState('')
-  const [superintendenciaSel, setSuperintendenciaSel] = useState('')
-  const [especialidadSel, setEspecialidadSel] = useState('')
   const [fechaDesde, setFechaDesde] = useState('')
   const [fechaHasta, setFechaHasta] = useState('')
   const [periodoActivo, setPeriodoActivo] = useState('mes')
@@ -42,14 +38,8 @@ export default function BuscarAllanamientosPage() {
     try {
       const { data: partData } = await supabase.from('partidos').select('nombre').order('nombre')
       if (partData) setPartidosList(partData.map(p => p.nombre))
-
-      const { data: supData } = await supabase.from('superintendencias').select('id, nombre').order('nombre')
-      if (supData) setSuperintendenciasList(supData || [])
-
-      const { data: espData } = await supabase.from('especialidades').select('nombre').order('nombre')
-      if (espData) setEspecialidadesList(espData.map(e => e.nombre))
     } catch (e) {
-      console.error("Error al cargar listas maestras:", e)
+      console.warn("No se pudo cargar la lista de partidos:", e)
     }
   }
 
@@ -77,8 +67,6 @@ export default function BuscarAllanamientosPage() {
 
   const resetearFiltros = () => {
     setPartidoSel('')
-    setSuperintendenciaSel('')
-    setEspecialidadSel('')
     setSoloArmas(false)
     setSoloVehiculos(false)
     setSoloDetenidosAprehendidos(false)
@@ -86,43 +74,85 @@ export default function BuscarAllanamientosPage() {
     setFechaDesde('')
     setFechaHasta('')
     setPeriodoActivo('')
-    ejecutarBusqueda({ desde: '', hasta: '', partido: '', sup: '', esp: '' })
+    ejecutarBusqueda({ desde: '', hasta: '', partido: '' })
   }
 
-  // Helper para leer seguro campos JSONB o números
-  const parseCampo = (val: any) => {
-    if (!val) return {}
-    if (typeof val === 'string') {
-      try { return JSON.parse(val) } catch { return {} }
-    }
-    return val
-  }
-
+  // Parseador ultra flexible para campos JSON / Numéricos
   const obtenerValores = (item: any) => {
-    const armasJson = parseCampo(item.secuestro_armas)
-    const vehiculosJson = parseCampo(item.secuestro_vehiculos)
-    const personasJson = parseCampo(item.detenidos_aprehendidos)
+    let corta = 0, larga = 0, blanca = 0, replica = 0, totalArmas = 0
+    let autos = 0, motos = 0, camionetas = 0, otrosVeh = 0, totalVehiculos = 0
+    let detenidos = 0, aprehendidos = 0, totalPersonas = 0
 
-    const corta = Number(armasJson.corta) || 0
-    const larga = Number(armasJson.larga) || 0
-    const blanca = Number(armasJson.blanca) || 0
-    const replica = Number(armasJson.replica) || 0
+    // --- PARSEO DE PERSONAS (detenidos_aprehendidos) ---
+    const pVal = item.detenidos_aprehendidos
+    if (typeof pVal === 'number' || (typeof pVal === 'string' && !isNaN(Number(pVal)))) {
+      totalPersonas = Number(pVal)
+      detenidos = totalPersonas
+    } else if (Array.isArray(pVal)) {
+      totalPersonas = pVal.length
+      pVal.forEach(p => {
+        if (typeof p === 'number') totalPersonas += p
+        else if (typeof p === 'object' && p !== null) {
+          detenidos += Number(p.detenidos || p.detenido || 0)
+          aprehendidos += Number(p.aprehendidos || p.aprehendido || 0)
+        }
+      })
+      if (detenidos + aprehendidos > 0) totalPersonas = detenidos + aprehendidos
+    } else if (typeof pVal === 'object' && pVal !== null) {
+      detenidos = Number(pVal.detenidos || pVal.detenido || 0)
+      aprehendidos = Number(pVal.aprehendidos || pVal.aprehendido || 0)
+      totalPersonas = detenidos + aprehendidos || Number(pVal.total || 0)
+    }
 
-    const autos = Number(vehiculosJson.autos) || 0
-    const motos = Number(vehiculosJson.motos) || 0
-    const camionetas = Number(vehiculosJson.camionetas) || 0
-    const otros = Number(vehiculosJson.otros) || 0
+    // --- PARSEO DE ARMAS (secuestro_armas) ---
+    const aVal = item.secuestro_armas
+    if (typeof aVal === 'number' || (typeof aVal === 'string' && !isNaN(Number(aVal)))) {
+      totalArmas = Number(aVal)
+    } else if (Array.isArray(aVal)) {
+      totalArmas = aVal.length
+      aVal.forEach(a => {
+        if (typeof a === 'object' && a !== null) {
+          corta += Number(a.corta || 0)
+          larga += Number(a.larga || 0)
+          blanca += Number(a.blanca || 0)
+          replica += Number(a.replica || 0)
+        }
+      })
+      if (corta + larga + blanca + replica > 0) totalArmas = corta + larga + blanca + replica
+    } else if (typeof aVal === 'object' && aVal !== null) {
+      corta = Number(aVal.corta || 0)
+      larga = Number(aVal.larga || 0)
+      blanca = Number(aVal.blanca || 0)
+      replica = Number(aVal.replica || 0)
+      totalArmas = corta + larga + blanca + replica || Number(aVal.total || 0)
+    }
 
-    const detenidos = Number(personasJson.detenidos) || 0
-    const aprehendidos = Number(personasJson.aprehendidos) || 0
-
-    const totalArmas = (corta + larga + blanca + replica) || Number(item.armas_secuestradas) || 0
-    const totalVehiculos = (autos + motos + camionetas + otros) || Number(item.vehiculos_secuestrados) || 0
-    const totalPersonas = (detenidos + aprehendidos) || Number(item.detenidos_aprehendidos_count) || 0
+    // --- PARSEO DE VEHÍCULOS (secuestro_vehiculos) ---
+    const vVal = item.secuestro_vehiculos
+    if (typeof vVal === 'number' || (typeof vVal === 'string' && !isNaN(Number(vVal)))) {
+      totalVehiculos = Number(vVal)
+    } else if (Array.isArray(vVal)) {
+      totalVehiculos = vVal.length
+      vVal.forEach(v => {
+        if (typeof v === 'object' && v !== null) {
+          autos += Number(v.autos || v.auto || 0)
+          motos += Number(v.motos || v.moto || 0)
+          camionetas += Number(v.camionetas || v.camioneta || 0)
+          otrosVeh += Number(v.otros || 0)
+        }
+      })
+      if (autos + motos + camionetas + otrosVeh > 0) totalVehiculos = autos + motos + camionetas + otrosVeh
+    } else if (typeof vVal === 'object' && vVal !== null) {
+      autos = Number(vVal.autos || vVal.auto || 0)
+      motos = Number(vVal.motos || vVal.moto || 0)
+      camionetas = Number(vVal.camionetas || vVal.camioneta || 0)
+      otrosVeh = Number(vVal.otros || 0)
+      totalVehiculos = autos + motos + camionetas + otrosVeh || Number(vVal.total || 0)
+    }
 
     return {
       corta, larga, blanca, replica, totalArmas,
-      autos, motos, camionetas, otros, totalVehiculos,
+      autos, motos, camionetas, otrosVeh, totalVehiculos,
       detenidos, aprehendidos, totalPersonas
     }
   }
@@ -133,11 +163,8 @@ export default function BuscarAllanamientosPage() {
     const fDesde = overrides?.desde !== undefined ? overrides.desde : fechaDesde
     const fHasta = overrides?.hasta !== undefined ? overrides.hasta : fechaHasta
     const part = overrides?.partido !== undefined ? overrides.partido : partidoSel
-    const sup = overrides?.sup !== undefined ? overrides.sup : superintendenciaSel
-    const esp = overrides?.esp !== undefined ? overrides.esp : especialidadSel
 
     try {
-      // Consulta directa simplificada a la tabla allanamientos
       let query = supabase
         .from('allanamientos')
         .select('*')
@@ -146,16 +173,10 @@ export default function BuscarAllanamientosPage() {
       if (fDesde) query = query.gte('fecha_ejecucion', fDesde)
       if (fHasta) query = query.lte('fecha_ejecucion', fHasta)
       if (part) query = query.eq('partido', part)
-      if (sup) query = query.eq('superintendencia_id', sup)
-      if (esp) query = query.ilike('especialidad_colaboradora', `%${esp}%`)
-
       if (soloPositivos) query = query.ilike('resultado_medida', '%positivo%')
 
       const { data, error } = await query
-      if (error) {
-        console.error("Error en query Supabase:", error)
-        throw error
-      }
+      if (error) throw error
 
       let resultadosFiltrados = data || []
 
@@ -187,20 +208,19 @@ export default function BuscarAllanamientosPage() {
       const v = obtenerValores(item)
 
       return {
+        'ID': item.id,
         'Partido': item.partido || 'S/D',
-        'Especialidad': item.especialidad_colaboradora || 'N/A',
         'Fecha Ejecución': item.fecha_ejecucion || 'S/D',
         'Resultado Medida': item.resultado_medida || 'N/A',
+        'Total Personas': v.totalPersonas,
         'Detenidos': v.detenidos,
         'Aprehendidos': v.aprehendidos,
-        'Armas Corta': v.corta,
-        'Armas Larga': v.larga,
-        'Armas Blanca': v.blanca,
-        'Réplicas': v.replica,
+        'Total Armas': v.totalArmas,
+        'Armas Cortas': v.corta,
+        'Armas Largas': v.larga,
+        'Total Vehículos': v.totalVehiculos,
         'Autos': v.autos,
         'Motos': v.motos,
-        'Camionetas': v.camionetas,
-        'Otros Vehículos': v.otros,
       }
     })
 
@@ -227,16 +247,11 @@ export default function BuscarAllanamientosPage() {
               <h1 className="text-xl font-bold text-white flex items-center gap-2">
                 <Filter className="w-5 h-5 text-blue-500" /> Consultas y Reportes Operativos
               </h1>
-              <p className="text-xs text-slate-400">Filtrado gerencial por zonas, períodos y resultados de secuestros.</p>
+              <p className="text-xs text-slate-400">Consulta directa de registros y exportación a Excel.</p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="hidden lg:flex items-center gap-1.5 bg-blue-950/40 border border-blue-900/50 px-3 py-1.5 rounded-xl text-[11px] text-blue-300">
-              <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
-              <span>Carga operativa: Lun 00:00 a Mié 08:00 hs</span>
-            </div>
-
             <button
               onClick={exportarExcel}
               disabled={registros.length === 0}
@@ -247,11 +262,11 @@ export default function BuscarAllanamientosPage() {
           </div>
         </div>
 
-        {/* Panel de Filtros Principales */}
+        {/* Panel de Filtros */}
         <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 space-y-4 backdrop-blur-md">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
 
-            {/* Rango Rápido */}
+            {/* Período Rápido */}
             <div>
               <label className="block text-[11px] font-medium text-slate-400 mb-1">Período de Análisis</label>
               <div className="flex gap-1.5">
@@ -295,36 +310,6 @@ export default function BuscarAllanamientosPage() {
               </select>
             </div>
 
-            {/* Superintendencia */}
-            <div>
-              <label className="block text-[11px] font-medium text-slate-400 mb-1">Superintendencia</label>
-              <select
-                value={superintendenciaSel}
-                onChange={(e) => setSuperintendenciaSel(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 cursor-pointer"
-              >
-                <option value="">Todas las Superintendencias</option>
-                {superintendenciasList.map((s) => (
-                  <option key={s.id} value={s.id}>{s.nombre}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Especialidad */}
-            <div>
-              <label className="block text-[11px] font-medium text-slate-400 mb-1">Especialidad Colaboradora</label>
-              <select
-                value={especialidadSel}
-                onChange={(e) => setEspecialidadSel(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 cursor-pointer"
-              >
-                <option value="">Todas las Especialidades</option>
-                {especialidadesList.map((nombre, idx) => (
-                  <option key={idx} value={nombre}>{nombre}</option>
-                ))}
-              </select>
-            </div>
-
             {/* Fechas Manuales */}
             <div>
               <label className="block text-[11px] font-medium text-slate-400 mb-1">Fecha Desde / Hasta</label>
@@ -346,7 +331,7 @@ export default function BuscarAllanamientosPage() {
 
           </div>
 
-          {/* Filtros Rápidos de Resultados (Chips) */}
+          {/* Chips de Resultados */}
           <div className="pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[11px] font-medium text-slate-400 mr-1">Filtrar por resultado:</span>
@@ -384,7 +369,7 @@ export default function BuscarAllanamientosPage() {
                     : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
                 }`}
               >
-                <Users className="w-3.5 h-3.5 text-purple-400" /> Detenidos / Aprehendidos
+                <Users className="w-3.5 h-3.5 text-purple-400" /> Con Personas
               </button>
 
               <button
@@ -424,26 +409,25 @@ export default function BuscarAllanamientosPage() {
               <thead className="bg-slate-950/90 uppercase text-[10px] text-slate-400 border-b border-slate-800 tracking-wider">
                 <tr>
                   <th className="py-3 px-4">Ubicación / Fecha</th>
-                  <th className="py-3 px-4">Especialidad</th>
-                  <th className="py-3 px-4">Personas APREH. / DET.</th>
-                  <th className="py-3 px-4">Armas Secuestradas</th>
-                  <th className="py-3 px-4">Vehículos Secuestrados</th>
+                  <th className="py-3 px-4">Personas</th>
+                  <th className="py-3 px-4">Armas</th>
+                  <th className="py-3 px-4">Vehículos</th>
                   <th className="py-3 px-4 text-center">Resultado</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/50">
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-400">
+                    <td colSpan={5} className="py-12 text-center text-slate-400">
                       <div className="flex justify-center items-center gap-2">
                         <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
-                        <span>Procesando registros operativos...</span>
+                        <span>Cargando registros...</span>
                       </div>
                     </td>
                   </tr>
                 ) : registros.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-400">
+                    <td colSpan={5} className="py-12 text-center text-slate-400">
                       Sin registros para los filtros seleccionados.
                     </td>
                   </tr>
@@ -458,32 +442,19 @@ export default function BuscarAllanamientosPage() {
                           <div className="text-[10px] text-slate-400">{item.fecha_ejecucion}</div>
                         </td>
                         <td className="py-3.5 px-4">
-                          <div className="text-slate-200">{item.especialidad_colaboradora || 'Sin especialidad'}</div>
+                          <span className="bg-slate-950 border border-slate-800/80 px-2.5 py-1 rounded-lg text-xs font-medium">
+                            Total: <strong className="text-purple-400">{v.totalPersonas}</strong>
+                          </span>
                         </td>
                         <td className="py-3.5 px-4">
-                          <div className="flex gap-2">
-                            <span className="bg-slate-950 border border-slate-800/80 px-2 py-0.5 rounded-lg text-[11px]">
-                              Det: <strong className="text-blue-400">{v.detenidos}</strong>
-                            </span>
-                            <span className="bg-slate-950 border border-slate-800/80 px-2 py-0.5 rounded-lg text-[11px]">
-                              Apreh: <strong className="text-emerald-400">{v.aprehendidos}</strong>
-                            </span>
-                          </div>
+                          <span className="bg-slate-950 border border-slate-800/80 px-2.5 py-1 rounded-lg text-xs font-medium">
+                            Total: <strong className="text-red-400">{v.totalArmas}</strong>
+                          </span>
                         </td>
                         <td className="py-3.5 px-4">
-                          <div className="text-[11px] text-slate-300 space-x-1">
-                            <span>Corta: <strong>{v.corta}</strong> |</span>
-                            <span>Larga: <strong>{v.larga}</strong> |</span>
-                            <span>Blanca: <strong>{v.blanca}</strong> |</span>
-                            <span>Réplica: <strong>{v.replica}</strong></span>
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <div className="text-[11px] text-slate-300 space-x-1">
-                            <span>Auto: <strong>{v.autos}</strong> |</span>
-                            <span>Moto: <strong>{v.motos}</strong> |</span>
-                            <span>Camioneta: <strong>{v.camionetas}</strong></span>
-                          </div>
+                          <span className="bg-slate-950 border border-slate-800/80 px-2.5 py-1 rounded-lg text-xs font-medium">
+                            Total: <strong className="text-sky-400">{v.totalVehiculos}</strong>
+                          </span>
                         </td>
                         <td className="py-3.5 px-4 text-center">
                           <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${
