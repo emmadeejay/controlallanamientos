@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { LogOut, User, Shield, FileText, BarChart3, Grid } from 'lucide-react';
+import { LogOut, User, Shield, FileText, BarChart3, Grid, Search } from 'lucide-react';
 
 const LOGO_URL = '/logo_cop.png';
 
@@ -170,6 +170,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 >
                   <FileText className="w-3.5 h-3.5" />
                   <span className="hidden md:inline">Allanamientos</span>
+                </Link>
+
+                <Link
+                  href="/allanamientos/buscar"
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition ${
+                    pathname === '/allanamientos/buscar'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  <span>Buscar</span>
                 </Link>
 
                 <Link
