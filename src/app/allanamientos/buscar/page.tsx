@@ -165,9 +165,15 @@ export default function BuscarAllanamientosPage() {
     const part = overrides?.partido !== undefined ? overrides.partido : partidoSel
 
     try {
+      // Hacemos el join correcto con la tabla superintendencias usando superintendencia_id
       let query = supabase
         .from('allanamientos')
-        .select('*')
+        .select(`
+          *,
+          superintendencias (
+            nombre
+          )
+        `)
         .order('fecha_ejecucion', { ascending: false })
 
       if (fDesde) query = query.gte('fecha_ejecucion', fDesde)
@@ -180,15 +186,12 @@ export default function BuscarAllanamientosPage() {
 
       let resultadosFiltrados = data || []
 
-      // Filtros rápidos en memoria
       if (soloArmas) {
         resultadosFiltrados = resultadosFiltrados.filter(item => obtenerValores(item).totalArmas > 0)
       }
-
       if (soloVehiculos) {
         resultadosFiltrados = resultadosFiltrados.filter(item => obtenerValores(item).totalVehiculos > 0)
       }
-
       if (soloDetenidosAprehendidos) {
         resultadosFiltrados = resultadosFiltrados.filter(item => obtenerValores(item).totalPersonas > 0)
       }
@@ -206,9 +209,12 @@ export default function BuscarAllanamientosPage() {
 
     const datosAExportar = registros.map(item => {
       const v = obtenerValores(item)
+      
+      // Obtenemos el nombre de la superintendencia desde la relación
+      const nombreSuper = item.superintendencias?.nombre || 'S/D'
 
       return {
-        'Superintendencia': item.superintendencia || item.superintendencia_nombre || item.super || 'S/D',
+        'Superintendencia': nombreSuper,
         'Partido': item.partido || 'S/D',
         'Fecha Ejecución': item.fecha_ejecucion || 'S/D',
         'Resultado Medida': item.resultado_medida || 'N/A',
