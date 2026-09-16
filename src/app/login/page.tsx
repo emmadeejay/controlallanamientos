@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
@@ -14,6 +14,17 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Asegura la limpieza completa de la sesión al cargar la página de login
+  useEffect(() => {
+    async function limpiarSesionAlIngresar() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        await supabase.auth.signOut();
+      }
+    }
+    limpiarSesionAlIngresar();
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,6 +43,7 @@ export default function LoginPage() {
 
       if (authError) {
         setError('Usuario o contraseña incorrectos.');
+        setLoading(false);
         return;
       }
 
@@ -40,11 +52,11 @@ export default function LoginPage() {
         router.refresh();
       } else {
         setError('No se pudo establecer la sesión.');
+        setLoading(false);
       }
     } catch (err) {
       console.error('Error al iniciar sesión:', err);
       setError('Ocurrió un error inesperado al intentar ingresar.');
-    } finally {
       setLoading(false);
     }
   };
