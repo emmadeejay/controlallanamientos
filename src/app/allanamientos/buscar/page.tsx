@@ -208,7 +208,7 @@ export default function BuscarAllanamientosPage() {
       const v = obtenerValores(item)
 
       return {
-        'ID': item.id,
+        'Superintendencia': item.superintendencia || item.superintendencia_nombre || item.super || 'S/D',
         'Partido': item.partido || 'S/D',
         'Fecha Ejecución': item.fecha_ejecucion || 'S/D',
         'Resultado Medida': item.resultado_medida || 'N/A',
