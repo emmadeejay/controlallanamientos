@@ -8,6 +8,33 @@ import { supabase } from '@/lib/supabase';
 import { Plus, Search, Edit3, Trash2, Lock, Upload, Eye, X, Shield, Calendar, MapPin, FileText, UserCheck, Crosshair, Car } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
+// Sincronización precisa con la hora oficial de Argentina (UTC-3)
+function esVentanaHorariaValida(): boolean {
+  const ahora = new Date();
+  const opciones: Intl.DateTimeFormatOptions = {
+    timeZone: 'America/Argentina/Buenos_Aires',
+    weekday: 'narrow',
+    hour: 'numeric',
+    hour12: false
+  };
+  
+  const formatter = new Intl.DateTimeFormat('es-AR', opciones);
+  const partes = formatter.formatToParts(ahora);
+  
+  // Obtenemos día numérico en Argentina: 0 (Dom), 1 (Lun), 2 (Mar), 3 (Mié), etc.
+  const formatterDia = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Argentina/Buenos_Aires', weekday: 'short' });
+  const diaStr = formatterDia.format(ahora);
+  
+  const diasMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const dia = diasMap[diaStr] ?? ahora.getDay();
+  
+  const horaPart = partes.find(p => p.type === 'hour');
+  const hora = horaPart ? parseInt(horaPart.value, 10) : ahora.getHours();
+
+  // Lunes (1), Martes (2) todo el día, y Miércoles (3) hasta las 08:00 hs
+  return dia === 1 || dia === 2 || (dia === 3 && hora < 8);
+}
+
 function getInicioSemanaActual(): Date {
   const ahora = new Date();
   const diaSemana = ahora.getDay();
@@ -322,11 +349,13 @@ function BotonImportarExcel({ onImportSuccess }: { onImportSuccess?: () => void 
           return;
         }
 
+        // Carga eficiente única de superintendencias para mapeo instantáneo
         const { data: supers } = await supabase.from('superintendencias').select('id, nombre');
+        const mapSupers = new Map(supers?.map(s => [s.nombre.toLowerCase().trim(), s.id]));
 
         const registrosParaInsertar = data.map(row => {
-          const nombreSupExcel = String(row.superintendencia || row.Superintendencia || '').trim().toLowerCase();
-          const encontrada = supers?.find(s => s.nombre.toLowerCase() === nombreSupExcel);
+          const nombreSupExcel = String(row.superintendencia || row.Superintendencia || '').toLowerCase().trim();
+          const superintendenciaId = mapSupers.get(nombreSupExcel) || null;
 
           return {
             numero_ipp: row.numero_ipp || row.IPP || null,
@@ -336,15 +365,15 @@ function BotonImportarExcel({ onImportSuccess }: { onImportSuccess?: () => void 
             numero_pu: row.numero_pu || null,
             nro_orden_serv_propia: row.nro_orden_serv_propia || null,
             nro_orden_serv_cop: row.nro_orden_serv_cop || null,
-            superintendencia_id: encontrada ? encontrada.id : null, 
+            superintendencia_id: superintendenciaId, 
             partido: row.partido || null,
             departamental: row.departamental || null,
             dependencia: row.dependencia || null,
             fecha_ejecucion: row.fecha_ejecucion || null,
             horario_ejecucion: row.horario_ejecucion || null,
-            personal_propio: row.personal_propio || 1,
+            personal_propio: Number(row.personal_propio || 1),
             resultado_medida: row.resultado_medida || 'Positivo',
-            cantidad_objetivos: row.cantidad_objetivos || 1,
+            cantidad_objetivos: Number(row.cantidad_objetivos || 1),
             personal_colaboracion: row.colaboracion || null,
             resultado_secuestros: row.resultado_secuestros || 'Positivo',
             armas_secuestradas: Number(row.armas || row.armas_secuestradas || 0),
@@ -397,6 +426,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState('');
   const [puedeEditar, setPuedeEditar] = useState(false);
+  const [esAdministradorOSupervisor, setEsAdministradorOSupervisor] = useState(false);
   const [itemSeleccionado, setItemSeleccionado] = useState<any | null>(null);
 
   const [paginaActual, setPaginaActual] = useState(1);
@@ -406,17 +436,10 @@ export default function DashboardPage() {
     checkPeriodoYUsuario();
   }, []);
 
-  function evaluarVentanaEdicion() {
-    const ahora = new Date();
-    const dia = ahora.getDay(); 
-    const hora = ahora.getHours();
-    return dia === 1 || dia === 2 || (dia === 3 && hora < 8);
-  }
-
   async function checkPeriodoYUsuario() {
     setLoading(true);
     try {
-      const estaEnVentana = evaluarVentanaEdicion();
+      const estaEnVentana = esVentanaHorariaValida();
 
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -436,11 +459,13 @@ export default function DashboardPage() {
 
       const esElevado = 
         rolNormalizado === 'supervisor' || 
+        rolNormalizado === 'administrador' || 
         rolNormalizado === 'admin' || 
         rolNormalizado === 'superadmin' ||
         profile?.role_id === 2 || 
         profile?.role_id === 3;
 
+      setEsAdministradorOSupervisor(esElevado);
       setPuedeEditar(esElevado || estaEnVentana);
       await fetchData(esElevado, profile?.superintendencia_id);
     } catch (err) {
@@ -469,13 +494,18 @@ export default function DashboardPage() {
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (!puedeEditar) return;
-    if (!confirm('¿Está seguro de eliminar este registro?')) return;
+    if (!esAdministradorOSupervisor) {
+      alert('Sólo los Administradores o Supervisores pueden eliminar registros.');
+      return;
+    }
+    if (!confirm('¿Está seguro de eliminar este registro de manera permanente?')) return;
 
     const { error } = await supabase.from('allanamientos').delete().eq('id', id);
     if (!error) {
       setAllanamientos(prev => prev.filter(item => item.id !== id));
       if (itemSeleccionado?.id === id) setItemSeleccionado(null);
+    } else {
+      alert('Error al intentar eliminar el registro.');
     }
   };
 
@@ -616,13 +646,15 @@ export default function DashboardPage() {
                             >
                               <Edit3 className="w-4 h-4" />
                             </button>
-                            <button
-                              onClick={(e) => handleDelete(e, item.id)}
-                              className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg transition"
-                              title="Eliminar"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            {esAdministradorOSupervisor && (
+                              <button
+                                onClick={(e) => handleDelete(e, item.id)}
+                                className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg transition"
+                                title="Eliminar"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
                           </>
                         ) : (
                           <span className="text-slate-600 text-[11px] italic flex items-center justify-end gap-1">
