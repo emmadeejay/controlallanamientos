@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import * as XLSX from 'xlsx'
 import { 
-  Search, Filter, Download, Edit3, Eye, ArrowLeft, 
-  Calendar, MapPin, ShieldAlert, Loader2, RefreshCw 
+  Search, Filter, Download, Edit3, ArrowLeft, 
+  Loader2, RefreshCw 
 } from 'lucide-react'
 
 export default function BuscarAllanamientosPage() {
@@ -14,7 +14,7 @@ export default function BuscarAllanamientosPage() {
   const [loading, setLoading] = useState(false)
   const [registros, setRegistros] = useState<any[]>([])
 
-  // Listas para los combos de filtro
+  // Listas para los combos
   const [partidosList, setPartidosList] = useState<string[]>([])
   const [especialidadesList, setEspecialidadesList] = useState<string[]>([])
 
@@ -24,7 +24,7 @@ export default function BuscarAllanamientosPage() {
   const [especialidadSel, setEspecialidadSel] = useState('')
   const [fechaDesde, setFechaDesde] = useState('')
   const [fechaHasta, setFechaHasta] = useState('')
-  const [periodoAcceso, setPeriodoAcceso] = useState('') // 'semana' | 'mes' | ''
+  const [periodoAcceso, setPeriodoAcceso] = useState('')
 
   useEffect(() => {
     cargarListasMaestras()
@@ -39,13 +39,12 @@ export default function BuscarAllanamientosPage() {
     if (espData) setEspecialidadesList(espData.map(e => e.nombre))
   }
 
-  // Manejo de atajos temporales (Esta Semana / Este Mes)
   const aplicarPresetFecha = (tipo: 'semana' | 'mes') => {
     const hoy = new Date()
     let desde = new Date()
 
     if (tipo === 'semana') {
-      const diaSemana = hoy.getDay() // 0 dom, 1 lun...
+      const diaSemana = hoy.getDay()
       const diff = hoy.getDate() - diaSemana + (diaSemana === 0 ? -6 : 1)
       desde = new Date(hoy.setDate(diff))
     } else if (tipo === 'mes') {
@@ -64,6 +63,29 @@ export default function BuscarAllanamientosPage() {
     setFechaDesde('')
     setFechaHasta('')
     setPeriodoAcceso('')
+    
+    // Carga limpia de todos los registros
+    cargarTodosLosRegistros()
+  }
+
+  const cargarTodosLosRegistros = async () => {
+    setLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('allanamientos')
+        .select(`
+          *,
+          superintendencias (nombre)
+        `)
+        .order('fecha_ejecucion', { ascending: false })
+
+      if (error) throw error
+      setRegistros(data || [])
+    } catch (err) {
+      console.error('Error al traer datos:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const ejecutarBusqueda = async () => {
@@ -73,8 +95,7 @@ export default function BuscarAllanamientosPage() {
         .from('allanamientos')
         .select(`
           *,
-          superintendencias (nombre),
-          allanamiento_colaboraciones (especialidad, cant_solicitada, cant_afectada)
+          superintendencias (nombre)
         `)
         .order('fecha_ejecucion', { ascending: false })
 
@@ -95,21 +116,14 @@ export default function BuscarAllanamientosPage() {
 
       let resultados = data || []
 
-      // Filtro local por Texto Libre (IPP, Carátula, Dependencia)
+      // Búsqueda por texto (IPP, Carátula, Dependencia, Superintendencia)
       if (busquedaGral.trim()) {
-        const q = busquedaGral.toLowerCase()
+        const q = busquedaGral.toLowerCase().trim()
         resultados = resultados.filter(item => 
           item.numero_ipp?.toLowerCase().includes(q) ||
           item.caratula?.toLowerCase().includes(q) ||
           item.dependencia?.toLowerCase().includes(q) ||
           item.superintendencias?.nombre?.toLowerCase().includes(q)
-        )
-      }
-
-      // Filtro por Especialidad en tabla relacionada
-      if (especialidadSel) {
-        resultados = resultados.filter(item => 
-          item.allanamiento_colaboraciones?.some((col: any) => col.especialidad === especialidadSel)
         )
       }
 
@@ -121,7 +135,6 @@ export default function BuscarAllanamientosPage() {
     }
   }
 
-  // Exportar los registros filtrados a formato Excel
   const exportarExcel = () => {
     if (registros.length === 0) return
 
@@ -157,7 +170,7 @@ export default function BuscarAllanamientosPage() {
     <div className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-10">
       <div className="max-w-7xl mx-auto space-y-6">
 
-        {/* Encabezado */}
+        {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-800 pb-5">
           <div className="flex items-center space-x-4">
             <button 
@@ -187,7 +200,6 @@ export default function BuscarAllanamientosPage() {
         <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4 backdrop-blur-md">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 
-            {/* Búsqueda General */}
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1">Buscar por IPP, Carátula o Lote</label>
               <input
@@ -199,7 +211,6 @@ export default function BuscarAllanamientosPage() {
               />
             </div>
 
-            {/* Partido */}
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1">Partido</label>
               <select
@@ -214,7 +225,6 @@ export default function BuscarAllanamientosPage() {
               </select>
             </div>
 
-            {/* Especialidad */}
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1">Especialidad Colaboradora</label>
               <select
@@ -229,7 +239,6 @@ export default function BuscarAllanamientosPage() {
               </select>
             </div>
 
-            {/* Presets Rápidos de Fecha */}
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1">Rango Rápido</label>
               <div className="flex gap-2">
@@ -258,7 +267,6 @@ export default function BuscarAllanamientosPage() {
               </div>
             </div>
 
-            {/* Fecha Desde */}
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1">Fecha Desde</label>
               <input
@@ -269,7 +277,6 @@ export default function BuscarAllanamientosPage() {
               />
             </div>
 
-            {/* Fecha Hasta */}
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1">Fecha Hasta</label>
               <input
@@ -285,20 +292,20 @@ export default function BuscarAllanamientosPage() {
           <div className="flex justify-end gap-3 pt-2 border-t border-slate-800/80">
             <button
               onClick={resetearFiltros}
-              className="px-4 py-2 bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 rounded-xl text-xs font-semibold transition flex items-center gap-1.5"
+              className="px-4 py-2 bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" /> Limpiar Filtros
             </button>
             <button
               onClick={ejecutarBusqueda}
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shadow-md shadow-blue-600/20"
+              className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shadow-md shadow-blue-600/20 cursor-pointer"
             >
               <Filter className="w-3.5 h-3.5" /> Aplicar Filtros
             </button>
           </div>
         </div>
 
-        {/* Tabla de Resultados */}
+        {/* Tabla */}
         <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm text-slate-300">
@@ -360,7 +367,7 @@ export default function BuscarAllanamientosPage() {
                       <td className="py-3.5 px-4 text-right">
                         <button
                           onClick={() => router.push(`/allanamientos/editar/${item.id}`)}
-                          className="p-2 text-slate-400 hover:text-amber-400 hover:bg-amber-950/30 rounded-lg transition"
+                          className="p-2 text-slate-400 hover:text-amber-400 hover:bg-amber-950/30 rounded-lg transition cursor-pointer"
                           title="Editar Allanamiento"
                         >
                           <Edit3 className="w-4 h-4" />
