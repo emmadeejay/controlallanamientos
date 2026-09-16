@@ -7,6 +7,36 @@ import { ArrowLeft, Plus, Trash2, Save, ShieldAlert, Building2, Loader2, Lock } 
 
 const LOCAL_STORAGE_KEY = 'borrador_nuevo_allanamiento'
 
+// Sincronización precisa con la hora oficial de Argentina (UTC-3)
+function esVentanaOperativaValida(): boolean {
+  const ahora = new Date()
+  const opciones: Intl.DateTimeFormatOptions = {
+    timeZone: 'America/Argentina/Buenos_Aires',
+    weekday: 'narrow',
+    hour: 'numeric',
+    hour12: false
+  }
+  
+  const formatter = new Intl.DateTimeFormat('es-AR', opciones)
+  const partes = formatter.formatToParts(ahora)
+  
+  const formatterDia = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Argentina/Buenos_Aires', weekday: 'short' })
+  const diaStr = formatterDia.format(ahora)
+  
+  const diasMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+  const dia = diasMap[diaStr] ?? ahora.getDay()
+  
+  const horaPart = partes.find(p => p.type === 'hour')
+  const hora = horaPart ? parseInt(horaPart.value, 10) : ahora.getHours()
+
+  // Lunes (1) desde las 08:00 hs hasta Miércoles (3) a las 07:59 hs
+  if (dia === 1 && hora >= 8) return true
+  if (dia === 2) return true
+  if (dia === 3 && hora < 8) return true
+
+  return false
+}
+
 export default function NuevoAllanamientosPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -66,24 +96,10 @@ export default function NuevoAllanamientosPage() {
   const [detenidos, setDetenidos] = useState<{ subtipo: string; cantidad: number }[]>([])
 
   useEffect(() => {
-    verificarVentanaOperativa()
+    const enVentana = esVentanaOperativaValida()
+    setFueraDeVentana(!enVentana)
     inicializarDatos()
   }, [])
-
-  // Verificar la ventana temporal (Lunes 08:00 AM - Miércoles 08:00 AM)
-  const verificarVentanaOperativa = () => {
-    const ahora = new Date()
-    const dia = ahora.getDay() // 0 = Dom, 1 = Lun, 2 = Mar, 3 = Mié, 4 = Jue, 5 = Vie, 6 = Sáb
-    const hora = ahora.getHours()
-
-    // Lunes (1) desde las 8:00 hasta Miércoles (3) a las 07:59
-    let enVentana = false
-    if (dia === 1 && hora >= 8) enVentana = true
-    if (dia === 2) enVentana = true
-    if (dia === 3 && hora < 8) enVentana = true
-
-    setFueraDeVentana(!enVentana)
-  }
 
   // Carga de borradores locales al iniciar
   const cargarBorrador = () => {
@@ -98,6 +114,7 @@ export default function NuevoAllanamientosPage() {
         if (parsed.detenidos) setDetenidos(parsed.detenidos)
         if (parsed.horaEjecucion) setHoraEjecucion(parsed.horaEjecucion)
         if (parsed.minutoEjecucion) setMinutoEjecucion(parsed.minutoEjecucion)
+        if (parsed.superintendenciaSeleccionada) setSuperintendenciaSeleccionada(parsed.superintendenciaSeleccionada)
       }
     } catch (e) {
       console.warn('No se pudo recuperar el borrador local:', e)
@@ -106,7 +123,7 @@ export default function NuevoAllanamientosPage() {
 
   // Guardar borrador local automáticamente ante cambios
   useEffect(() => {
-    if (!fueraDeVentana) {
+    if (!fueraDeVentana || esElevado) {
       const estadoCompleto = {
         formData,
         colaboraciones,
@@ -114,11 +131,12 @@ export default function NuevoAllanamientosPage() {
         vehiculos,
         detenidos,
         horaEjecucion,
-        minutoEjecucion
+        minutoEjecucion,
+        superintendenciaSeleccionada
       }
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(estadoCompleto))
     }
-  }, [formData, colaboraciones, armas, vehiculos, detenidos, horaEjecucion, minutoEjecucion, fueraDeVentana])
+  }, [formData, colaboraciones, armas, vehiculos, detenidos, horaEjecucion, minutoEjecucion, superintendenciaSeleccionada, fueraDeVentana, esElevado])
 
   async function inicializarDatos() {
     try {
@@ -136,6 +154,7 @@ export default function NuevoAllanamientosPage() {
 
         const elevado = 
           rolNormalizado === 'supervisor' || 
+          rolNormalizado === 'administrador' || 
           rolNormalizado === 'admin' || 
           rolNormalizado === 'superadmin' ||
           profile?.role_id === 2 || 
@@ -144,7 +163,6 @@ export default function NuevoAllanamientosPage() {
         setEsElevado(elevado)
         setSuperintendenciaUsuario(profile?.superintendencia_id || null)
 
-        // Si viene por URL, la seteamos por defecto
         if (superintendenciaUrl && superintendenciaUrl !== 'TODAS') {
           setSuperintendenciaSeleccionada(superintendenciaUrl)
         } else if (profile?.superintendencia_id) {
@@ -162,7 +180,6 @@ export default function NuevoAllanamientosPage() {
       const { data: superData } = await supabase.from('superintendencias').select('id, nombre').order('nombre')
       if (superData) setSuperintendenciasList(superData)
 
-      // Cargar borrador si no es admin/elevado o si desea restaurar
       cargarBorrador()
 
     } catch (err) {
@@ -204,7 +221,6 @@ export default function NuevoAllanamientosPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Si intenta enviar fuera de ventana (sin ser elevado), rebota
     if (fueraDeVentana && !esElevado) {
       setError('La ventana de carga se encuentra cerrada (Lunes 08:00hs a Miércoles 08:00hs).')
       return
@@ -226,6 +242,14 @@ export default function NuevoAllanamientosPage() {
       }
 
       const horarioFinal = `${horaEjecucion}:${minutoEjecucion}`
+
+      // Totales acumulados para métricas numéricas globales
+      const totalArmas = formData.resultado_secuestros === 'Positivo' 
+        ? armas.reduce((sum, item) => sum + (Number(item.cantidad) || 0), 0) : 0
+      const totalVehiculos = formData.resultado_secuestros === 'Positivo' 
+        ? vehiculos.reduce((sum, item) => sum + (Number(item.cantidad) || 0), 0) : 0
+      const totalDetenidos = formData.resultado_secuestros === 'Positivo' 
+        ? detenidos.reduce((sum, item) => sum + (Number(item.cantidad) || 0), 0) : 0
 
       let detalleSecuestrosTexto = ''
       if (formData.resultado_secuestros === 'Positivo') {
@@ -257,11 +281,14 @@ export default function NuevoAllanamientosPage() {
         lugar_presentacion: formData.dependencia || formData.partido,
         departamental: formData.departamental || null,
         dependencia: formData.dependencia || 'Sin especificar',
-        objetivos: Number(formData.objetivos) || 1,
+        cantidad_objetivos: Number(formData.objetivos) || 1,
         personal_propio: Number(formData.personal_propio) || 0,
         resultado_medida: formData.resultado_medida,
         es_positivo: formData.resultado_medida === 'Positivo',
         resultado_secuestros: formData.resultado_secuestros,
+        armas_secuestradas: totalArmas,
+        vehiculos_secuestrados: totalVehiculos,
+        detenidos_aprehendidos: totalDetenidos,
         orden_servicio_propia: formData.orden_servicio_propia || 'S/N',
         orden_servicio_cop: formData.orden_servicio_cop || null,
         numero_parte_urgente: formData.numero_parte_urgente || null,
@@ -287,10 +314,10 @@ export default function NuevoAllanamientosPage() {
         if (colabError) throw colabError
       }
 
-      // Si se guardó con éxito, vaciar el borrador
+      // Vaciar borrador solo tras persistencia exitosa
       localStorage.removeItem(LOCAL_STORAGE_KEY)
 
-      router.push('/dashboard')
+      router.push('/allanamientos')
 
     } catch (err: any) {
       console.error('Error detallado:', err)
@@ -300,7 +327,6 @@ export default function NuevoAllanamientosPage() {
     }
   }
 
-  // Render si está fuera de ventana y no es Administrador/Supervisor
   if (fueraDeVentana && !esElevado) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
@@ -312,10 +338,10 @@ export default function NuevoAllanamientosPage() {
           El sistema solo habilita el registro de allanamientos desde los <span className="text-amber-400 font-semibold">Lunes a las 08:00 hs</span> hasta los <span className="text-amber-400 font-semibold">Miércoles a las 08:00 hs</span>.
         </p>
         <button
-          onClick={() => router.push('/dashboard')}
+          onClick={() => router.push('/allanamientos')}
           className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 rounded-xl text-sm font-semibold transition"
         >
-          Volver al Dashboard
+          Volver a Allanamientos
         </button>
       </div>
     )
@@ -453,7 +479,6 @@ export default function NuevoAllanamientosPage() {
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 
-              {/* DROPDOWN SOLO VISIBLE PARA SUPERVISORES / ADMINS */}
               {esElevado && (
                 <div className="md:col-span-2 lg:col-span-3 bg-blue-950/20 border border-blue-800/40 p-3.5 rounded-xl mb-2">
                   <label className="block text-xs font-semibold text-blue-300 mb-1 flex items-center gap-1.5">
@@ -892,7 +917,7 @@ export default function NuevoAllanamientosPage() {
               ) : (
                 <>
                   <Save className="w-4 h-4" />
-                  <span>Guardar Allanamientos</span>
+                  <span>Guardar Allanamiento</span>
                 </>
               )}
             </button>
