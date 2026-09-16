@@ -89,31 +89,52 @@ export default function BuscarAllanamientosPage() {
     ejecutarBusqueda({ desde: '', hasta: '', partido: '', sup: '', esp: '' })
   }
 
-  // Ayudantes para parsear el JSONB o usar los campos acumulados numéricos
-  const obtenerTotalArmas = (item: any) => {
-    if (item.armas_secuestradas !== undefined && item.armas_secuestradas !== null) return item.armas_secuestradas
-    const json = typeof item.secuestro_armas === 'string' ? JSON.parse(item.secuestro_armas || '{}') : (item.secuestro_armas || {})
-    return (Number(json.corta) || 0) + (Number(json.larga) || 0) + (Number(json.blanca) || 0) + (Number(json.replica) || 0)
-  }
-
-  const obtenerTotalVehiculos = (item: any) => {
-    if (item.vehiculos_secuestrados !== undefined && item.vehiculos_secuestrados !== null) return item.vehiculos_secuestrados
-    const json = typeof item.secuestro_vehiculos === 'string' ? JSON.parse(item.secuestro_vehiculos || '{}') : (item.secuestro_vehiculos || {})
-    return (Number(json.autos) || 0) + (Number(json.motos) || 0) + (Number(json.camionetas) || 0) + (Number(json.otros) || 0)
-  }
-
-  const obtenerTotalPersonas = (item: any) => {
-    if (item.detenidos_aprehendidos_count !== undefined && item.detenidos_aprehendidos_count !== null) return item.detenidos_aprehendidos_count
-    const json = typeof item.detenidos_aprehendidos === 'string' ? JSON.parse(item.detenidos_aprehendidos || '{}') : (item.detenidos_aprehendidos || {})
-    return (Number(json.detenidos) || 0) + (Number(json.aprehendidos) || 0)
-  }
-
-  const parsearJson = (campo: any) => {
-    if (!campo) return {}
-    if (typeof campo === 'string') {
-      try { return JSON.parse(campo) } catch { return {} }
+  // Funciones auxiliares para procesar desgloses de secuestros
+  const extraerSecuestros = (item: any) => {
+    const secuestros = item.allanamiento_secuestros || []
+    
+    const res = {
+      corta: 0, larga: 0, blanca: 0, replica: 0,
+      autos: 0, motos: 0, camionetas: 0, otros: 0,
+      detenidos: 0, aprehendidos: 0
     }
-    return campo
+
+    secuestros.forEach((s: any) => {
+      const tipo = String(s.tipo || '').toLowerCase()
+      const subtipo = String(s.subtipo || '').toLowerCase()
+      const cant = Number(s.cantidad) || 0
+
+      if (tipo.includes('arma')) {
+        if (subtipo.includes('corta')) res.corta += cant
+        else if (subtipo.includes('larga')) res.larga += cant
+        else if (subtipo.includes('blanca')) res.blanca += cant
+        else if (subtipo.includes('replica') || subtipo.includes('réplica')) res.replica += cant
+      } else if (tipo.includes('vehiculo') || tipo.includes('vehículo')) {
+        if (subtipo.includes('auto')) res.autos += cant
+        else if (subtipo.includes('moto')) res.motos += cant
+        else if (subtipo.includes('camioneta')) res.camionetas += cant
+        else res.otros += cant
+      } else if (tipo.includes('persona') || tipo.includes('deten') || tipo.includes('aprehen')) {
+        if (subtipo.includes('deteni')) res.detenidos += cant
+        else if (subtipo.includes('aprehen')) res.aprehendidos += cant
+      }
+    })
+
+    // Si la tabla principal ya tiene totales consolidados, los usa como fallback
+    const totalArmas = (res.corta + res.larga + res.blanca + res.replica) || Number(item.armas_secuestradas) || 0
+    const totalVehiculos = (res.autos + res.motos + res.camionetas + res.otros) || Number(item.vehiculos_secuestrados) || 0
+    const totalPersonas = (res.detenidos + res.aprehendidos) || Number(item.detenidos_aprehendidos_count) || 0
+
+    return { ...res, totalArmas, totalVehiculos, totalPersonas }
+  }
+
+  const obtenerEspecialidadesTexto = (item: any) => {
+    if (item.especialidad_colaboradora) return item.especialidad_colaboradora
+    const colabs = item.allanamiento_colaboraciones || []
+    if (colabs.length > 0) {
+      return colabs.map((c: any) => c.especialidad).filter(Boolean).join(', ')
+    }
+    return 'Sin especialidad'
   }
 
   const ejecutarBusqueda = async (overrides?: any) => {
@@ -126,12 +147,13 @@ export default function BuscarAllanamientosPage() {
     const esp = overrides?.esp !== undefined ? overrides.esp : especialidadSel
 
     try {
-      // Consulta directa limpia a allanamientos vinculada a superintendencias con LEFT JOIN
       let query = supabase
         .from('allanamientos')
         .select(`
           *,
-          superintendencias!left(nombre)
+          superintendencias!left(nombre),
+          allanamiento_secuestros!left(*),
+          allanamiento_colaboraciones!left(*)
         `)
         .order('fecha_ejecucion', { ascending: false })
 
@@ -148,17 +170,17 @@ export default function BuscarAllanamientosPage() {
 
       let resultadosFiltrados = data || []
 
-      // Filtrado por secuestros y personas
+      // Filtrar por Chips de Resultados
       if (soloArmas) {
-        resultadosFiltrados = resultadosFiltrados.filter(item => obtenerTotalArmas(item) > 0)
+        resultadosFiltrados = resultadosFiltrados.filter(item => extraerSecuestros(item).totalArmas > 0)
       }
 
       if (soloVehiculos) {
-        resultadosFiltrados = resultadosFiltrados.filter(item => obtenerTotalVehiculos(item) > 0)
+        resultadosFiltrados = resultadosFiltrados.filter(item => extraerSecuestros(item).totalVehiculos > 0)
       }
 
       if (soloDetenidosAprehendidos) {
-        resultadosFiltrados = resultadosFiltrados.filter(item => obtenerTotalPersonas(item) > 0)
+        resultadosFiltrados = resultadosFiltrados.filter(item => extraerSecuestros(item).totalPersonas > 0)
       }
 
       setRegistros(resultadosFiltrados)
@@ -173,26 +195,25 @@ export default function BuscarAllanamientosPage() {
     if (registros.length === 0) return
 
     const datosAExportar = registros.map(item => {
-      const armas = parsearJson(item.secuestro_armas)
-      const vehiculos = parsearJson(item.secuestro_vehiculos)
-      const personas = parsearJson(item.detenidos_aprehendidos)
+      const sec = extraerSecuestros(item)
+      const espNombre = obtenerEspecialidadesTexto(item)
 
       return {
         'Superintendencia': item.superintendencias?.nombre || 'N/A',
-        'Especialidad': item.especialidad_colaboradora || 'N/A',
-        'Partido': item.partido,
-        'Fecha Ejecución': item.fecha_ejecucion,
-        'Resultado Medida': item.resultado_medida,
-        'Detenidos': personas.detenidos || 0,
-        'Aprehendidos': personas.aprehendidos || 0,
-        'Armas Cortas': armas.corta || 0,
-        'Armas Largas': armas.larga || 0,
-        'Armas Blancas': armas.blanca || 0,
-        'Réplicas': armas.replica || 0,
-        'Autos': vehiculos.autos || 0,
-        'Motos': vehiculos.motos || 0,
-        'Camionetas': vehiculos.camionetas || 0,
-        'Otros Vehículos': vehiculos.otros || 0,
+        'Especialidad': espNombre,
+        'Partido': item.partido || 'S/D',
+        'Fecha Ejecución': item.fecha_ejecucion || 'S/D',
+        'Resultado Medida': item.resultado_medida || 'N/A',
+        'Detenidos': sec.detenidos,
+        'Aprehendidos': sec.aprehendidos,
+        'Armas Corta': sec.corta,
+        'Armas Larga': sec.larga,
+        'Armas Blanca': sec.blanca,
+        'Réplicas': sec.replica,
+        'Autos': sec.autos,
+        'Motos': sec.motos,
+        'Camionetas': sec.camionetas,
+        'Otros Vehículos': sec.otros,
       }
     })
 
@@ -441,9 +462,8 @@ export default function BuscarAllanamientosPage() {
                   </tr>
                 ) : (
                   registros.map((item) => {
-                    const armas = parsearJson(item.secuestro_armas)
-                    const vehiculos = parsearJson(item.secuestro_vehiculos)
-                    const personas = parsearJson(item.detenidos_aprehendidos)
+                    const sec = extraerSecuestros(item)
+                    const espNombre = obtenerEspecialidadesTexto(item)
 
                     return (
                       <tr key={item.id} className="hover:bg-slate-800/30 transition">
@@ -453,31 +473,31 @@ export default function BuscarAllanamientosPage() {
                         </td>
                         <td className="py-3.5 px-4">
                           <div className="text-slate-200">{item.superintendencias?.nombre || 'N/A'}</div>
-                          <div className="text-[10px] text-slate-400">{item.especialidad_colaboradora || 'Sin especialidad'}</div>
+                          <div className="text-[10px] text-slate-400">{espNombre}</div>
                         </td>
                         <td className="py-3.5 px-4">
                           <div className="flex gap-2">
                             <span className="bg-slate-950 border border-slate-800/80 px-2 py-0.5 rounded-lg text-[11px]">
-                              Det: <strong className="text-blue-400">{personas.detenidos || item.detenidos || 0}</strong>
+                              Det: <strong className="text-blue-400">{sec.detenidos}</strong>
                             </span>
                             <span className="bg-slate-950 border border-slate-800/80 px-2 py-0.5 rounded-lg text-[11px]">
-                              Apreh: <strong className="text-emerald-400">{personas.aprehendidos || item.aprehendidos || 0}</strong>
+                              Apreh: <strong className="text-emerald-400">{sec.aprehendidos}</strong>
                             </span>
                           </div>
                         </td>
                         <td className="py-3.5 px-4">
                           <div className="text-[11px] text-slate-300 space-x-1">
-                            <span>Corta: <strong>{armas.corta || 0}</strong> |</span>
-                            <span>Larga: <strong>{armas.larga || 0}</strong> |</span>
-                            <span>Blanca: <strong>{armas.blanca || 0}</strong> |</span>
-                            <span>Réplica: <strong>{armas.replica || 0}</strong></span>
+                            <span>Corta: <strong>{sec.corta}</strong> |</span>
+                            <span>Larga: <strong>{sec.larga}</strong> |</span>
+                            <span>Blanca: <strong>{sec.blanca}</strong> |</span>
+                            <span>Réplica: <strong>{sec.replica}</strong></span>
                           </div>
                         </td>
                         <td className="py-3.5 px-4">
                           <div className="text-[11px] text-slate-300 space-x-1">
-                            <span>Auto: <strong>{vehiculos.autos || 0}</strong> |</span>
-                            <span>Moto: <strong>{vehiculos.motos || 0}</strong> |</span>
-                            <span>Camioneta: <strong>{vehiculos.camionetas || 0}</strong></span>
+                            <span>Auto: <strong>{sec.autos}</strong> |</span>
+                            <span>Moto: <strong>{sec.motos}</strong> |</span>
+                            <span>Camioneta: <strong>{sec.camionetas}</strong></span>
                           </div>
                         </td>
                         <td className="py-3.5 px-4 text-center">
