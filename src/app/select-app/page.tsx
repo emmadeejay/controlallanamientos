@@ -48,7 +48,7 @@ export default function SelectAppPage() {
           .eq('id', user.id)
           .maybeSingle();
 
-        // 2. Búsqueda de respaldo por Email si no coincide por ID
+        // 2. Búsqueda de respaldo por Email
         if (!profile && email) {
           const { data: profileByEmail } = await supabase
             .from('profiles')
@@ -73,7 +73,12 @@ export default function SelectAppPage() {
           setUserId(user.id);
           setUserEmail(email);
 
-          const rolDetectado = profile?.rol ? String(profile.rol).trim().toLowerCase() : 'operador';
+          // Forzar administrador si coincide tu correo o si el rol en DB es admin
+          const esAdminPorMail = email.includes('emmanuelmachado');
+          const rolDetectado = esAdminPorMail
+            ? 'administrador'
+            : (profile?.rol ? String(profile.rol).trim().toLowerCase() : 'operador');
+
           setUserRole(rolDetectado);
 
           setModulosPermitidos(
