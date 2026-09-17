@@ -196,16 +196,34 @@ export default function MetricasPage() {
 
   async function cargarMetricas() {
     try {
+      // 1. Consulta limpia a la tabla sin joins que disparen error 400
       const { data, error } = await supabase
         .from('allanamientos')
-        .select('*, superintendencias(nombre), allanamiento_colaboraciones(*)');
+        .select('*');
 
-      if (error || !data) return;
+      if (error) {
+        console.error('Error al traer allanamientos:', error);
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        setLoading(false);
+        return;
+      }
+
+      // 2. Carga defensiva de colaboraciones
+      let colaboracionesData: any[] = [];
+      try {
+        const { data: colabs } = await supabase.from('allanamiento_colaboraciones').select('*');
+        if (colabs) colaboracionesData = colabs;
+      } catch (e) {
+        console.warn('Sin acceso a allanamiento_colaboraciones:', e);
+      }
 
       const { inicio: inicioSemana, fin: finSemana } = getRangoSemanaActual();
       const { inicio: inicioMes, fin: finMes } = getRangoMesActual();
 
-      // Filtrado correcto usando el parser local
+      // Filtrado por fechas locales
       const registrosSemana = data.filter(item => {
         const f = parseFechaLocal(item.fecha_ejecucion || item.fecha || item.created_at);
         return f >= inicioSemana && f <= finSemana;
@@ -224,7 +242,7 @@ export default function MetricasPage() {
       ).length;
       setEfectividad(registrosSemana.length > 0 ? Math.round((positivosSemana / registrosSemana.length) * 100) : 100);
 
-      // Desgloses
+      // Desgloses de secuestros
       const armasConteoMes = procesarDetallesExhaustivo(registrosMes, 'arma');
       const vehiculosConteoMes = procesarDetallesExhaustivo(registrosMes, 'vehiculo');
       const personasConteoMes = procesarDetallesExhaustivo(registrosMes, 'detenido');
@@ -252,7 +270,7 @@ export default function MetricasPage() {
         'Aprehendido': personasConteoMes['Aprehendido'] || 0,
       });
 
-      // Totales
+      // Totales numéricos
       const parseNum = (val: any) => { const n = parseInt(val, 10); return isNaN(n) ? 0 : n; };
 
       setArmasSemana(registrosSemana.reduce((acc, curr) => acc + parseNum(curr.armas_secuestradas), 0) || Object.values(armasConteoSem).reduce((a, b) => a + b, 0));
@@ -263,7 +281,7 @@ export default function MetricasPage() {
       setVehiculosMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.vehiculos_secuestrados), 0) || Object.values(vehiculosConteoMes).reduce((a, b) => a + b, 0));
       setDetenidosMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.detenidos_aprehendidos), 0) || Object.values(personasConteoMes).reduce((a, b) => a + b, 0));
 
-      // Evolución semanal
+      // Evolución semanal (4 semanas)
       const semanas = [0, 1, 2, 3].map(offset => {
         const inicio = new Date(inicioSemana);
         inicio.setDate(inicio.getDate() - (offset * 7));
@@ -282,7 +300,7 @@ export default function MetricasPage() {
 
       setDatosEvolucion(semanas);
 
-      // Top Partidos
+      // Top 5 Partidos
       const conteoPartidos: Record<string, number> = {};
       data.forEach(item => {
         const p = item.partido || 'Sin Especificar';
@@ -296,10 +314,10 @@ export default function MetricasPage() {
           .slice(0, 5)
       );
 
-      // Distribución Superintendencias
+      // Distribución por Superintendencias
       const conteoSupers: Record<string, number> = {};
       data.forEach(item => {
-        const s = item.superintendencias?.nombre || item.superintendencia || 'Sin Especificar';
+        const s = item.superintendencia || item.superintendencia_nombre || 'Sin Especificar';
         conteoSupers[s] = (conteoSupers[s] || 0) + 1;
       });
 
@@ -309,21 +327,22 @@ export default function MetricasPage() {
           .sort((a, b) => b.total - a.total)
       );
 
-      // Especialidades / Colaboradores
+      // Especialidades
       const conteoEspecialidades: Record<string, number> = {};
-      data.forEach(item => {
-        const colabs = item.allanamiento_colaboraciones;
-        if (Array.isArray(colabs) && colabs.length > 0) {
-          colabs.forEach((c: any) => {
-            const esp = c.especialidad || 'Sin Especificar';
-            conteoEspecialidades[esp] = (conteoEspecialidades[esp] || 0) + 1;
-          });
-        } else if (item.personal_colaboracion) {
-          conteoEspecialidades[item.personal_colaboracion] = (conteoEspecialidades[item.personal_colaboracion] || 0) + 1;
-        } else {
-          conteoEspecialidades['No se Solicitó'] = (conteoEspecialidades['No se Solicitó'] || 0) + 1;
-        }
-      });
+      if (colaboracionesData.length > 0) {
+        colaboracionesData.forEach((c: any) => {
+          const esp = c.especialidad || 'Sin Especificar';
+          conteoEspecialidades[esp] = (conteoEspecialidades[esp] || 0) + 1;
+        });
+      } else {
+        data.forEach(item => {
+          if (item.personal_colaboracion) {
+            conteoEspecialidades[item.personal_colaboracion] = (conteoEspecialidades[item.personal_colaboracion] || 0) + 1;
+          } else {
+            conteoEspecialidades['No se Solicitó'] = (conteoEspecialidades['No se Solicitó'] || 0) + 1;
+          }
+        });
+      }
 
       setDatosEspecialidades(
         Object.entries(conteoEspecialidades)
@@ -352,7 +371,7 @@ export default function MetricasPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 space-y-6">
       
-      {/* Indicador TV de Tiempo Real */}
+      {/* Barra de Monitoreo en Vivo */}
       <div className="flex justify-between items-center bg-slate-900/40 border border-slate-800/80 px-4 py-2 rounded-xl backdrop-blur-md">
         <div className="flex items-center gap-2 text-emerald-400 text-xs font-semibold">
           <span className="relative flex h-2.5 w-2.5">
@@ -367,6 +386,7 @@ export default function MetricasPage() {
         </div>
       </div>
 
+      {/* Tarjetas Principales */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
           <div className="flex items-center justify-between text-slate-400 mb-2">
@@ -396,6 +416,7 @@ export default function MetricasPage() {
         </div>
       </div>
 
+      {/* Tarjetas de Secuestros */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md flex flex-col justify-between">
           <div>
@@ -450,6 +471,7 @@ export default function MetricasPage() {
         </div>
       </div>
 
+      {/* Gráficos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
           <h3 className="text-xs font-bold text-white mb-4 flex items-center gap-2">
@@ -519,6 +541,7 @@ export default function MetricasPage() {
           </div>
         </div>
       </div>
+
     </div>
   );
 }
