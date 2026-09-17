@@ -120,41 +120,90 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         if (m) setMinutoEjecucion(m.padStart(2, '0'))
       }
 
+      // Cargar Armas desde JSON o columnas de BD
+      let loadedArmas: { subtipo: string; cantidad: number }[] = []
+      if (data.secuestro_armas) {
+        let val = data.secuestro_armas
+        if (typeof val === 'string') { try { val = JSON.parse(val) } catch {} }
+        if (Array.isArray(val)) {
+          loadedArmas = val.map((item: any) => ({
+            subtipo: item.subtipo || item.tipo || 'Arma Corta',
+            cantidad: parseInt(item.cantidad || item.cant || 1, 10) || 1
+          }))
+        }
+      }
+
+      // Cargar Vehículos
+      let loadedVehiculos: { subtipo: string; cantidad: number }[] = []
+      if (data.secuestro_vehiculos) {
+        let val = data.secuestro_vehiculos
+        if (typeof val === 'string') { try { val = JSON.parse(val) } catch {} }
+        if (Array.isArray(val)) {
+          loadedVehiculos = val.map((item: any) => ({
+            subtipo: item.subtipo || item.tipo || 'Auto',
+            cantidad: parseInt(item.cantidad || item.cant || 1, 10) || 1
+          }))
+        }
+      }
+
+      // Cargar Detenidos / Aprehendidos
+      let loadedDetenidos: { subtipo: string; cantidad: number }[] = []
+      if (data.detenidos_aprehendidos) {
+        let val = data.detenidos_aprehendidos
+        if (typeof val === 'string') { try { val = JSON.parse(val) } catch {} }
+        if (Array.isArray(val)) {
+          loadedDetenidos = val.map((item: any) => ({
+            subtipo: item.subtipo || item.tipo || 'Detenido',
+            cantidad: parseInt(item.cantidad || item.cant || 1, 10) || 1
+          }))
+        } else if (typeof val === 'number' && val > 0) {
+          loadedDetenidos = [{ subtipo: 'Detenido', cantidad: val }]
+        }
+      }
+
       let obsLimpia = data.observaciones || ''
 
+      // Fallback a texto en observaciones si no se mapeó por JSON
       if (obsLimpia.includes('Secuestros:')) {
         const [obsPart, secuestraPart] = obsLimpia.split(' - Secuestros:')
         obsLimpia = obsPart.trim()
 
         if (secuestraPart) {
-          const matchArmas = secuestraPart.match(/Armas\s*\[(.*?)\]/)
-          if (matchArmas && matchArmas[1]) {
-            const items = matchArmas[1].split(',').map((item: string) => {
-              const [subtipo, cant] = item.split(':').map((s: string) => s.trim())
-              return { subtipo, cantidad: parseInt(cant) || 1 }
-            })
-            setArmas(items)
+          if (loadedArmas.length === 0) {
+            const matchArmas = secuestraPart.match(/Armas\s*\[(.*?)\]/)
+            if (matchArmas && matchArmas[1]) {
+              loadedArmas = matchArmas[1].split(',').map((item: string) => {
+                const [subtipo, cant] = item.split(':').map((s: string) => s.trim())
+                return { subtipo: subtipo || 'Arma Corta', cantidad: parseInt(cant, 10) || 1 }
+              })
+            }
           }
 
-          const matchVeh = secuestraPart.match(/Vehículos\s*\[(.*?)\]/)
-          if (matchVeh && matchVeh[1]) {
-            const items = matchVeh[1].split(',').map((item: string) => {
-              const [subtipo, cant] = item.split(':').map((s: string) => s.trim())
-              return { subtipo, cantidad: parseInt(cant) || 1 }
-            })
-            setVehiculos(items)
+          if (loadedVehiculos.length === 0) {
+            const matchVeh = secuestraPart.match(/Vehículos\s*\[(.*?)\]/)
+            if (matchVeh && matchVeh[1]) {
+              loadedVehiculos = matchVeh[1].split(',').map((item: string) => {
+                const [subtipo, cant] = item.split(':').map((s: string) => s.trim())
+                return { subtipo: subtipo || 'Auto', cantidad: parseInt(cant, 10) || 1 }
+              })
+            }
           }
 
-          const matchDet = secuestraPart.match(/Personas\s*\[(.*?)\]/)
-          if (matchDet && matchDet[1]) {
-            const items = matchDet[1].split(',').map((item: string) => {
-              const [subtipo, cant] = item.split(':').map((s: string) => s.trim())
-              return { subtipo, cantidad: parseInt(cant) || 1 }
-            })
-            setDetenidos(items)
+          if (loadedDetenidos.length === 0) {
+            const matchDet = secuestraPart.match(/Personas\s*\[(.*?)\]/)
+            if (matchDet && matchDet[1]) {
+              loadedDetenidos = matchDet[1].split(',').map((item: string) => {
+                const [subtipo, cant] = item.split(':').map((s: string) => s.trim())
+                return { subtipo: subtipo || 'Detenido', cantidad: parseInt(cant, 10) || 1 }
+              })
+            }
           }
         }
       }
+
+      if (loadedArmas.length > 0) setArmas(loadedArmas)
+      if (loadedVehiculos.length > 0) setVehiculos(loadedVehiculos)
+      if (loadedDetenidos.length > 0) setDetenidos(loadedDetenidos)
 
       setFormData({
         superintendencia_id: data.superintendencia_id || '',
@@ -169,7 +218,7 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         personal_propio: data.personal_propio ?? 1,
         resultado_medida: data.resultado_medida || 'Positivo',
         objetivos: data.objetivos ?? 1,
-        resultado_secuestros: data.resultado_secuestros || 'Negativo',
+        resultado_secuestros: data.resultado_secuestros || ((loadedArmas.length > 0 || loadedVehiculos.length > 0 || loadedDetenidos.length > 0) ? 'Positivo' : 'Negativo'),
         numero_parte_urgente: data.numero_parte_urgente || '',
         orden_servicio_propia: data.orden_servicio_propia || '',
         orden_servicio_cop: data.orden_servicio_cop || '',
@@ -266,7 +315,7 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         lugar_presentacion: formData.dependencia || formData.partido,
         departamental: formData.departamental || null,
         dependencia: formData.dependencia || 'Sin especificar',
-        objetivos: Number(formData.objetivos) || 1, // <- Nombre exacto segun esquema
+        objetivos: Number(formData.objetivos) || 1,
         personal_propio: Number(formData.personal_propio) || 0,
         resultado_medida: formData.resultado_medida,
         es_positivo: formData.resultado_medida === 'Positivo',
