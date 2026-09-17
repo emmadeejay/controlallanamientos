@@ -26,10 +26,36 @@ type DesglosePersonas = {
   'Aprehendido': number;
 };
 
-// PUNTO 1: Regla operativa de Lunes 00:00:00 a Domingo 23:59:59
+// Convierte cadenas de fecha a Date local omitiendo desfasajes UTC
+function parseFechaLocal(fechaStr: any): Date {
+  if (!fechaStr) return new Date(0);
+  if (fechaStr instanceof Date) return fechaStr;
+
+  const str = String(fechaStr).replace('Z', '').split('.')[0];
+  const partes = str.split('T');
+  const fechaPartes = partes[0].split('-');
+
+  if (fechaPartes.length === 3) {
+    const anio = parseInt(fechaPartes[0], 10);
+    const mes = parseInt(fechaPartes[1], 10) - 1;
+    const dia = parseInt(fechaPartes[2], 10);
+
+    let hora = 0, min = 0, seg = 0;
+    if (partes[1]) {
+      const horaPartes = partes[1].split(':');
+      hora = parseInt(horaPartes[0] || '0', 10);
+      min = parseInt(horaPartes[1] || '0', 10);
+      seg = parseInt(horaPartes[2] || '0', 10);
+    }
+    return new Date(anio, mes, dia, hora, min, seg);
+  }
+
+  return new Date(fechaStr);
+}
+
 function getRangoSemanaActual() {
   const ahora = new Date();
-  const diaSemana = ahora.getDay(); // 0 es Domingo, 1 es Lunes
+  const diaSemana = ahora.getDay();
   const diffLunes = diaSemana === 0 ? -6 : 1 - diaSemana;
 
   const inicio = new Date(ahora);
@@ -50,7 +76,6 @@ function getRangoMesActual() {
   return { inicio, fin };
 }
 
-// Procesa exhaustivamente observaciones, textos y arrays JSON de secuestros
 function procesarDetallesExhaustivo(registros: any[], tipoBuscado: 'arma' | 'vehiculo' | 'detenido') {
   const conteo: Record<string, number> = {};
 
@@ -146,7 +171,6 @@ export default function MetricasPage() {
   useEffect(() => {
     cargarMetricas();
 
-    // PUNTO 2 (Opción A): Suscripción en Tiempo Real con Supabase Realtime
     const canalRealtime = supabase
       .channel('auditoria-allanamientos-tv')
       .on(
@@ -172,7 +196,6 @@ export default function MetricasPage() {
 
   async function cargarMetricas() {
     try {
-      // 1. Cargar allanamientos con la relación de colaboraciones (PUNTO 3)
       const { data, error } = await supabase
         .from('allanamientos')
         .select('*, superintendencias(nombre), allanamiento_colaboraciones(*)');
@@ -182,14 +205,14 @@ export default function MetricasPage() {
       const { inicio: inicioSemana, fin: finSemana } = getRangoSemanaActual();
       const { inicio: inicioMes, fin: finMes } = getRangoMesActual();
 
-      // Filtrado por fecha de ejecución
+      // Filtrado correcto usando el parser local
       const registrosSemana = data.filter(item => {
-        const f = new Date(item.fecha_ejecucion || item.created_at);
+        const f = parseFechaLocal(item.fecha_ejecucion || item.fecha || item.created_at);
         return f >= inicioSemana && f <= finSemana;
       });
 
       const registrosMes = data.filter(item => {
-        const f = new Date(item.fecha_ejecucion || item.created_at);
+        const f = parseFechaLocal(item.fecha_ejecucion || item.fecha || item.created_at);
         return f >= inicioMes && f <= finMes;
       });
 
@@ -249,7 +272,7 @@ export default function MetricasPage() {
         fin.setHours(23, 59, 59, 999);
         
         const count = data.filter(item => {
-          const f = new Date(item.fecha_ejecucion || item.created_at);
+          const f = parseFechaLocal(item.fecha_ejecucion || item.fecha || item.created_at);
           return f >= inicio && f <= fin;
         }).length;
 
@@ -286,7 +309,7 @@ export default function MetricasPage() {
           .sort((a, b) => b.total - a.total)
       );
 
-      // PUNTO 3: Especialidades / Colaboradores desde la tabla relacional
+      // Especialidades / Colaboradores
       const conteoEspecialidades: Record<string, number> = {};
       data.forEach(item => {
         const colabs = item.allanamiento_colaboraciones;
