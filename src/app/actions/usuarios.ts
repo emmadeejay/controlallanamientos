@@ -17,7 +17,6 @@ export async function crearUsuarioAction(formData: FormData, creadorId: string) 
     const superintendencia_id = formData.get('superintendencia_id') as string;
     const rol = formData.get('rol') as string;
 
-    // Lee la clave modulos_array enviada desde el front
     const modulosRaw = formData.get('modulos_array') as string;
     const modulos_permitidos: string[] = modulosRaw ? JSON.parse(modulosRaw) : ['allanamientos'];
 
@@ -39,7 +38,6 @@ export async function crearUsuarioAction(formData: FormData, creadorId: string) 
 
     const passwordTemporal = 'ABCdef123';
 
-    // 1. Crear en Supabase Auth
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password: passwordTemporal,
@@ -49,7 +47,6 @@ export async function crearUsuarioAction(formData: FormData, creadorId: string) 
 
     if (authError) return { success: false, error: authError.message };
 
-    // 2. Guardar en tabla profiles con el esquema desagregado
     const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
       id: authData.user!.id,
       email,
@@ -72,7 +69,7 @@ export async function crearUsuarioAction(formData: FormData, creadorId: string) 
 
     return { success: true };
   } catch (err: any) {
-    return { success: false, error: err.message || 'Error inesperado al crear usuario.' };
+    return { success: false, error: err?.message || 'Error inesperado al crear usuario.' };
   }
 }
 
@@ -105,10 +102,10 @@ export async function editarUsuarioAction(formData: FormData) {
       })
       .eq('id', id);
 
-    if (error) throw error;
+    if (error) return { success: false, error: error.message };
     return { success: true };
   } catch (err: any) {
-    return { success: false, error: err.message || 'Error al editar usuario.' };
+    return { success: false, error: err?.message || 'Error al editar usuario.' };
   }
 }
 
@@ -116,15 +113,13 @@ export async function toggleEstadoUsuarioAction(userId: string, estadoActual: bo
   try {
     const nuevoEstado = !estadoActual;
     
-    // 1. Actualizar perfil
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .update({ activo: nuevoEstado })
       .eq('id', userId);
 
-    if (profileError) throw profileError;
+    if (profileError) return { success: false, error: profileError.message };
 
-    // 2. Aplicar/remover baneo en Auth para forzar el cierre de sesión al suspender
     await supabaseAdmin.auth.admin.updateUserById(
       userId,
       { ban_duration: nuevoEstado ? 'none' : '876600h' }
@@ -132,61 +127,66 @@ export async function toggleEstadoUsuarioAction(userId: string, estadoActual: bo
 
     return { success: true };
   } catch (err: any) {
-    return { success: false, error: err.message || 'Error al cambiar estado.' };
+    return { success: false, error: err?.message || 'Error al cambiar estado.' };
   }
 }
 
 export async function eliminarUsuarioAction(userId: string) {
   try {
-    // 1. Eliminar de Supabase Auth
     const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
-    if (authError) throw authError;
+    if (authError) return { success: false, error: authError.message };
 
-    // 2. Eliminar de la tabla profiles
-    await supabaseAdmin.from('profiles').delete().eq('id', userId);
+    const { error: profileError } = await supabaseAdmin.from('profiles').delete().eq('id', userId);
+    if (profileError) return { success: false, error: profileError.message };
 
     return { success: true };
   } catch (err: any) {
-    return { success: false, error: err.message || 'Error al eliminar usuario.' };
+    return { success: false, error: err?.message || 'Error al eliminar usuario.' };
   }
 }
 
 export async function resetearPasswordAction(userId: string, nuevaPassword: string) {
   try {
-    const { error } = await supabaseAdmin.auth.admin.updateUserById(
+    if (!userId) return { success: false, error: 'ID de usuario no proporcionado.' };
+
+    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
       userId,
       { password: nuevaPassword }
     );
 
-    if (error) throw error;
+    if (authError) return { success: false, error: authError.message };
 
-    await supabaseAdmin
+    const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .update({ requiere_cambio_clave: true })
       .eq('id', userId);
 
+    if (profileError) return { success: false, error: profileError.message };
+
     return { success: true };
   } catch (err: any) {
-    return { success: false, error: err.message || 'Error al actualizar contraseña' };
+    return { success: false, error: err?.message || 'Error interno al actualizar contraseña.' };
   }
 }
 
 export async function cambiarPasswordObligatorioAction(userId: string, nuevaPassword: string) {
   try {
-    const { error } = await supabaseAdmin.auth.admin.updateUserById(
+    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
       userId,
       { password: nuevaPassword }
     );
 
-    if (error) throw error;
+    if (authError) return { success: false, error: authError.message };
 
-    await supabaseAdmin
+    const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .update({ requiere_cambio_clave: false })
       .eq('id', userId);
 
+    if (profileError) return { success: false, error: profileError.message };
+
     return { success: true };
   } catch (err: any) {
-    return { success: false, error: err.message || 'Error al cambiar la contraseña.' };
+    return { success: false, error: err?.message || 'Error al cambiar la contraseña.' };
   }
 }
