@@ -123,6 +123,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
+  // Se oculta la pestaña si el rol es operador
+  const esOperador = userRole.toLowerCase() === 'operador';
+
   return (
     <div className="flex flex-col justify-between min-h-screen bg-slate-950 text-slate-100">
       <div>
@@ -158,7 +161,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <Grid className="w-4 h-4" />
               </button>
 
-              {/* Pestañas exclusivas de Allanamientos */}
+              {/* Pestañas de Allanamientos */}
               <nav className="flex items-center gap-1 border-l border-slate-800 pl-3 sm:pl-6">
                 <Link
                   href="/allanamientos"
@@ -184,17 +187,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <span>Buscar</span>
                 </Link>
 
-                <Link
-                  href="/allanamientos/metricas"
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition ${
-                    pathname.includes('/metricas')
-                      ? 'bg-blue-600 text-white'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                  }`}
-                >
-                  <BarChart3 className="w-3.5 h-3.5" />
-                  <span>Estadísticas</span>
-                </Link>
+                {/* Se muestra únicamente si NO es operador */}
+                {!esOperador && (
+                  <Link
+                    href="/allanamientos/metricas"
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition ${
+                      pathname.includes('/metricas')
+                        ? 'bg-blue-600 text-white'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    }`}
+                  >
+                    <BarChart3 className="w-3.5 h-3.5" />
+                    <span>Estadísticas</span>
+                  </Link>
+                )}
               </nav>
             </div>
 

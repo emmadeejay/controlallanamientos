@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid 
 } from 'recharts';
-import { Calendar, ShieldCheck, ShieldAlert, Car, Shield, UserCheck, TrendingUp, Radio } from 'lucide-react';
+import { Calendar, ShieldCheck, ShieldAlert, Car, Shield, UserCheck, TrendingUp, Radio, Lock } from 'lucide-react';
 
 type DesgloseArmas = {
   'Arma Corta': number;
@@ -25,6 +26,8 @@ type DesglosePersonas = {
   'Detenido': number;
   'Aprehendido': number;
 };
+
+const ROLES_PERMITIDOS = ['AUDITOR', 'CONSULTA', 'ADMINISTRADOR', 'SUPERVISOR'];
 
 function parseFechaLocal(fechaStr: any): Date {
   if (!fechaStr) return new Date(0);
@@ -137,7 +140,9 @@ function procesarDetallesExhaustivo(registros: any[], tipoBuscado: 'arma' | 'veh
 }
 
 export default function MetricasPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [autorizado, setAutorizado] = useState<boolean | null>(null);
   const [ultimaActualizacion, setUltimaActualizacion] = useState<string>('');
   
   const [rendicionSemanal, setRendicionSemanal] = useState(0);
@@ -168,15 +173,49 @@ export default function MetricasPage() {
   const [datosEspecialidades, setDatosEspecialidades] = useState<any[]>([]);
 
   useEffect(() => {
-    // 1. Carga inicial de métricas
+    async function verificarPermisos() {
+      const cachedRole = localStorage.getItem('cop_user_role')?.toUpperCase() || '';
+      
+      if (cachedRole && ROLES_PERMITIDOS.includes(cachedRole)) {
+        setAutorizado(true);
+        return;
+      }
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setAutorizado(false);
+        setLoading(false);
+        return;
+      }
+
+      const rolUsuario = (user.user_metadata?.role || user.user_metadata?.rol || '').toUpperCase();
+
+      if (!rolUsuario) {
+        const { data: perfil } = await supabase
+          .from('profiles')
+          .select('rol')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        const rolTabla = (perfil?.rol || '').toUpperCase();
+        setAutorizado(ROLES_PERMITIDOS.includes(rolTabla));
+      } else {
+        setAutorizado(ROLES_PERMITIDOS.includes(rolUsuario));
+      }
+    }
+
+    verificarPermisos();
+  }, []);
+
+  useEffect(() => {
+    if (!autorizado) return;
+
     cargarMetricas();
 
-    // 2. Polling de seguridad cada 5 segundos
     const intervalId = setInterval(() => {
       cargarMetricas();
     }, 5000);
 
-    // 3. Suscripción a canal de cambios en vivo
     const canalRealtime = supabase
       .channel('schema-db-changes')
       .on(
@@ -192,7 +231,7 @@ export default function MetricasPage() {
       clearInterval(intervalId);
       supabase.removeChannel(canalRealtime);
     };
-  }, []);
+  }, [autorizado]);
 
   async function cargarMetricas() {
     try {
@@ -351,18 +390,36 @@ export default function MetricasPage() {
     }
   }
 
-  if (loading) {
+  if (autorizado === false) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
+        <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-full mb-4">
+          <Lock className="w-8 h-8 text-red-400" />
+        </div>
+        <h2 className="text-lg font-bold text-white mb-2">Acceso Restringido</h2>
+        <p className="text-xs text-slate-400 max-w-sm mb-6">
+          Tu rol no tiene los permisos requeridos para visualizar el panel de métricas y estadísticas operativas.
+        </p>
+        <button
+          onClick={() => router.push('/allanamientos')}
+          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-lg transition-colors border border-slate-700"
+        >
+          Volver a Allanamientos
+        </button>
+      </div>
+    );
+  }
+
+  if (loading || autorizado === null) {
     return (
       <div className="flex items-center justify-center min-h-[60vh] text-slate-400 text-xs">
-        Cargando indicadores operativos para el centro de monitoreo...
+        Verificando credenciales e indicadores operativos...
       </div>
     );
   }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 space-y-6">
-      
-      {/* Barra de Monitoreo en Vivo */}
       <div className="flex justify-between items-center bg-slate-900/40 border border-slate-800/80 px-4 py-2 rounded-xl backdrop-blur-md">
         <div className="flex items-center gap-2 text-emerald-400 text-xs font-semibold">
           <span className="relative flex h-2.5 w-2.5">
@@ -377,7 +434,6 @@ export default function MetricasPage() {
         </div>
       </div>
 
-      {/* Tarjetas Principales */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
           <div className="flex items-center justify-between text-slate-400 mb-2">
@@ -407,7 +463,6 @@ export default function MetricasPage() {
         </div>
       </div>
 
-      {/* Tarjetas de Secuestros */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md flex flex-col justify-between">
           <div>
@@ -462,7 +517,6 @@ export default function MetricasPage() {
         </div>
       </div>
 
-      {/* Gráficos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
           <h3 className="text-xs font-bold text-white mb-4 flex items-center gap-2">
@@ -532,7 +586,6 @@ export default function MetricasPage() {
           </div>
         </div>
       </div>
-
     </div>
   );
 }
