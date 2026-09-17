@@ -3,7 +3,7 @@
 import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Trash2, Save, ShieldAlert, Loader2 } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Save, ShieldAlert, Loader2, Building2 } from 'lucide-react'
 
 export default function EditarAllanamientoPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
@@ -14,9 +14,13 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Permisos y Roles
+  const [esElevado, setEsElevado] = useState(false)
+
   // Listas maestras
   const [partidosList, setPartidosList] = useState<string[]>([])
   const [especialidadesList, setEspecialidadesList] = useState<string[]>([])
+  const [superintendenciasList, setSuperintendenciasList] = useState<{ id: string; nombre: string }[]>([])
 
   // Horario en formato 24hs
   const [horaEjecucion, setHoraEjecucion] = useState('12')
@@ -54,11 +58,34 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
   useEffect(() => {
     async function init() {
       if (!id) return
+      await fetchPerfil()
       await fetchMaestras()
       await fetchAllanamiento()
     }
     init()
   }, [id])
+
+  async function fetchPerfil() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle()
+        const rawRole = user.user_metadata?.role || user.app_metadata?.role || profile?.role || profile?.rol || ''
+        const rolNormalizado = String(rawRole).toLowerCase().trim()
+        const elevado = 
+          rolNormalizado === 'supervisor' || 
+          rolNormalizado === 'administrador' || 
+          rolNormalizado === 'admin' || 
+          rolNormalizado === 'superadmin' ||
+          profile?.role_id === 2 || 
+          profile?.role_id === 3
+
+        setEsElevado(elevado)
+      }
+    } catch (err) {
+      console.error('Error obteniendo perfil:', err)
+    }
+  }
 
   async function fetchMaestras() {
     try {
@@ -67,6 +94,9 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
 
       const { data: espData } = await supabase.from('especialidades').select('nombre').order('nombre')
       if (espData) setEspecialidadesList(espData.map(e => e.nombre))
+
+      const { data: superData } = await supabase.from('superintendencias').select('id, nombre').order('nombre')
+      if (superData) setSuperintendenciasList(superData)
     } catch (err) {
       console.error('Error cargando tablas maestras:', err)
     }
@@ -81,21 +111,15 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         .eq('id', id)
         .single()
 
-      if (fetchErr) {
-        console.error('Error Supabase fetch:', fetchErr)
-        throw new Error(fetchErr.message || 'No se pudo encontrar el registro solicitado.')
-      }
-
+      if (fetchErr) throw new Error(fetchErr.message || 'No se pudo encontrar el registro solicitado.')
       if (!data) throw new Error('No se encontró el registro solicitado.')
 
-      // Cargar hora de ejecución
       if (data.horario_ejecucion) {
         const [h, m] = data.horario_ejecucion.split(':')
         if (h) setHoraEjecucion(h.padStart(2, '0'))
         if (m) setMinutoEjecucion(m.padStart(2, '0'))
       }
 
-      // Parsear observaciones y secuestros guardados previamente
       let obsLimpia = data.observaciones || ''
 
       if (obsLimpia.includes('Secuestros:')) {
@@ -144,7 +168,7 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         fecha_ejecucion: data.fecha_ejecucion || '',
         personal_propio: data.personal_propio ?? 1,
         resultado_medida: data.resultado_medida || 'Positivo',
-        objetivos: data.objetivos ?? 1,
+        objetivos: data.cantidad_objetivos ?? data.objetivos ?? 1,
         resultado_secuestros: data.resultado_secuestros || 'Negativo',
         numero_parte_urgente: data.numero_parte_urgente || '',
         orden_servicio_propia: data.orden_servicio_propia || '',
@@ -231,6 +255,7 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         .join(' - ')
 
       const payloadAllanamiento = {
+        superintendencia_id: formData.superintendencia_id,
         numero_ipp: formData.numero_ipp,
         caratula: formData.caratula,
         ufi_juzgado: formData.ufi_juzgado || 'Sin especificar',
@@ -241,7 +266,7 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         lugar_presentacion: formData.dependencia || formData.partido,
         departamental: formData.departamental || null,
         dependencia: formData.dependencia || 'Sin especificar',
-        objetivos: Number(formData.objetivos) || 1,
+        cantidad_objetivos: Number(formData.objetivos) || 1,
         personal_propio: Number(formData.personal_propio) || 0,
         resultado_medida: formData.resultado_medida,
         es_positivo: formData.resultado_medida === 'Positivo',
@@ -264,8 +289,9 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
 
       await supabase.from('allanamiento_colaboraciones').delete().eq('allanamiento_id', id)
 
-      if (colaboraciones.length > 0 && colaboraciones[0].especialidad) {
-        const colabToInsert = colaboraciones.map(c => ({
+      const colabValidas = colaboraciones.filter(c => c.especialidad)
+      if (colabValidas.length > 0) {
+        const colabToInsert = colabValidas.map(c => ({
           allanamiento_id: id,
           especialidad: c.especialidad,
           cant_solicitada: Number(c.cant_solicitada) || 0,
@@ -275,9 +301,8 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         if (colabError) throw colabError
       }
 
-      // Forzar revalidación de caché en Next.js antes de redirigir
       router.refresh()
-      router.push('/dashboard')
+      router.push('/allanamientos')
 
     } catch (err: any) {
       console.error('Error al actualizar:', err)
@@ -305,7 +330,7 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
             <button 
               type="button"
               onClick={() => router.back()}
-              className="p-2 bg-slate-900 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition"
+              className="p-2 bg-slate-900 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition cursor-pointer"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
@@ -421,6 +446,29 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
               📍 2. Ubicación y Jurisdicción
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+              {esElevado && (
+                <div className="md:col-span-2 lg:col-span-3 bg-amber-950/20 border border-amber-800/40 p-3.5 rounded-xl mb-2">
+                  <label className="block text-xs font-semibold text-amber-300 mb-1 flex items-center gap-1.5">
+                    <Building2 className="w-4 h-4 text-amber-400" /> Superintendencia Asignada *
+                  </label>
+                  <select 
+                    name="superintendencia_id"
+                    value={formData.superintendencia_id} 
+                    onChange={handleChange}
+                    required
+                    className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-400 cursor-pointer"
+                  >
+                    <option value="">Seleccione Superintendencia...</option>
+                    {superintendenciasList.map((sup) => (
+                      <option key={sup.id} value={sup.id}>
+                        {sup.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-medium text-slate-400 mb-1">Partido *</label>
                 <select 
@@ -567,7 +615,7 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
               <button 
                 type="button" 
                 onClick={addColaboracion}
-                className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-xl text-xs font-medium flex items-center gap-1.5 transition border border-blue-500/30"
+                className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-xl text-xs font-medium flex items-center gap-1.5 transition border border-blue-500/30 cursor-pointer"
               >
                 <Plus className="w-4 h-4" /> Agregar otra especialidad
               </button>
@@ -618,7 +666,7 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
                       <button 
                         type="button" 
                         onClick={() => removeColaboracion(index)}
-                        className="p-2 text-red-400 hover:bg-red-950/30 rounded-lg transition"
+                        className="p-2 text-red-400 hover:bg-red-950/30 rounded-lg transition cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -659,7 +707,7 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
                     <button 
                       type="button" 
                       onClick={() => addItem(armas, setArmas, { subtipo: 'Arma Corta', cantidad: 1 })}
-                      className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                      className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" /> Cargar Arma
                     </button>
@@ -685,7 +733,7 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
                           <option key={i} value={i} className="bg-slate-900 text-white">{i}</option>
                         ))}
                       </select>
-                      <button type="button" onClick={() => removeItem(idx, armas, setArmas)} className="text-red-400 p-1">
+                      <button type="button" onClick={() => removeItem(idx, armas, setArmas)} className="text-red-400 p-1 cursor-pointer">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -699,7 +747,7 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
                     <button 
                       type="button" 
                       onClick={() => addItem(vehiculos, setVehiculos, { subtipo: 'Auto', cantidad: 1 })}
-                      className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                      className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" /> Cargar Vehículo
                     </button>
@@ -725,7 +773,7 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
                           <option key={i} value={i} className="bg-slate-900 text-white">{i}</option>
                         ))}
                       </select>
-                      <button type="button" onClick={() => removeItem(idx, vehiculos, setVehiculos)} className="text-red-400 p-1">
+                      <button type="button" onClick={() => removeItem(idx, vehiculos, setVehiculos)} className="text-red-400 p-1 cursor-pointer">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -739,7 +787,7 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
                     <button 
                       type="button" 
                       onClick={() => addItem(detenidos, setDetenidos, { subtipo: 'Detenido', cantidad: 1 })}
-                      className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                      className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" /> Cargar Persona
                     </button>
@@ -763,7 +811,7 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
                           <option key={i} value={i} className="bg-slate-900 text-white">{i}</option>
                         ))}
                       </select>
-                      <button type="button" onClick={() => removeItem(idx, detenidos, setDetenidos)} className="text-red-400 p-1">
+                      <button type="button" onClick={() => removeItem(idx, detenidos, setDetenidos)} className="text-red-400 p-1 cursor-pointer">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -788,16 +836,26 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
             <button 
               type="button" 
               onClick={() => router.back()}
-              className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-xl text-sm font-medium transition border border-slate-800"
+              className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-xl text-sm font-medium transition border border-slate-800 cursor-pointer"
             >
               Cancelar
             </button>
             <button 
               type="submit" 
               disabled={saving}
-              className="px-6 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-sm font-semibold transition flex items-center gap-2 shadow-lg shadow-amber-600/20 disabled:opacity-50"
+              className="px-6 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-sm font-semibold transition flex items-center gap-2 shadow-lg shadow-amber-600/20 disabled:opacity-50 cursor-pointer"
             >
-              <Save className="w-4 h-4" /> {saving ? 'Actualizando...' : 'Actualizar Allanamiento'}
+              {saving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Actualizando...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  <span>Actualizar Allanamiento</span>
+                </>
+              )}
             </button>
           </div>
 
