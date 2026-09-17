@@ -52,7 +52,7 @@ export default function LoginPage() {
         <div className="flex flex-col items-center text-center mb-8">
           <div className="w-20 h-20 relative mb-4">
             <Image
-              src="/cop-logo.png" // Asegurate de ajustar el path de tu imagen de logo
+              src="public/cop-logo.png" // Asegurate de ajustar el path de tu imagen de logo
               alt="COP Escudo"
               width={80}
               height={80}
