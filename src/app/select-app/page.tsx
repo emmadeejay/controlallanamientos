@@ -36,20 +36,29 @@ export default function SelectAppPage() {
           return;
         }
 
-        const email = user.email || '';
+        const email = user.email ? user.email.toLowerCase().trim() : '';
 
-        // 1. Consultar el perfil directamente por el ID autenticado
-        const { data: profile, error: profileError } = await supabase
+        // 1. Búsqueda primaria por ID
+        let { data: profile } = await supabase
           .from('profiles')
           .select('rol, activo, requiere_cambio_clave, modulos_permitidos')
           .eq('id', user.id)
           .maybeSingle();
 
-        if (profileError) {
-          console.error('Error al obtener perfil:', profileError.message);
+        // 2. Búsqueda secundaria por EMAIL (si falló por ID)
+        if (!profile && email) {
+          const { data: profileByEmail } = await supabase
+            .from('profiles')
+            .select('rol, activo, requiere_cambio_clave, modulos_permitidos')
+            .eq('email', email)
+            .maybeSingle();
+
+          if (profileByEmail) {
+            profile = profileByEmail;
+          }
         }
 
-        // 2. Validar si el usuario está PAUSADO/DESACTIVADO
+        // 3. Validar si el usuario está PAUSADO/DESACTIVADO
         if (profile && profile.activo === false) {
           alert('Tu cuenta se encuentra pausada/desactivada por un administrador. Contacta con soporte.');
           localStorage.clear();
@@ -59,7 +68,7 @@ export default function SelectAppPage() {
           return;
         }
 
-        // 3. Determinar el rol real desde la DB sin forzar fallback a 'operador'
+        // 4. Asignación del rol real detectado
         let rolFinal = 'operador';
         if (profile?.rol) {
           rolFinal = String(profile.rol).trim().toLowerCase();
@@ -73,7 +82,6 @@ export default function SelectAppPage() {
             profile?.modulos_permitidos || ['allanamientos', 'deporte', 'contravenciones', 'motochorros']
           );
 
-          // 4. Comprobar si DEBE cambiar contraseña obligatoriamente
           if (profile?.requiere_cambio_clave) {
             setRequiereCambioClave(true);
           }
