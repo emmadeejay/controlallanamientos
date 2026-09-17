@@ -1,5 +1,8 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -28,24 +31,28 @@ export default function SelectAppPage() {
 
     const checkUser = async () => {
       try {
+        setLoading(true);
+
+        // Forzar la consulta del usuario activo desde Supabase Auth
         const { data: { user }, error } = await supabase.auth.getUser();
 
         if (error || !user) {
           localStorage.clear();
+          sessionStorage.clear();
           window.location.href = '/login';
           return;
         }
 
         const email = user.email ? user.email.toLowerCase().trim() : '';
 
-        // 1. Búsqueda primaria por ID
+        // 1. Búsqueda por ID
         let { data: profile } = await supabase
           .from('profiles')
           .select('rol, activo, requiere_cambio_clave, modulos_permitidos')
           .eq('id', user.id)
           .maybeSingle();
 
-        // 2. Búsqueda secundaria por EMAIL (si falló por ID)
+        // 2. Búsqueda de respaldo por Email si no coincide por ID
         if (!profile && email) {
           const { data: profileByEmail } = await supabase
             .from('profiles')
@@ -53,14 +60,12 @@ export default function SelectAppPage() {
             .eq('email', email)
             .maybeSingle();
 
-          if (profileByEmail) {
-            profile = profileByEmail;
-          }
+          if (profileByEmail) profile = profileByEmail;
         }
 
-        // 3. Validar si el usuario está PAUSADO/DESACTIVADO
+        // 3. Validar estado de cuenta
         if (profile && profile.activo === false) {
-          alert('Tu cuenta se encuentra pausada/desactivada por un administrador. Contacta con soporte.');
+          alert('Tu cuenta se encuentra desactivada por un administrador.');
           localStorage.clear();
           sessionStorage.clear();
           await supabase.auth.signOut();
@@ -68,16 +73,14 @@ export default function SelectAppPage() {
           return;
         }
 
-        // 4. Asignación del rol real detectado
-        let rolFinal = 'operador';
-        if (profile?.rol) {
-          rolFinal = String(profile.rol).trim().toLowerCase();
-        }
-
         if (isMounted) {
           setUserId(user.id);
           setUserEmail(email);
-          setUserRole(rolFinal);
+
+          // Asignación explícita del rol recuperado
+          const rolDetectado = profile?.rol ? String(profile.rol).trim().toLowerCase() : 'operador';
+          setUserRole(rolDetectado);
+
           setModulosPermitidos(
             profile?.modulos_permitidos || ['allanamientos', 'deporte', 'contravenciones', 'motochorros']
           );
@@ -95,8 +98,12 @@ export default function SelectAppPage() {
 
     checkUser();
 
+    // Re-evaluar al volver a enfocar la ventana/pestana
+    window.addEventListener('focus', checkUser);
+
     return () => {
       isMounted = false;
+      window.removeEventListener('focus', checkUser);
     };
   }, []);
 
@@ -149,7 +156,7 @@ export default function SelectAppPage() {
       <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-xs text-slate-400 font-medium">Cargando Módulos...</p>
+          <p className="text-xs text-slate-400 font-medium">Verificando permisos...</p>
         </div>
       </div>
     );
@@ -157,7 +164,7 @@ export default function SelectAppPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-purple-600 selection:text-white">
-      {/* Header General */}
+      {/* Header */}
       <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -198,7 +205,7 @@ export default function SelectAppPage() {
         </div>
       </header>
 
-      {/* Contenido Principal / Selección de Módulos */}
+      {/* Tarjetas de Módulos */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex-1 flex flex-col justify-center">
         <div className="mb-8 text-center sm:text-left">
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
@@ -210,7 +217,7 @@ export default function SelectAppPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* 1. Módulo Allanamientos */}
+          {/* 1. Allanamientos */}
           {tieneAcceso('allanamientos') && (
             <div
               onClick={() => router.push('/allanamientos')}
@@ -236,7 +243,7 @@ export default function SelectAppPage() {
             </div>
           )}
 
-          {/* 2. Módulo Seguridad en el Deporte */}
+          {/* 2. Deporte */}
           {tieneAcceso('deporte') && (
             <div
               onClick={() => router.push('/seguridad-deporte')}
@@ -262,7 +269,7 @@ export default function SelectAppPage() {
             </div>
           )}
 
-          {/* 3. Módulo Contravenciones */}
+          {/* 3. Contravenciones */}
           {tieneAcceso('contravenciones') && (
             <div
               onClick={() => router.push('/contravenciones')}
@@ -288,7 +295,7 @@ export default function SelectAppPage() {
             </div>
           )}
 
-          {/* 4. Módulo Operación Motochorros */}
+          {/* 4. Motochorros */}
           {tieneAcceso('motochorros') && (
             <div
               onClick={() => router.push('/motochorros')}
@@ -314,7 +321,7 @@ export default function SelectAppPage() {
             </div>
           )}
 
-          {/* 5. Tarjeta Usuarios (Solo Admin / Supervisor) */}
+          {/* 5. Gestión de Usuarios (Admin / Supervisor) */}
           {esAdminOSupervisor && (
             <div
               onClick={() => router.push('/admin/usuarios')}
