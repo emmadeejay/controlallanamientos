@@ -30,7 +30,8 @@ export default function LoginPage() {
       }
 
       if (data.user) {
-        router.push('/allanamientos')
+        // Redirigir al selector de módulos en lugar de ir directo a allanamientos
+        router.push('/select-app')
         router.refresh()
       }
     } catch (err: any) {
@@ -52,7 +53,7 @@ export default function LoginPage() {
         <div className="flex flex-col items-center text-center mb-8">
           <div className="w-20 h-20 relative mb-4">
             <Image
-              src="logo_cop.png" // Asegurate de ajustar el path de tu imagen de logo
+              src="/logo_cop.png"
               alt="COP Escudo"
               width={80}
               height={80}
