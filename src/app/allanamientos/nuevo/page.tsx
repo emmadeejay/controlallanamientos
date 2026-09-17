@@ -276,7 +276,7 @@ export default function NuevoAllanamientosPage() {
         lugar_presentacion: formData.dependencia || formData.partido,
         departamental: formData.departamental || null,
         dependencia: formData.dependencia || 'Sin especificar',
-        cantidad_objetivos: Number(formData.objetivos) || 1,
+        objetivos: Number(formData.objetivos) || 1,
         personal_propio: Number(formData.personal_propio) || 0,
         resultado_medida: formData.resultado_medida,
         es_positivo: formData.resultado_medida === 'Positivo',
