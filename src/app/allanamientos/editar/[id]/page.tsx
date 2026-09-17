@@ -168,7 +168,7 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         fecha_ejecucion: data.fecha_ejecucion || '',
         personal_propio: data.personal_propio ?? 1,
         resultado_medida: data.resultado_medida || 'Positivo',
-        objetivos: data.cantidad_objetivos ?? data.objetivos ?? 1,
+        objetivos: data.objetivos ?? 1,
         resultado_secuestros: data.resultado_secuestros || 'Negativo',
         numero_parte_urgente: data.numero_parte_urgente || '',
         orden_servicio_propia: data.orden_servicio_propia || '',
@@ -266,7 +266,7 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         lugar_presentacion: formData.dependencia || formData.partido,
         departamental: formData.departamental || null,
         dependencia: formData.dependencia || 'Sin especificar',
-        cantidad_objetivos: Number(formData.objetivos) || 1,
+        objetivos: Number(formData.objetivos) || 1, // <- Nombre exacto segun esquema
         personal_propio: Number(formData.personal_propio) || 0,
         resultado_medida: formData.resultado_medida,
         es_positivo: formData.resultado_medida === 'Positivo',
@@ -277,7 +277,9 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         orden_servicio_propia: formData.orden_servicio_propia || 'S/N',
         orden_servicio_cop: formData.orden_servicio_cop || null,
         numero_parte_urgente: formData.numero_parte_urgente || null,
-        observaciones: obsFinales || null
+        observaciones: obsFinales || null,
+        secuestro_armas: armas.length > 0 ? armas : null,
+        secuestro_vehiculos: vehiculos.length > 0 ? vehiculos : null
       }
 
       const { error: updateErr } = await supabase
