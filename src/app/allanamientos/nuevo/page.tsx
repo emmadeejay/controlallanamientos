@@ -8,30 +8,25 @@ import { ArrowLeft, Plus, Trash2, Save, ShieldAlert, Building2, Loader2, Lock } 
 const LOCAL_STORAGE_KEY = 'borrador_nuevo_allanamiento'
 
 // Sincronización precisa con la hora oficial de Argentina (UTC-3)
+// Regla: Desde Lunes 00:00 hs hasta Miércoles 08:00 hs
 function esVentanaOperativaValida(): boolean {
   const ahora = new Date()
-  const opciones: Intl.DateTimeFormatOptions = {
-    timeZone: 'America/Argentina/Buenos_Aires',
-    weekday: 'narrow',
-    hour: 'numeric',
-    hour12: false
-  }
-  
-  const formatter = new Intl.DateTimeFormat('es-AR', opciones)
-  const partes = formatter.formatToParts(ahora)
   
   const formatterDia = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Argentina/Buenos_Aires', weekday: 'short' })
   const diaStr = formatterDia.format(ahora)
-  
   const diasMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
   const dia = diasMap[diaStr] ?? ahora.getDay()
   
+  const formatterHora = new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour12: false, hour: 'numeric' })
+  const partes = formatterHora.formatToParts(ahora)
   const horaPart = partes.find(p => p.type === 'hour')
   const hora = horaPart ? parseInt(horaPart.value, 10) : ahora.getHours()
 
-  // Lunes (1) desde las 08:00 hs hasta Miércoles (3) a las 07:59 hs
-  if (dia === 1 && hora >= 8) return true
+  // Lunes (1) completo desde las 00:00 hs
+  if (dia === 1) return true
+  // Martes (2) completo
   if (dia === 2) return true
+  // Miércoles (3) hasta las 07:59 hs
   if (dia === 3 && hora < 8) return true
 
   return false
@@ -46,7 +41,7 @@ export default function NuevoAllanamientosPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Control de Ventana Operativa (Lunes 08:00 hs a Miércoles 08:00 hs)
+  // Control de Ventana Operativa (Lunes 00:00 hs a Miércoles 08:00 hs)
   const [fueraDeVentana, setFueraDeVentana] = useState(false)
 
   // Rol y Permisos del Usuario Logueado
@@ -222,7 +217,7 @@ export default function NuevoAllanamientosPage() {
     e.preventDefault()
 
     if (fueraDeVentana && !esElevado) {
-      setError('La ventana de carga se encuentra cerrada (Lunes 08:00hs a Miércoles 08:00hs).')
+      setError('La ventana de carga se encuentra cerrada (Lunes 00:00hs a Miércoles 08:00hs).')
       return
     }
 
@@ -314,7 +309,7 @@ export default function NuevoAllanamientosPage() {
         if (colabError) throw colabError
       }
 
-      // Vaciar borrador solo tras persistencia exitosa
+      // Vaciar borrador tras guardar correctamente
       localStorage.removeItem(LOCAL_STORAGE_KEY)
 
       router.push('/allanamientos')
@@ -335,11 +330,11 @@ export default function NuevoAllanamientosPage() {
         </div>
         <h1 className="text-xl font-bold text-white mb-2">Fuera de Período de Carga</h1>
         <p className="text-sm text-slate-400 max-w-md mb-6">
-          El sistema solo habilita el registro de allanamientos desde los <span className="text-amber-400 font-semibold">Lunes a las 08:00 hs</span> hasta los <span className="text-amber-400 font-semibold">Miércoles a las 08:00 hs</span>.
+          El sistema solo habilita el registro de allanamientos desde los <span className="text-amber-400 font-semibold">Lunes a las 00:00 hs</span> hasta los <span className="text-amber-400 font-semibold">Miércoles a las 08:00 hs</span>.
         </p>
         <button
           onClick={() => router.push('/allanamientos')}
-          className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 rounded-xl text-sm font-semibold transition"
+          className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 rounded-xl text-sm font-semibold transition cursor-pointer"
         >
           Volver a Allanamientos
         </button>
@@ -356,7 +351,7 @@ export default function NuevoAllanamientosPage() {
             <button 
               type="button"
               onClick={() => router.back()}
-              className="p-2 bg-slate-900 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition"
+              className="p-2 bg-slate-900 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition cursor-pointer"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
@@ -651,7 +646,7 @@ export default function NuevoAllanamientosPage() {
               <button 
                 type="button" 
                 onClick={addColaboracion}
-                className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-xl text-xs font-medium flex items-center gap-1.5 transition border border-blue-500/30"
+                className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-xl text-xs font-medium flex items-center gap-1.5 transition border border-blue-500/30 cursor-pointer"
               >
                 <Plus className="w-4 h-4" /> Agregar otra especialidad
               </button>
@@ -706,7 +701,7 @@ export default function NuevoAllanamientosPage() {
                       <button 
                         type="button" 
                         onClick={() => removeColaboracion(index)}
-                        className="p-2 text-red-400 hover:bg-red-950/30 rounded-lg transition"
+                        className="p-2 text-red-400 hover:bg-red-950/30 rounded-lg transition cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -748,7 +743,7 @@ export default function NuevoAllanamientosPage() {
                     <button 
                       type="button" 
                       onClick={() => addItem(armas, setArmas, { subtipo: 'Arma Corta', cantidad: 1 })}
-                      className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                      className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" /> Cargar Arma
                     </button>
@@ -781,7 +776,7 @@ export default function NuevoAllanamientosPage() {
                           </option>
                         ))}
                       </select>
-                      <button type="button" onClick={() => removeItem(idx, armas, setArmas)} className="text-red-400 p-1">
+                      <button type="button" onClick={() => removeItem(idx, armas, setArmas)} className="text-red-400 p-1 cursor-pointer">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -795,7 +790,7 @@ export default function NuevoAllanamientosPage() {
                     <button 
                       type="button" 
                       onClick={() => addItem(vehiculos, setVehiculos, { subtipo: 'Auto', cantidad: 1 })}
-                      className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                      className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" /> Cargar Vehículo
                     </button>
@@ -828,7 +823,7 @@ export default function NuevoAllanamientosPage() {
                           </option>
                         ))}
                       </select>
-                      <button type="button" onClick={() => removeItem(idx, vehiculos, setVehiculos)} className="text-red-400 p-1">
+                      <button type="button" onClick={() => removeItem(idx, vehiculos, setVehiculos)} className="text-red-400 p-1 cursor-pointer">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -842,7 +837,7 @@ export default function NuevoAllanamientosPage() {
                     <button 
                       type="button" 
                       onClick={() => addItem(detenidos, setDetenidos, { subtipo: 'Detenido', cantidad: 1 })}
-                      className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                      className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" /> Cargar Persona
                     </button>
@@ -873,7 +868,7 @@ export default function NuevoAllanamientosPage() {
                           </option>
                         ))}
                       </select>
-                      <button type="button" onClick={() => removeItem(idx, detenidos, setDetenidos)} className="text-red-400 p-1">
+                      <button type="button" onClick={() => removeItem(idx, detenidos, setDetenidos)} className="text-red-400 p-1 cursor-pointer">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -900,14 +895,14 @@ export default function NuevoAllanamientosPage() {
             <button 
               type="button" 
               onClick={() => router.back()}
-              className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-xl text-sm font-medium transition border border-slate-800"
+              className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-xl text-sm font-medium transition border border-slate-800 cursor-pointer"
             >
               Cancelar
             </button>
             <button 
               type="submit" 
               disabled={loading}
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold transition flex items-center gap-2 shadow-lg shadow-blue-600/20 disabled:opacity-50"
+              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold transition flex items-center gap-2 shadow-lg shadow-blue-600/20 disabled:opacity-50 cursor-pointer"
             >
               {loading ? (
                 <>
