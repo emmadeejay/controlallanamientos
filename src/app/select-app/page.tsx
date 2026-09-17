@@ -1,8 +1,5 @@
 'use client';
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -33,7 +30,6 @@ export default function SelectAppPage() {
       try {
         setLoading(true);
 
-        // Forzar la consulta del usuario activo desde Supabase Auth
         const { data: { user }, error } = await supabase.auth.getUser();
 
         if (error || !user) {
@@ -77,7 +73,6 @@ export default function SelectAppPage() {
           setUserId(user.id);
           setUserEmail(email);
 
-          // Asignación explícita del rol recuperado
           const rolDetectado = profile?.rol ? String(profile.rol).trim().toLowerCase() : 'operador';
           setUserRole(rolDetectado);
 
@@ -98,14 +93,18 @@ export default function SelectAppPage() {
 
     checkUser();
 
-    // Re-evaluar al volver a enfocar la ventana/pestana
-    window.addEventListener('focus', checkUser);
+    const handleFocus = () => {
+      router.refresh();
+      checkUser();
+    };
+
+    window.addEventListener('focus', handleFocus);
 
     return () => {
       isMounted = false;
-      window.removeEventListener('focus', checkUser);
+      window.removeEventListener('focus', handleFocus);
     };
-  }, []);
+  }, [router]);
 
   const handleLogout = async () => {
     setLoading(true);
