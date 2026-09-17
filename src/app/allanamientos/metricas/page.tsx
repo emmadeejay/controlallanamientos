@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid 
 } from 'recharts';
-import { Calendar, ShieldCheck, ShieldAlert, Car, Shield, UserCheck, TrendingUp } from 'lucide-react';
+import { Calendar, ShieldCheck, ShieldAlert, Car, Shield, UserCheck, TrendingUp, Radio } from 'lucide-react';
 
 type DesgloseArmas = {
   'Arma Corta': number;
@@ -26,23 +26,31 @@ type DesglosePersonas = {
   'Aprehendido': number;
 };
 
-function getInicioSemanaActual(): Date {
+// PUNTO 1: Regla operativa de Lunes 00:00:00 a Domingo 23:59:59
+function getRangoSemanaActual() {
   const ahora = new Date();
-  const diaSemana = ahora.getDay();
-  const diffLunes = (diaSemana === 0 ? -6 : 1) - diaSemana;
+  const diaSemana = ahora.getDay(); // 0 es Domingo, 1 es Lunes
+  const diffLunes = diaSemana === 0 ? -6 : 1 - diaSemana;
 
-  const lunes = new Date(ahora);
-  lunes.setDate(ahora.getDate() + diffLunes);
-  lunes.setHours(0, 0, 0, 0);
-  return lunes;
+  const inicio = new Date(ahora);
+  inicio.setDate(ahora.getDate() + diffLunes);
+  inicio.setHours(0, 0, 0, 0);
+
+  const fin = new Date(inicio);
+  fin.setDate(fin.getDate() + 6);
+  fin.setHours(23, 59, 59, 999);
+
+  return { inicio, fin };
 }
 
-function getInicioMesActual(): Date {
+function getRangoMesActual() {
   const ahora = new Date();
-  return new Date(ahora.getFullYear(), ahora.getMonth(), 1, 0, 0, 0);
+  const inicio = new Date(ahora.getFullYear(), ahora.getMonth(), 1, 0, 0, 0);
+  const fin = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0, 23, 59, 59);
+  return { inicio, fin };
 }
 
-// Procesa tanto arrays/JSONB como campos individuales numéricos o de texto
+// Procesa exhaustivamente observaciones, textos y arrays JSON de secuestros
 function procesarDetallesExhaustivo(registros: any[], tipoBuscado: 'arma' | 'vehiculo' | 'detenido') {
   const conteo: Record<string, number> = {};
 
@@ -62,7 +70,6 @@ function procesarDetallesExhaustivo(registros: any[], tipoBuscado: 'arma' | 'veh
           try {
             lista = JSON.parse(valor);
           } catch {
-            // Es un string simple, p. ej. "Arma Corta"
             const texto = valor.toLowerCase();
             if (texto.includes('corta')) conteo['Arma Corta'] = (conteo['Arma Corta'] || 0) + 1;
             else if (texto.includes('larga')) conteo['Arma Larga'] = (conteo['Arma Larga'] || 0) + 1;
@@ -88,7 +95,6 @@ function procesarDetallesExhaustivo(registros: any[], tipoBuscado: 'arma' | 'veh
             }
           });
         } else if (typeof valor === 'number' && valor > 0) {
-          // Si el campo es numérico directo (ej: armas_cortas_cant: 2)
           if (keyLower.includes('corta')) conteo['Arma Corta'] = (conteo['Arma Corta'] || 0) + valor;
           if (keyLower.includes('larga')) conteo['Arma Larga'] = (conteo['Arma Larga'] || 0) + valor;
           if (keyLower.includes('blanca')) conteo['Arma Blanca'] = (conteo['Arma Blanca'] || 0) + valor;
@@ -108,6 +114,7 @@ function procesarDetallesExhaustivo(registros: any[], tipoBuscado: 'arma' | 'veh
 
 export default function MetricasPage() {
   const [loading, setLoading] = useState(true);
+  const [ultimaActualizacion, setUltimaActualizacion] = useState<string>('');
   
   const [rendicionSemanal, setRendicionSemanal] = useState(0);
   const [totalMensual, setTotalMensual] = useState(0);
@@ -138,80 +145,112 @@ export default function MetricasPage() {
 
   useEffect(() => {
     cargarMetricas();
+
+    // PUNTO 2 (Opción A): Suscripción en Tiempo Real con Supabase Realtime
+    const canalRealtime = supabase
+      .channel('auditoria-allanamientos-tv')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'allanamientos' },
+        () => {
+          cargarMetricas();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'allanamiento_colaboraciones' },
+        () => {
+          cargarMetricas();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(canalRealtime);
+    };
   }, []);
 
   async function cargarMetricas() {
-    setLoading(true);
     try {
+      // 1. Cargar allanamientos con la relación de colaboraciones (PUNTO 3)
       const { data, error } = await supabase
         .from('allanamientos')
-        .select('*, superintendencias(nombre)');
+        .select('*, superintendencias(nombre), allanamiento_colaboraciones(*)');
 
       if (error || !data) return;
 
-      if (data.length > 0) {
-        console.log('--- CAMPOS DISPONIBLES EN LA TABLA ---', Object.keys(data[0]));
-        console.log('--- PRIMER REGISTRO COMPLETO ---', data[0]);
-      }
+      const { inicio: inicioSemana, fin: finSemana } = getRangoSemanaActual();
+      const { inicio: inicioMes, fin: finMes } = getRangoMesActual();
 
-      const inicioSemana = getInicioSemanaActual();
-      const inicioMes = getInicioMesActual();
+      // Filtrado por fecha de ejecución
+      const registrosSemana = data.filter(item => {
+        const f = new Date(item.fecha_ejecucion || item.created_at);
+        return f >= inicioSemana && f <= finSemana;
+      });
 
-      const registrosSemana = data.filter(item => new Date(item.created_at || item.fecha_ejecucion) >= inicioSemana);
-      const registrosMes = data.filter(item => new Date(item.created_at || item.fecha_ejecucion) >= inicioMes);
+      const registrosMes = data.filter(item => {
+        const f = new Date(item.fecha_ejecucion || item.created_at);
+        return f >= inicioMes && f <= finMes;
+      });
 
       setRendicionSemanal(registrosSemana.length);
       setTotalMensual(registrosMes.length);
 
-      const positivosSemana = registrosSemana.filter(i => (i.resultado_medida || '').toLowerCase() === 'positivo').length;
+      const positivosSemana = registrosSemana.filter(
+        i => (i.resultado_medida || i.resultado || '').toLowerCase() === 'positivo'
+      ).length;
       setEfectividad(registrosSemana.length > 0 ? Math.round((positivosSemana / registrosSemana.length) * 100) : 100);
 
-      const parseNum = (val: any) => {
-        const n = parseInt(val, 10);
-        return isNaN(n) ? 0 : n;
-      };
+      // Desgloses
+      const armasConteoMes = procesarDetallesExhaustivo(registrosMes, 'arma');
+      const vehiculosConteoMes = procesarDetallesExhaustivo(registrosMes, 'vehiculo');
+      const personasConteoMes = procesarDetallesExhaustivo(registrosMes, 'detenido');
 
-      setArmasSemana(registrosSemana.reduce((acc, curr) => acc + parseNum(curr.armas_secuestradas), 0));
-      setVehiculosSemana(registrosSemana.reduce((acc, curr) => acc + parseNum(curr.vehiculos_secuestrados), 0));
-      setDetenidosSemana(registrosSemana.reduce((acc, curr) => acc + parseNum(curr.detenidos_aprehendidos || curr.detenidos_aprehendidos_cant), 0));
+      const armasConteoSem = procesarDetallesExhaustivo(registrosSemana, 'arma');
+      const vehiculosConteoSem = procesarDetallesExhaustivo(registrosSemana, 'vehiculo');
+      const personasConteoSem = procesarDetallesExhaustivo(registrosSemana, 'detenido');
 
-      setArmasMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.armas_secuestradas), 0));
-      setVehiculosMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.vehiculos_secuestrados), 0));
-      setDetenidosMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.detenidos_aprehendidos || curr.detenidos_aprehendidos_cant), 0));
-
-      const fuenteProcesamiento = data;
-
-      const armasConteo = procesarDetallesExhaustivo(fuenteProcesamiento, 'arma');
       setDesgloseArmas({
-        'Arma Corta': armasConteo['Arma Corta'] || armasConteo['Corta'] || 0,
-        'Arma Larga': armasConteo['Arma Larga'] || armasConteo['Larga'] || 0,
-        'Arma Blanca': armasConteo['Arma Blanca'] || armasConteo['Blanca'] || 0,
-        'Réplica': armasConteo['Réplica'] || 0,
+        'Arma Corta': armasConteoMes['Arma Corta'] || armasConteoMes['Corta'] || 0,
+        'Arma Larga': armasConteoMes['Arma Larga'] || armasConteoMes['Larga'] || 0,
+        'Arma Blanca': armasConteoMes['Arma Blanca'] || armasConteoMes['Blanca'] || 0,
+        'Réplica': armasConteoMes['Réplica'] || 0,
       });
 
-      const vehiculosConteo = procesarDetallesExhaustivo(fuenteProcesamiento, 'vehiculo');
       setDesgloseVehiculos({
-        'Auto': vehiculosConteo['Auto'] || 0,
-        'Moto': vehiculosConteo['Moto'] || 0,
-        'Camioneta': vehiculosConteo['Camioneta'] || 0,
-        'Otros': vehiculosConteo['Otros'] || 0,
+        'Auto': vehiculosConteoMes['Auto'] || 0,
+        'Moto': vehiculosConteoMes['Moto'] || 0,
+        'Camioneta': vehiculosConteoMes['Camioneta'] || 0,
+        'Otros': vehiculosConteoMes['Otros'] || 0,
       });
 
-      const personasConteo = procesarDetallesExhaustivo(fuenteProcesamiento, 'detenido');
       setDesglosePersonas({
-        'Detenido': personasConteo['Detenido'] || 0,
-        'Aprehendido': personasConteo['Aprehendido'] || 0,
+        'Detenido': personasConteoMes['Detenido'] || 0,
+        'Aprehendido': personasConteoMes['Aprehendido'] || 0,
       });
 
+      // Totales
+      const parseNum = (val: any) => { const n = parseInt(val, 10); return isNaN(n) ? 0 : n; };
+
+      setArmasSemana(registrosSemana.reduce((acc, curr) => acc + parseNum(curr.armas_secuestradas), 0) || Object.values(armasConteoSem).reduce((a, b) => a + b, 0));
+      setVehiculosSemana(registrosSemana.reduce((acc, curr) => acc + parseNum(curr.vehiculos_secuestrados), 0) || Object.values(vehiculosConteoSem).reduce((a, b) => a + b, 0));
+      setDetenidosSemana(registrosSemana.reduce((acc, curr) => acc + parseNum(curr.detenidos_aprehendidos), 0) || Object.values(personasConteoSem).reduce((a, b) => a + b, 0));
+
+      setArmasMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.armas_secuestradas), 0) || Object.values(armasConteoMes).reduce((a, b) => a + b, 0));
+      setVehiculosMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.vehiculos_secuestrados), 0) || Object.values(vehiculosConteoMes).reduce((a, b) => a + b, 0));
+      setDetenidosMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.detenidos_aprehendidos), 0) || Object.values(personasConteoMes).reduce((a, b) => a + b, 0));
+
+      // Evolución semanal
       const semanas = [0, 1, 2, 3].map(offset => {
         const inicio = new Date(inicioSemana);
         inicio.setDate(inicio.getDate() - (offset * 7));
         const fin = new Date(inicio);
-        fin.setDate(fin.getDate() + 7);
+        fin.setDate(fin.getDate() + 6);
+        fin.setHours(23, 59, 59, 999);
         
         const count = data.filter(item => {
-          const f = new Date(item.created_at || item.fecha_ejecucion);
-          return f >= inicio && f < fin;
+          const f = new Date(item.fecha_ejecucion || item.created_at);
+          return f >= inicio && f <= fin;
         }).length;
 
         const label = offset === 0 ? 'Sem Actual' : `Sem -${offset}`;
@@ -220,6 +259,7 @@ export default function MetricasPage() {
 
       setDatosEvolucion(semanas);
 
+      // Top Partidos
       const conteoPartidos: Record<string, number> = {};
       data.forEach(item => {
         const p = item.partido || 'Sin Especificar';
@@ -233,6 +273,7 @@ export default function MetricasPage() {
           .slice(0, 5)
       );
 
+      // Distribución Superintendencias
       const conteoSupers: Record<string, number> = {};
       data.forEach(item => {
         const s = item.superintendencias?.nombre || item.superintendencia || 'Sin Especificar';
@@ -245,10 +286,20 @@ export default function MetricasPage() {
           .sort((a, b) => b.total - a.total)
       );
 
+      // PUNTO 3: Especialidades / Colaboradores desde la tabla relacional
       const conteoEspecialidades: Record<string, number> = {};
       data.forEach(item => {
-        const esp = item.personal_colaboracion || 'No se Solicitó';
-        conteoEspecialidades[esp] = (conteoEspecialidades[esp] || 0) + 1;
+        const colabs = item.allanamiento_colaboraciones;
+        if (Array.isArray(colabs) && colabs.length > 0) {
+          colabs.forEach((c: any) => {
+            const esp = c.especialidad || 'Sin Especificar';
+            conteoEspecialidades[esp] = (conteoEspecialidades[esp] || 0) + 1;
+          });
+        } else if (item.personal_colaboracion) {
+          conteoEspecialidades[item.personal_colaboracion] = (conteoEspecialidades[item.personal_colaboracion] || 0) + 1;
+        } else {
+          conteoEspecialidades['No se Solicitó'] = (conteoEspecialidades['No se Solicitó'] || 0) + 1;
+        }
       });
 
       setDatosEspecialidades(
@@ -257,6 +308,8 @@ export default function MetricasPage() {
           .sort((a, b) => b.total - a.total)
           .slice(0, 5)
       );
+
+      setUltimaActualizacion(new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
 
     } catch (err) {
       console.error('Error cargando métricas:', err);
@@ -268,13 +321,29 @@ export default function MetricasPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh] text-slate-400 text-xs">
-        Cargando indicadores operativos...
+        Cargando indicadores operativos para el centro de monitoreo...
       </div>
     );
   }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 space-y-6">
+      
+      {/* Indicador TV de Tiempo Real */}
+      <div className="flex justify-between items-center bg-slate-900/40 border border-slate-800/80 px-4 py-2 rounded-xl backdrop-blur-md">
+        <div className="flex items-center gap-2 text-emerald-400 text-xs font-semibold">
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+          </span>
+          MONITOREO AUDITORÍA EN VIVO
+        </div>
+        <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
+          <Radio className="w-3.5 h-3.5 text-blue-400" />
+          Última actualización: <span className="text-white font-mono">{ultimaActualizacion}</span>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
           <div className="flex items-center justify-between text-slate-400 mb-2">
