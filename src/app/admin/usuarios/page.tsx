@@ -3,9 +3,18 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { crearUsuarioAction, resetearPasswordAction } from '@/app/actions/usuarios';
+import {
+  crearUsuarioAction,
+  resetearPasswordAction,
+  editarUsuarioAction,
+  toggleEstadoUsuarioAction,
+  eliminarUsuarioAction
+} from '@/app/actions/usuarios';
 import { supabase } from '@/lib/supabase';
-import { UserPlus, X, ShieldAlert, CheckCircle2, ArrowLeft, Users, LogOut, User } from 'lucide-react';
+import {
+  UserPlus, X, ShieldAlert, CheckCircle2, ArrowLeft, Users, LogOut,
+  User, Edit, PauseCircle, PlayCircle, Trash2, KeyRound
+} from 'lucide-react';
 
 interface Superintendencia {
   id: string;
@@ -22,6 +31,8 @@ interface UsuarioProfile {
   rol: string;
   superintendencia_id: string;
   modulos_permitidos?: string[];
+  activo?: boolean;
+  requiere_cambio_clave?: boolean;
 }
 
 const MODULOS_DISPONIBLES = [
@@ -39,8 +50,9 @@ export default function GestionUsuariosAdminPage() {
   const [superintendencias, setSuperintendencias] = useState<Superintendencia[]>([]);
   const [usuarios, setUsuarios] = useState<UsuarioProfile[]>([]);
 
-  // Modales y contraseña
-  const [usuarioAEditar, setUsuarioAEditar] = useState<string | null>(null);
+  // Modales y Edición
+  const [usuarioACambiarPass, setUsuarioACambiarPass] = useState<string | null>(null);
+  const [usuarioEditando, setUsuarioEditando] = useState<UsuarioProfile | null>(null);
   const [nuevaPass, setNuevaPass] = useState('');
   const [modulosSeleccionados, setModulosSeleccionados] = useState<string[]>(['allanamientos']);
 
@@ -48,6 +60,15 @@ export default function GestionUsuariosAdminPage() {
   const [miUsuarioId, setMiUsuarioId] = useState<string>('');
   const [miEmail, setMiEmail] = useState<string>('');
   const [miRolActual, setMiRolActual] = useState<string>('operador');
+
+  const recargarUsuarios = async (rol = miRolActual) => {
+    let query = supabase.from('profiles').select('*');
+    if (rol === 'supervisor') {
+      query = query.neq('rol', 'administrador');
+    }
+    const { data: usersData } = await query.order('nombre_completo', { ascending: true });
+    if (usersData) setUsuarios(usersData);
+  };
 
   useEffect(() => {
     async function initData() {
@@ -74,7 +95,6 @@ export default function GestionUsuariosAdminPage() {
         }
       }
 
-      // Traer superintendencias
       const { data: supData } = await supabase
         .from('superintendencias')
         .select('id, nombre')
@@ -82,14 +102,7 @@ export default function GestionUsuariosAdminPage() {
 
       if (supData) setSuperintendencias(supData);
 
-      // Traer usuarios
-      let query = supabase.from('profiles').select('*');
-      if (rolDetectado === 'supervisor') {
-        query = query.neq('rol', 'administrador');
-      }
-
-      const { data: usersData } = await query.order('nombre_completo', { ascending: true });
-      if (usersData) setUsuarios(usersData);
+      recargarUsuarios(rolDetectado);
     }
 
     initData();
@@ -111,7 +124,7 @@ export default function GestionUsuariosAdminPage() {
     }
   };
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  const handleCrearSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setCargando(true);
     setMensaje(null);
@@ -125,47 +138,74 @@ export default function GestionUsuariosAdminPage() {
     if (res.success) {
       setMensaje({ tipo: 'ok', texto: '¡Usuario creado correctamente con contraseña inicial ABCdef123!' });
       setModalAbierto(false);
-      (e.target as HTMLFormElement).reset();
       setModulosSeleccionados(['allanamientos']);
-      
-      let query = supabase.from('profiles').select('*');
-      if (rolNormalizado === 'supervisor') {
-        query = query.neq('rol', 'administrador');
-      }
-      const { data: usersData } = await query.order('nombre_completo', { ascending: true });
-      if (usersData) setUsuarios(usersData);
+      recargarUsuarios();
     } else {
       setMensaje({ tipo: 'error', texto: res.error || 'Ocurrió un error al crear el usuario.' });
     }
-  }
+  };
+
+  const handleEditarSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!usuarioEditando) return;
+
+    setCargando(true);
+    const formData = new FormData(e.currentTarget);
+    formData.append('id', usuarioEditando.id);
+    formData.append('modulos_permitidos', JSON.stringify(modulosSeleccionados));
+
+    const res = await editarUsuarioAction(formData);
+    setCargando(false);
+
+    if (res.success) {
+      setMensaje({ tipo: 'ok', texto: 'Usuario actualizado correctamente.' });
+      setUsuarioEditando(null);
+      recargarUsuarios();
+    } else {
+      setMensaje({ tipo: 'error', texto: res.error || 'Error al editar usuario.' });
+    }
+  };
+
+  const handleToggleEstado = async (u: UsuarioProfile) => {
+    const confirmacion = confirm(`¿Estás seguro de ${u.activo !== false ? 'PAUSAR' : 'ACTIVAR'} a ${u.nombre_completo}?`);
+    if (!confirmacion) return;
+
+    const res = await toggleEstadoUsuarioAction(u.id, u.activo !== false);
+    if (res.success) {
+      recargarUsuarios();
+    } else {
+      alert(res.error);
+    }
+  };
+
+  const handleEliminar = async (u: UsuarioProfile) => {
+    const confirmacion = confirm(`¡ATENCIÓN! Se eliminará definitivamente al usuario ${u.nombre_completo}. Esta acción no se puede deshacer.\n\n¿Continuar?`);
+    if (!confirmacion) return;
+
+    const res = await eliminarUsuarioAction(u.id);
+    if (res.success) {
+      setMensaje({ tipo: 'ok', texto: 'Usuario eliminado exitosamente.' });
+      recargarUsuarios();
+    } else {
+      alert(res.error);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col justify-between selection:bg-purple-600 selection:text-white">
       
-      {/* Header Institucional Unificado */}
+      {/* Header Institucional */}
       <header className="w-full border-b border-slate-800/80 bg-[#0c0f17]/90 backdrop-blur-md px-6 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 relative flex-shrink-0">
-            <Image
-              src="/logo_cop.png"
-              alt="Logo C.O.P"
-              width={36}
-              height={36}
-              className="object-contain"
-              priority
-            />
+            <Image src="/logo_cop.png" alt="Logo C.O.P" width={36} height={36} className="object-contain" priority />
           </div>
           <div>
-            <h1 className="text-sm font-bold text-white tracking-wide uppercase">
-              SISTEMA DE ESTADISTICAS COP
-            </h1>
-            <p className="text-[10px] text-slate-400 uppercase tracking-widest">
-              PLATAFORMA INTEGRAL DE GESTIÓN
-            </p>
+            <h1 className="text-sm font-bold text-white tracking-wide uppercase">SISTEMA DE ESTADISTICAS COP</h1>
+            <p className="text-[10px] text-slate-400 uppercase tracking-widest">PLATAFORMA INTEGRAL DE GESTIÓN</p>
           </div>
         </div>
 
-        {/* Info Sesión Usuario */}
         <div className="flex items-center gap-3 text-xs">
           <div className="flex items-center gap-2 bg-[#131824] px-3 py-1.5 rounded-lg border border-slate-800">
             <User className="w-3.5 h-3.5 text-slate-400" />
@@ -176,10 +216,7 @@ export default function GestionUsuariosAdminPage() {
             </span>
           </div>
 
-          <button
-            onClick={handleCerrarSesion}
-            className="flex items-center gap-1.5 bg-red-950/30 hover:bg-red-900/50 text-red-400 hover:text-red-300 border border-red-900/40 px-3 py-1.5 rounded-lg transition text-xs font-semibold"
-          >
+          <button onClick={handleCerrarSesion} className="flex items-center gap-1.5 bg-red-950/30 hover:bg-red-900/50 text-red-400 hover:text-red-300 border border-red-900/40 px-3 py-1.5 rounded-lg transition text-xs font-semibold">
             <LogOut className="w-3.5 h-3.5" />
             <span>Cerrar Sesión</span>
           </button>
@@ -189,13 +226,9 @@ export default function GestionUsuariosAdminPage() {
       {/* Contenido Principal */}
       <main className="max-w-6xl mx-auto w-full px-4 sm:px-6 py-8 flex-1 space-y-6">
         
-        {/* Banner de Control Superior */}
         <div className="bg-[#0f1420]/90 border border-slate-800/90 rounded-2xl p-6 backdrop-blur-md shadow-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => router.push('/select-app')}
-              className="flex items-center gap-2 px-3.5 py-2 bg-[#161c2e] hover:bg-[#1d253d] text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition border border-slate-700/60 shadow-md"
-            >
+            <button onClick={() => router.push('/select-app')} className="flex items-center gap-2 px-3.5 py-2 bg-[#161c2e] hover:bg-[#1d253d] text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition border border-slate-700/60 shadow-md">
               <ArrowLeft className="w-4 h-4" />
               <span>Módulos</span>
             </button>
@@ -204,17 +237,18 @@ export default function GestionUsuariosAdminPage() {
                 <Users className="w-5 h-5 text-purple-400" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-white tracking-wide">
-                  Gestión Centralizada de Usuarios
-                </h2>
-                <p className="text-xs text-slate-400 mt-0.5">Alta de operadores y asignación de permisos por sistema</p>
+                <h2 className="text-lg font-bold text-white tracking-wide">Gestión Centralizada de Usuarios</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Alta, edición y permisos por sistema</p>
               </div>
             </div>
           </div>
 
           {puedeCrearUsuarios && (
             <button
-              onClick={() => setModalAbierto(true)}
+              onClick={() => {
+                setModulosSeleccionados(['allanamientos']);
+                setModalAbierto(true);
+              }}
               className="w-full sm:w-auto bg-purple-600 hover:bg-purple-500 text-white font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-purple-900/40 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-wider"
             >
               <UserPlus className="w-4 h-4" />
@@ -223,15 +257,8 @@ export default function GestionUsuariosAdminPage() {
           )}
         </div>
 
-        {/* Feedback Messages */}
         {mensaje && (
-          <div
-            className={`p-4 rounded-xl text-xs font-medium border flex items-center gap-3 ${
-              mensaje.tipo === 'ok'
-                ? 'bg-emerald-950/40 border-emerald-800/80 text-emerald-400'
-                : 'bg-red-950/40 border-red-800/80 text-red-400'
-            }`}
-          >
+          <div className={`p-4 rounded-xl text-xs font-medium border flex items-center gap-3 ${mensaje.tipo === 'ok' ? 'bg-emerald-950/40 border-emerald-800/80 text-emerald-400' : 'bg-red-950/40 border-red-800/80 text-red-400'}`}>
             {mensaje.tipo === 'ok' ? <CheckCircle2 className="w-5 h-5 flex-shrink-0" /> : <ShieldAlert className="w-5 h-5 flex-shrink-0" />}
             <span>{mensaje.texto}</span>
           </div>
@@ -244,44 +271,94 @@ export default function GestionUsuariosAdminPage() {
           </h3>
           
           {usuarios.length === 0 ? (
-            <p className="text-xs text-slate-500 py-8 text-center">No se encontraron usuarios para mostrar.</p>
+            <p className="text-xs text-slate-500 py-8 text-center">No se encontraron usuarios.</p>
           ) : (
             <div className="space-y-3">
-              {usuarios.map((u) => (
-                <div key={u.id} className="bg-[#131826] border border-slate-800/90 hover:border-slate-700/80 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all">
-                  <div className="space-y-1">
-                    <h4 className="font-bold text-white text-sm tracking-wide uppercase">{u.nombre_completo || 'Sin nombre'}</h4>
-                    <p className="text-xs text-slate-400 font-mono">
-                      Email: <span className="text-slate-300">{u.email}</span> | DNI: {u.dni || 'N/A'} | Legajo: {u.legajo || 'N/A'}
-                    </p>
-                    
-                    {u.modulos_permitidos && u.modulos_permitidos.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 pt-1.5">
-                        {u.modulos_permitidos.map((mod) => (
-                          <span key={mod} className="px-2 py-0.5 bg-[#0b0e17] border border-purple-900/40 text-[10px] text-purple-400 rounded-md uppercase font-semibold">
-                            {mod}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+              {usuarios.map((u) => {
+                const estaActivo = u.activo !== false;
 
-                  <div className="flex items-center gap-3">
-                    <span className="px-3 py-1 bg-emerald-950/60 border border-emerald-800/60 text-emerald-400 rounded-lg text-[10px] font-extrabold uppercase tracking-wider">
-                      {u.rol || 'OPERADOR'}
-                    </span>
-                    
-                    {rolNormalizado === 'administrador' && (
-                      <button
-                        onClick={() => setUsuarioAEditar(u.id)}
-                        className="text-xs text-purple-400 hover:text-purple-300 font-semibold underline ml-1"
-                      >
-                        Cambiar Clave
-                      </button>
-                    )}
+                return (
+                  <div key={u.id} className={`bg-[#131826] border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${estaActivo ? 'border-slate-800/90' : 'border-red-900/40 opacity-60'}`}>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-white text-sm tracking-wide uppercase">{u.nombre_completo || 'Sin nombre'}</h4>
+                        {!estaActivo && (
+                          <span className="px-2 py-0.5 bg-red-950/80 text-red-400 border border-red-800/60 rounded text-[9px] font-extrabold uppercase">
+                            PAUSADO
+                          </span>
+                        )}
+                        {u.requiere_cambio_clave && (
+                          <span className="px-2 py-0.5 bg-amber-950/80 text-amber-400 border border-amber-800/60 rounded text-[9px] font-extrabold uppercase">
+                            CLAVE TEMPORAL
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-400 font-mono">
+                        Email: <span className="text-slate-300">{u.email}</span> | DNI: {u.dni || 'N/A'} | Legajo: {u.legajo || 'N/A'}
+                      </p>
+                      
+                      {u.modulos_permitidos && u.modulos_permitidos.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 pt-1.5">
+                          {u.modulos_permitidos.map((mod) => (
+                            <span key={mod} className="px-2 py-0.5 bg-[#0b0e17] border border-purple-900/40 text-[10px] text-purple-400 rounded-md uppercase font-semibold">
+                              {mod}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2.5">
+                      <span className="px-3 py-1 bg-emerald-950/60 border border-emerald-800/60 text-emerald-400 rounded-lg text-[10px] font-extrabold uppercase tracking-wider">
+                        {u.rol || 'OPERADOR'}
+                      </span>
+                      
+                      {rolNormalizado === 'administrador' && (
+                        <div className="flex items-center gap-1 bg-[#0b0e17] p-1 rounded-xl border border-slate-800">
+                          {/* Botón Editar */}
+                          <button
+                            title="Editar usuario"
+                            onClick={() => {
+                              setUsuarioEditando(u);
+                              setModulosSeleccionados(u.modulos_permitidos || []);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-purple-400 transition"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+
+                          {/* Botón Cambiar Clave */}
+                          <button
+                            title="Resetear clave"
+                            onClick={() => setUsuarioACambiarPass(u.id)}
+                            className="p-1.5 text-slate-400 hover:text-amber-400 transition"
+                          >
+                            <KeyRound className="w-4 h-4" />
+                          </button>
+
+                          {/* Botón Pausar / Activar */}
+                          <button
+                            title={estaActivo ? 'Pausar usuario' : 'Activar usuario'}
+                            onClick={() => handleToggleEstado(u)}
+                            className={`p-1.5 transition ${estaActivo ? 'text-slate-400 hover:text-amber-500' : 'text-emerald-400 hover:text-emerald-300'}`}
+                          >
+                            {estaActivo ? <PauseCircle className="w-4 h-4" /> : <PlayCircle className="w-4 h-4" />}
+                          </button>
+
+                          {/* Botón Eliminar */}
+                          <button
+                            title="Eliminar permanentemente"
+                            onClick={() => handleEliminar(u)}
+                            className="p-1.5 text-slate-400 hover:text-red-400 transition"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -301,7 +378,7 @@ export default function GestionUsuariosAdminPage() {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleCrearSubmit} className="p-6 space-y-4">
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Nombre y Apellido</label>
                 <input required name="nombre_completo" type="text" placeholder="Ej: Juan Pérez" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500" />
@@ -321,13 +398,6 @@ export default function GestionUsuariosAdminPage() {
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Correo Electrónico (Usuario)</label>
                 <input required name="email" type="text" placeholder="usuario@cop.estadistica.ar" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500" />
-              </div>
-
-              <div className="bg-[#090c13] p-3 rounded-xl border border-slate-800">
-                <span className="block text-[10px] font-bold text-amber-400 uppercase">Contraseña Inicial Automática</span>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Se asignará por defecto: <code className="text-white bg-slate-800 px-1.5 py-0.5 rounded font-mono">ABCdef123</code>.
-                </p>
               </div>
 
               <div>
@@ -363,18 +433,11 @@ export default function GestionUsuariosAdminPage() {
                         key={mod.id}
                         onClick={() => toggleModulo(mod.id)}
                         className={`p-2.5 rounded-xl border cursor-pointer flex items-center justify-between transition-all ${
-                          checked
-                            ? 'bg-purple-950/60 border-purple-800/80 text-white'
-                            : 'bg-[#090c13] border-slate-800 text-slate-500 hover:border-slate-700'
+                          checked ? 'bg-purple-950/60 border-purple-800/80 text-white' : 'bg-[#090c13] border-slate-800 text-slate-500 hover:border-slate-700'
                         }`}
                       >
                         <span className="font-semibold text-[11px]">{mod.label}</span>
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => {}}
-                          className="rounded border-slate-800 text-purple-600 focus:ring-0"
-                        />
+                        <input type="checkbox" checked={checked} readOnly className="rounded border-slate-800 text-purple-600 focus:ring-0" />
                       </div>
                     );
                   })}
@@ -392,12 +455,95 @@ export default function GestionUsuariosAdminPage() {
         </div>
       )}
 
+      {/* Modal Editar Usuario */}
+      {usuarioEditando && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0f1420] border border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="bg-[#090c13] p-4 border-b border-slate-800 flex justify-between items-center px-6">
+              <h2 className="font-bold text-xs text-white uppercase tracking-wider flex items-center gap-2">
+                <Edit className="w-4 h-4 text-purple-400" />
+                Editar Usuario
+              </h2>
+              <button onClick={() => setUsuarioEditando(null)} className="text-slate-500 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditarSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Nombre y Apellido</label>
+                <input required defaultValue={usuarioEditando.nombre_completo} name="nombre_completo" type="text" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">DNI</label>
+                  <input required defaultValue={usuarioEditando.dni} name="dni" type="text" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Legajo</label>
+                  <input required defaultValue={usuarioEditando.legajo} name="legajo" type="text" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Superintendencia</label>
+                <select required defaultValue={usuarioEditando.superintendencia_id} name="superintendencia_id" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500">
+                  {superintendencias.map((sup) => (
+                    <option key={sup.id} value={sup.id}>{sup.nombre}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Rol</label>
+                <select required defaultValue={usuarioEditando.rol} name="rol" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500">
+                  <option value="operador">OPERADOR</option>
+                  <option value="consulta">CONSULTA</option>
+                  <option value="supervisor">SUPERVISOR</option>
+                  <option value="auditor">AUDITOR</option>
+                  <option value="administrador">ADMINISTRADOR</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-2">Módulos Autorizados</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {MODULOS_DISPONIBLES.map((mod) => {
+                    const checked = modulosSeleccionados.includes(mod.id);
+                    return (
+                      <div
+                        key={mod.id}
+                        onClick={() => toggleModulo(mod.id)}
+                        className={`p-2.5 rounded-xl border cursor-pointer flex items-center justify-between transition-all ${
+                          checked ? 'bg-purple-950/60 border-purple-800/80 text-white' : 'bg-[#090c13] border-slate-800 text-slate-500 hover:border-slate-700'
+                        }`}
+                      >
+                        <span className="font-semibold text-[11px]">{mod.label}</span>
+                        <input type="checkbox" checked={checked} readOnly className="rounded border-slate-800 text-purple-600 focus:ring-0" />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800 mt-4">
+                <button type="button" onClick={() => setUsuarioEditando(null)} className="px-4 py-2 text-xs font-semibold uppercase text-slate-400 hover:text-white">Cancelar</button>
+                <button disabled={cargando} type="submit" className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs uppercase transition-all shadow-lg shadow-purple-900/40">
+                  {cargando ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Modal Resetear Contraseña */}
-      {usuarioAEditar && (
+      {usuarioACambiarPass && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#0f1420] border border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
             <h2 className="text-xs font-bold text-white uppercase tracking-wider">Cambiar Contraseña</h2>
-            <p className="text-xs text-slate-400">Ingresá una nueva clave para el usuario.</p>
+            <p className="text-xs text-slate-400">Ingresá la nueva clave para el usuario.</p>
             
             <input
               type="password"
@@ -407,22 +553,18 @@ export default function GestionUsuariosAdminPage() {
             />
 
             <div className="flex gap-3 pt-2">
-              <button
-                onClick={() => setUsuarioAEditar(null)}
-                className="flex-1 px-4 py-2 text-xs font-semibold uppercase text-slate-400 hover:text-white bg-slate-800 rounded-xl"
-              >
-                Cancelar
-              </button>
+              <button onClick={() => setUsuarioACambiarPass(null)} className="flex-1 px-4 py-2 text-xs font-semibold uppercase text-slate-400 hover:text-white bg-slate-800 rounded-xl">Cancelar</button>
               <button
                 onClick={async () => {
                   if (!nuevaPass) return alert("Ingresá una contraseña");
                   setCargando(true);
-                  const res = await resetearPasswordAction(usuarioAEditar, nuevaPass);
+                  const res = await resetearPasswordAction(usuarioACambiarPass, nuevaPass);
                   setCargando(false);
                   if (res.success) {
-                    alert("¡Contraseña actualizada con éxito!");
-                    setUsuarioAEditar(null);
+                    setMensaje({ tipo: 'ok', texto: 'Contraseña actualizada. Se exigirá el cambio al iniciar sesión.' });
+                    setUsuarioACambiarPass(null);
                     setNuevaPass('');
+                    recargarUsuarios();
                   } else {
                     alert(res.error);
                   }
@@ -436,7 +578,7 @@ export default function GestionUsuariosAdminPage() {
         </div>
       )}
 
-      {/* Footer Unificado con Firma */}
+      {/* Footer Unificado */}
       <footer className="w-full border-t border-slate-800/80 bg-[#0c0f17]/90 backdrop-blur-md py-6 text-center space-y-1">
         <p className="text-xs text-slate-400">
           Desarrollado por <span className="text-blue-400 font-semibold">Emmanuel Machado</span>
