@@ -57,7 +57,12 @@ function SemaforoSuperintendencias({ allanamientos }: { allanamientos: any[] }) 
 
   async function obtenerSuperintendencias() {
     try {
-      const { data, error } = await supabase.from('superintendencias').select('id, nombre').order('nombre');
+      const { data, error } = await supabase
+        .from('superintendencias')
+        .select('id, nombre, activa')
+        .eq('activa', true)
+        .order('nombre');
+        
       if (!error && data) {
         setSuperintendencias(data);
       }
