@@ -78,62 +78,58 @@ function getRangoMesActual() {
   return { inicio, fin };
 }
 
-function procesarDetallesExhaustivo(registros: any[], tipoBuscado: 'arma' | 'vehiculo' | 'detenido') {
-  const conteo: Record<string, number> = {};
+function procesarDetallesExhaustivo(registros: any[], campoJson: string) {
+  const conteo: Record<string, number> = {
+    'Arma Corta': 0, 'Arma Larga': 0, 'Arma Blanca': 0, 'Réplica': 0,
+    'Auto': 0, 'Moto': 0, 'Camioneta': 0, 'Otros': 0,
+    'Detenido': 0, 'Aprehendido': 0
+  };
 
   registros.forEach(item => {
-    Object.keys(item).forEach(key => {
-      const valor = item[key];
-      if (!valor) return;
+    let contenido = item[campoJson];
+    if (!contenido) return;
 
-      const keyLower = key.toLowerCase();
-      const esCoincidencia = keyLower.includes(tipoBuscado) || 
-        (tipoBuscado === 'detenido' && (keyLower.includes('persona') || keyLower.includes('aprehendido')));
-
-      if (esCoincidencia) {
-        let lista = valor;
-
-        if (typeof valor === 'string') {
-          try {
-            lista = JSON.parse(valor);
-          } catch {
-            const texto = valor.toLowerCase();
-            if (texto.includes('corta')) conteo['Arma Corta'] = (conteo['Arma Corta'] || 0) + 1;
-            else if (texto.includes('larga')) conteo['Arma Larga'] = (conteo['Arma Larga'] || 0) + 1;
-            else if (texto.includes('blanca')) conteo['Arma Blanca'] = (conteo['Arma Blanca'] || 0) + 1;
-            else if (texto.includes('replica') || texto.includes('réplica')) conteo['Réplica'] = (conteo['Réplica'] || 0) + 1;
-            else if (texto.includes('auto')) conteo['Auto'] = (conteo['Auto'] || 0) + 1;
-            else if (texto.includes('moto')) conteo['Moto'] = (conteo['Moto'] || 0) + 1;
-            else if (texto.includes('camioneta')) conteo['Camioneta'] = (conteo['Camioneta'] || 0) + 1;
-            else if (texto.includes('detenido')) conteo['Detenido'] = (conteo['Detenido'] || 0) + 1;
-            else if (texto.includes('aprehendido')) conteo['Aprehendido'] = (conteo['Aprehendido'] || 0) + 1;
-            return;
-          }
-        }
-
-        if (Array.isArray(lista)) {
-          lista.forEach((element: any) => {
-            if (element && typeof element === 'object') {
-              const cat = element.tipo || element.tipo_arma || element.tipo_vehiculo || element.categoria || element.subtipo || '';
-              const cant = parseInt(element.cantidad || element.cant || 1, 10);
-              if (cat) conteo[cat] = (conteo[cat] || 0) + (isNaN(cant) ? 1 : cant);
-            } else if (typeof element === 'string') {
-              conteo[element] = (conteo[element] || 0) + 1;
-            }
-          });
-        } else if (typeof valor === 'number' && valor > 0) {
-          if (keyLower.includes('corta')) conteo['Arma Corta'] = (conteo['Arma Corta'] || 0) + valor;
-          if (keyLower.includes('larga')) conteo['Arma Larga'] = (conteo['Arma Larga'] || 0) + valor;
-          if (keyLower.includes('blanca')) conteo['Arma Blanca'] = (conteo['Arma Blanca'] || 0) + valor;
-          if (keyLower.includes('replica') || keyLower.includes('réplica')) conteo['Réplica'] = (conteo['Réplica'] || 0) + valor;
-          if (keyLower.includes('auto')) conteo['Auto'] = (conteo['Auto'] || 0) + valor;
-          if (keyLower.includes('moto')) conteo['Moto'] = (conteo['Moto'] || 0) + valor;
-          if (keyLower.includes('camioneta')) conteo['Camioneta'] = (conteo['Camioneta'] || 0) + valor;
-          if (keyLower.includes('detenido')) conteo['Detenido'] = (conteo['Detenido'] || 0) + valor;
-          if (keyLower.includes('aprehendido')) conteo['Aprehendido'] = (conteo['Aprehendido'] || 0) + valor;
-        }
+    if (typeof contenido === 'string') {
+      try { 
+        contenido = JSON.parse(contenido); 
+      } catch { 
+        const valNum = parseInt(contenido, 10);
+        if (!isNaN(valNum) && valNum > 0) contenido = valNum;
       }
-    });
+    }
+
+    if (typeof contenido === 'number' && contenido > 0) {
+      if (campoJson === 'detenidos_aprehendidos') {
+        conteo['Detenido'] += contenido;
+      }
+      return;
+    }
+
+    if (Array.isArray(contenido)) {
+      contenido.forEach((element: any) => {
+        if (!element) return;
+
+        const tipoStr = (
+          element.subtipo || 
+          element.tipo || 
+          element.categoria || 
+          (typeof element === 'string' ? element : '')
+        ).toLowerCase();
+
+        const cant = parseInt(element.cantidad || element.cant || 1, 10) || 1;
+
+        if (tipoStr.includes('corta')) conteo['Arma Corta'] += cant;
+        else if (tipoStr.includes('larga')) conteo['Arma Larga'] += cant;
+        else if (tipoStr.includes('blanca')) conteo['Arma Blanca'] += cant;
+        else if (tipoStr.includes('replica') || tipoStr.includes('réplica')) conteo['Réplica'] += cant;
+        else if (tipoStr.includes('auto') || tipoStr.includes('vehiculo')) conteo['Auto'] += cant;
+        else if (tipoStr.includes('moto')) conteo['Moto'] += cant;
+        else if (tipoStr.includes('camion')) conteo['Camioneta'] += cant;
+        else if (tipoStr.includes('detenido')) conteo['Detenido'] += cant;
+        else if (tipoStr.includes('aprehendido')) conteo['Aprehendido'] += cant;
+        else if (campoJson === 'secuestro_vehiculos' && tipoStr) conteo['Otros'] += cant;
+      });
+    }
   });
 
   return conteo;
@@ -237,7 +233,7 @@ export default function MetricasPage() {
     try {
       const { data, error } = await supabase
         .from('allanamientos')
-        .select('*');
+        .select('*, superintendencias(nombre)');
 
       if (error) {
         console.error('Error al traer allanamientos:', error);
@@ -278,18 +274,18 @@ export default function MetricasPage() {
       ).length;
       setEfectividad(registrosSemana.length > 0 ? Math.round((positivosSemana / registrosSemana.length) * 100) : 100);
 
-      const armasConteoMes = procesarDetallesExhaustivo(registrosMes, 'arma');
-      const vehiculosConteoMes = procesarDetallesExhaustivo(registrosMes, 'vehiculo');
-      const personasConteoMes = procesarDetallesExhaustivo(registrosMes, 'detenido');
+      const armasConteoMes = procesarDetallesExhaustivo(registrosMes, 'secuestro_armas');
+      const vehiculosConteoMes = procesarDetallesExhaustivo(registrosMes, 'secuestro_vehiculos');
+      const personasConteoMes = procesarDetallesExhaustivo(registrosMes, 'detenidos_aprehendidos');
 
-      const armasConteoSem = procesarDetallesExhaustivo(registrosSemana, 'arma');
-      const vehiculosConteoSem = procesarDetallesExhaustivo(registrosSemana, 'vehiculo');
-      const personasConteoSem = procesarDetallesExhaustivo(registrosSemana, 'detenido');
+      const armasConteoSem = procesarDetallesExhaustivo(registrosSemana, 'secuestro_armas');
+      const vehiculosConteoSem = procesarDetallesExhaustivo(registrosSemana, 'secuestro_vehiculos');
+      const personasConteoSem = procesarDetallesExhaustivo(registrosSemana, 'detenidos_aprehendidos');
 
       setDesgloseArmas({
-        'Arma Corta': armasConteoMes['Arma Corta'] || armasConteoMes['Corta'] || 0,
-        'Arma Larga': armasConteoMes['Arma Larga'] || armasConteoMes['Larga'] || 0,
-        'Arma Blanca': armasConteoMes['Arma Blanca'] || armasConteoMes['Blanca'] || 0,
+        'Arma Corta': armasConteoMes['Arma Corta'] || 0,
+        'Arma Larga': armasConteoMes['Arma Larga'] || 0,
+        'Arma Blanca': armasConteoMes['Arma Blanca'] || 0,
         'Réplica': armasConteoMes['Réplica'] || 0,
       });
 
@@ -309,11 +305,11 @@ export default function MetricasPage() {
 
       setArmasSemana(registrosSemana.reduce((acc, curr) => acc + parseNum(curr.armas_secuestradas), 0) || Object.values(armasConteoSem).reduce((a, b) => a + b, 0));
       setVehiculosSemana(registrosSemana.reduce((acc, curr) => acc + parseNum(curr.vehiculos_secuestrados), 0) || Object.values(vehiculosConteoSem).reduce((a, b) => a + b, 0));
-      setDetenidosSemana(registrosSemana.reduce((acc, curr) => acc + parseNum(curr.detenidos_aprehendidos), 0) || Object.values(personasConteoSem).reduce((a, b) => a + b, 0));
+      setDetenidosSemana(registrosSemana.reduce((acc, curr) => acc + parseNum(curr.detenidos_aprehendidos_cant), 0) || Object.values(personasConteoSem).reduce((a, b) => a + b, 0));
 
       setArmasMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.armas_secuestradas), 0) || Object.values(armasConteoMes).reduce((a, b) => a + b, 0));
       setVehiculosMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.vehiculos_secuestrados), 0) || Object.values(vehiculosConteoMes).reduce((a, b) => a + b, 0));
-      setDetenidosMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.detenidos_aprehendidos), 0) || Object.values(personasConteoMes).reduce((a, b) => a + b, 0));
+      setDetenidosMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.detenidos_aprehendidos_cant), 0) || Object.values(personasConteoMes).reduce((a, b) => a + b, 0));
 
       const semanas = [0, 1, 2, 3].map(offset => {
         const inicio = new Date(inicioSemana);
@@ -348,7 +344,7 @@ export default function MetricasPage() {
 
       const conteoSupers: Record<string, number> = {};
       data.forEach(item => {
-        const s = item.superintendencia || item.superintendencia_nombre || 'Sin Especificar';
+        const s = item.superintendencias?.nombre || item.superintendencia_nombre || 'Sin Especificar';
         conteoSupers[s] = (conteoSupers[s] || 0) + 1;
       });
 
