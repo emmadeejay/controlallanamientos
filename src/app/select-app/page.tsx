@@ -37,26 +37,19 @@ export default function SelectAppPage() {
         }
 
         const email = user.email || '';
-        let rolFinal = 'operador';
 
-        // Consulta completa de perfil
-        let { data: profile } = await supabase
+        // 1. Consultar el perfil directamente por el ID autenticado
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('rol, activo, requiere_cambio_clave, modulos_permitidos')
           .eq('id', user.id)
           .maybeSingle();
 
-        if (!profile && email) {
-          const { data: profileByEmail } = await supabase
-            .from('profiles')
-            .select('rol, activo, requiere_cambio_clave, modulos_permitidos')
-            .eq('email', email)
-            .maybeSingle();
-
-          if (profileByEmail) profile = profileByEmail;
+        if (profileError) {
+          console.error('Error al obtener perfil:', profileError.message);
         }
 
-        // 1. Validar si el usuario está PAUSADO/DESACTIVADO
+        // 2. Validar si el usuario está PAUSADO/DESACTIVADO
         if (profile && profile.activo === false) {
           alert('Tu cuenta se encuentra pausada/desactivada por un administrador. Contacta con soporte.');
           localStorage.clear();
@@ -66,19 +59,21 @@ export default function SelectAppPage() {
           return;
         }
 
-        if (profile && profile.rol) {
+        // 3. Determinar el rol real desde la DB sin forzar fallback a 'operador'
+        let rolFinal = 'operador';
+        if (profile?.rol) {
           rolFinal = String(profile.rol).trim().toLowerCase();
-        } else if (email === '1234567@cop.estadistica.ar' || email.includes('cop.estadistica.ar')) {
-          rolFinal = 'administrador';
         }
 
         if (isMounted) {
           setUserId(user.id);
           setUserEmail(email);
           setUserRole(rolFinal);
-          setModulosPermitidos(profile?.modulos_permitidos || ['allanamientos', 'deporte', 'contravenciones', 'motochorros']);
-          
-          // 2. Comprobar si DEBE cambiar contraseña obligatoriamente
+          setModulosPermitidos(
+            profile?.modulos_permitidos || ['allanamientos', 'deporte', 'contravenciones', 'motochorros']
+          );
+
+          // 4. Comprobar si DEBE cambiar contraseña obligatoriamente
           if (profile?.requiere_cambio_clave) {
             setRequiereCambioClave(true);
           }
@@ -401,7 +396,7 @@ export default function SelectAppPage() {
         </div>
       )}
 
-      {/* Footer Solicitado */}
+      {/* Footer */}
       <footer className="border-t border-slate-800/80 py-6 text-center text-xs text-slate-500 bg-slate-900/40 backdrop-blur-sm">
         <p className="font-medium text-slate-400">
           Desarrollado por <span className="text-blue-400 font-semibold">Emmanuel Machado</span>
