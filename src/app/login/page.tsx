@@ -1,223 +1,166 @@
-'use client';
+'use client'
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import Image from 'next/image';
-import { supabase } from '@/lib/supabase';
-import { User, Lock, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
-
-const LOGO_URL = '/logo_cop.png';
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
+import { Mail, Lock, Eye, EyeOff, ArrowRight, Loader2 } from 'lucide-react'
+import Image from 'next/image'
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [userInput, setUserInput] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  // Asegura la limpieza completa de la sesión al cargar la página de login
-  useEffect(() => {
-    async function limpiarSesionAlIngresar() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        await supabase.auth.signOut();
-      }
-    }
-    limpiarSesionAlIngresar();
-  }, []);
+  const router = useRouter()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    const emailFinal = userInput.includes('@')
-      ? userInput.trim()
-      : `${userInput.trim()}@cop.estadistica.ar`;
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
 
     try {
       const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: emailFinal,
-        password: password,
-      });
+        email,
+        password,
+      })
 
       if (authError) {
-        setError('Usuario o contraseña incorrectos.');
-        setLoading(false);
-        return;
+        throw new Error('Credenciales inválidas. Por favor verifique su correo y contraseña.')
       }
 
-      if (data?.session) {
-        router.push('/select-app');
-        router.refresh();
-      } else {
-        setError('No se pudo establecer la sesión.');
-        setLoading(false);
+      if (data.user) {
+        router.push('/allanamientos')
+        router.refresh()
       }
-    } catch (err) {
-      console.error('Error al iniciar sesión:', err);
-      setError('Ocurrió un error inesperado al intentar ingresar.');
-      setLoading(false);
+    } catch (err: any) {
+      setError(err.message || 'Error al iniciar sesión')
+    } finally {
+      setLoading(false)
     }
-  };
-
-  const handleRecuperarPassword = async () => {
-    const emailInput = prompt("Ingresá tu usuario o correo electrónico institucional:");
-    if (!emailInput) return;
-
-    const emailFinal = emailInput.includes('@')
-      ? emailInput.trim().toLowerCase()
-      : `${emailInput.trim().toLowerCase()}@cop.estadistica.ar`;
-
-    const { error } = await supabase.auth.resetPasswordForEmail(emailFinal, {
-      redirectTo: `${window.location.origin}/auth/actualizar-password`,
-    });
-
-    if (error) {
-      alert("Error: " + error.message);
-    } else {
-      alert("¡Listo! Revisá tu correo electrónico para seguir las instrucciones de recuperación.");
-    }
-  };
+  }
 
   return (
-    <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col justify-between items-center p-4 selection:bg-blue-600 selection:text-white">
-      
-      {/* Header Superior Minimalista */}
-      <header className="w-full max-w-5xl py-4 flex items-center justify-between border-b border-slate-800/60">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 relative flex-shrink-0">
+    <div className="min-h-screen bg-[#070b12] text-slate-100 flex flex-col justify-between items-center p-4">
+      {/* Contenedor central vacio para empujar el formulario al centro */}
+      <div />
+
+      {/* Tarjeta de Login */}
+      <div className="w-full max-w-md bg-[#0f172a]/70 border border-slate-800/80 rounded-2xl p-8 shadow-2xl backdrop-blur-xl">
+        
+        {/* Escudo y Títulos */}
+        <div className="flex flex-col items-center text-center mb-8">
+          <div className="w-20 h-20 relative mb-4">
             <Image
-              src={LOGO_URL}
-              alt="Logo C.O.P"
-              width={32}
-              height={32}
+              src="/cop-logo.png" // Asegurate de ajustar el path de tu imagen de logo
+              alt="COP Escudo"
+              width={80}
+              height={80}
               className="object-contain"
               priority
             />
           </div>
-          <div>
-            <h1 className="text-xs font-bold text-white tracking-wide uppercase">
-              SISTEMA DE ESTADISTICAS COP
-            </h1>
-            <p className="text-[9px] text-slate-400 uppercase tracking-widest">
-              PLATAFORMA INTEGRAL DE GESTIÓN
-            </p>
-          </div>
+          <h1 className="text-xl font-bold text-white tracking-wide">
+            Plataforma de Estadísticas COP
+          </h1>
+          <p className="text-sm text-slate-400 mt-1">
+            Sistema Integral de Gestión
+          </p>
         </div>
-      </header>
 
-      {/* Card de Login Central */}
-      <main className="w-full max-w-sm my-auto py-8">
-        <div className="bg-[#0f1420]/90 border border-slate-800/90 rounded-2xl p-6 sm:p-8 backdrop-blur-md shadow-2xl space-y-6">
+        {/* Mensaje de error */}
+        {error && (
+          <div className="mb-6 bg-red-950/60 border border-red-800/80 text-red-300 text-xs p-3 rounded-xl text-center">
+            {error}
+          </div>
+        )}
+
+        {/* Formulario */}
+        <form onSubmit={handleLogin} className="space-y-5">
           
-          {/* Logo Central e Identidad */}
-          <div className="flex flex-col items-center text-center space-y-3">
-            <div className="w-20 h-20 relative my-1 flex items-center justify-center">
-              <Image
-                src={LOGO_URL}
-                alt="Logo C.O.P Central"
-                width={80}
-                height={80}
-                className="object-contain drop-shadow-lg"
-                priority
+          {/* Campo Correo */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 tracking-wider uppercase mb-2">
+              Correo
+            </label>
+            <div className="relative flex items-center">
+              <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 pointer-events-none" />
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="ejemplo@cop.gob.ar"
+                className="w-full bg-[#090d16] border border-slate-800 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition"
               />
             </div>
-            <div>
-              <h2 className="text-base font-bold text-white tracking-wide uppercase">
-                SISTEMA ESTADÍSTICAS C.O.P.
-              </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Plataforma Integral de Gestión
-              </p>
+          </div>
+
+          {/* Campo Contraseña con Ojito */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 tracking-wider uppercase mb-2">
+              Contraseña
+            </label>
+            <div className="relative flex items-center">
+              <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 pointer-events-none" />
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full bg-[#090d16] border border-slate-800 rounded-xl pl-10 pr-11 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3.5 p-1 text-slate-500 hover:text-slate-300 transition cursor-pointer"
+                title={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              >
+                {showPassword ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
+              </button>
             </div>
           </div>
 
-          {/* Banner de Error */}
-          {error && (
-            <div className="bg-red-950/40 border border-red-800/80 rounded-xl p-3.5 flex items-center gap-3 text-red-400 text-xs">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <p>{error}</p>
-            </div>
-          )}
+          {/* Botón de Ingreso */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 px-4 rounded-xl text-sm transition duration-200 flex items-center justify-center gap-2 shadow-lg shadow-blue-600/25 disabled:opacity-50 cursor-pointer"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Iniciando sesión...</span>
+              </>
+            ) : (
+              <>
+                <span>INGRESAR AL SISTEMA</span>
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
+          </button>
+        </form>
 
-          {/* Formulario */}
-          <form onSubmit={handleLogin} autoComplete="off" className="space-y-4">
-            <div>
-              <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1.5">
-                Usuario Institucional
-              </label>
-              <div className="relative flex items-center">
-                <User className="w-4 h-4 text-slate-500 absolute left-3.5 pointer-events-none" />
-                <input
-                  type="text"
-                  name="user_login_field"
-                  autoComplete="off"
-                  value={userInput}
-                  onChange={(e) => setUserInput(e.target.value)}
-                  placeholder="Ej: 1234567 o usuario@cop"
-                  required
-                  className="w-full pl-10 pr-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1.5">
-                Contraseña
-              </label>
-              <div className="relative flex items-center">
-                <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 pointer-events-none" />
-                <input
-                  type="password"
-                  name="user_password_field"
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  className="w-full pl-10 pr-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full mt-2 bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-xl shadow-lg shadow-blue-900/40 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-wider disabled:opacity-50"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Validando...</span>
-                </>
-              ) : (
-                <>
-                  <span>Ingresar al Sistema</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </form>
-
-          <div className="text-center pt-2">
-            <button
-              type="button"
-              onClick={handleRecuperarPassword}
-              className="text-xs text-slate-500 hover:text-slate-300 transition underline"
-            >
-              ¿Olvidaste tu contraseña?
-            </button>
-          </div>
+        {/* Link Olvidaste contraseña */}
+        <div className="mt-6 text-center">
+          <a
+            href="#"
+            className="text-xs text-slate-400 hover:text-blue-400 underline transition"
+          >
+            ¿Olvidaste tu contraseña?
+          </a>
         </div>
-      </main>
+      </div>
 
       {/* Footer */}
-      <footer className="w-full max-w-5xl py-4 border-t border-slate-800/60 text-center">
-        <p className="text-xs text-slate-500">
-          Diseñado por <span className="text-blue-400 font-semibold">EMMANUEL MACHADO</span>
-        </p>
+      <footer className="py-4 text-center text-xs text-slate-500">
+        Diseñado por <span className="text-blue-400 font-semibold">EMMANUEL MACHADO</span>
       </footer>
     </div>
-  );
+  )
 }
