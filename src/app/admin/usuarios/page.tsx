@@ -23,10 +23,11 @@ interface Superintendencia {
 
 interface UsuarioProfile {
   id: string;
-  nombre_completo: string;
+  nombre?: string;
+  apellido?: string;
+  nombre_completo?: string;
   dni: string;
   legajo: string;
-  username: string;
   email: string;
   rol: string;
   superintendencia_id: string;
@@ -66,7 +67,7 @@ export default function GestionUsuariosAdminPage() {
     if (rol === 'supervisor') {
       query = query.neq('rol', 'administrador');
     }
-    const { data: usersData } = await query.order('nombre_completo', { ascending: true });
+    const { data: usersData } = await query.order('created_at', { ascending: false });
     if (usersData) setUsuarios(usersData);
   };
 
@@ -129,19 +130,25 @@ export default function GestionUsuariosAdminPage() {
     setCargando(true);
     setMensaje(null);
 
-    const formData = new FormData(e.currentTarget);
-    formData.append('modulos_permitidos', JSON.stringify(modulosSeleccionados));
+    try {
+      const formData = new FormData(e.currentTarget);
+      // Pasa el array real a la acción
+      formData.append('modulos_array', JSON.stringify(modulosSeleccionados));
 
-    const res = await crearUsuarioAction(formData, miUsuarioId);
-    setCargando(false);
+      const res = await crearUsuarioAction(formData, miUsuarioId);
 
-    if (res.success) {
-      setMensaje({ tipo: 'ok', texto: '¡Usuario creado correctamente con contraseña inicial ABCdef123!' });
-      setModalAbierto(false);
-      setModulosSeleccionados(['allanamientos']);
-      recargarUsuarios();
-    } else {
-      setMensaje({ tipo: 'error', texto: res.error || 'Ocurrió un error al crear el usuario.' });
+      if (res.success) {
+        setMensaje({ tipo: 'ok', texto: '¡Usuario creado correctamente!' });
+        setModalAbierto(false);
+        setModulosSeleccionados(['allanamientos']);
+        recargarUsuarios();
+      } else {
+        setMensaje({ tipo: 'error', texto: res.error || 'Ocurrió un error al crear el usuario.' });
+      }
+    } catch (err: any) {
+      setMensaje({ tipo: 'error', texto: 'Error inesperado al conectar con el servidor.' });
+    } finally {
+      setCargando(false);
     }
   };
 
@@ -150,24 +157,32 @@ export default function GestionUsuariosAdminPage() {
     if (!usuarioEditando) return;
 
     setCargando(true);
-    const formData = new FormData(e.currentTarget);
-    formData.append('id', usuarioEditando.id);
-    formData.append('modulos_permitidos', JSON.stringify(modulosSeleccionados));
+    setMensaje(null);
 
-    const res = await editarUsuarioAction(formData);
-    setCargando(false);
+    try {
+      const formData = new FormData(e.currentTarget);
+      formData.append('id', usuarioEditando.id);
+      formData.append('modulos_array', JSON.stringify(modulosSeleccionados));
 
-    if (res.success) {
-      setMensaje({ tipo: 'ok', texto: 'Usuario actualizado correctamente.' });
-      setUsuarioEditando(null);
-      recargarUsuarios();
-    } else {
-      setMensaje({ tipo: 'error', texto: res.error || 'Error al editar usuario.' });
+      const res = await editarUsuarioAction(formData);
+
+      if (res.success) {
+        setMensaje({ tipo: 'ok', texto: 'Usuario actualizado correctamente.' });
+        setUsuarioEditando(null);
+        recargarUsuarios();
+      } else {
+        setMensaje({ tipo: 'error', texto: res.error || 'Error al editar usuario.' });
+      }
+    } catch (err: any) {
+      setMensaje({ tipo: 'error', texto: 'Error de red o procesamiento.' });
+    } finally {
+      setCargando(false);
     }
   };
 
   const handleToggleEstado = async (u: UsuarioProfile) => {
-    const confirmacion = confirm(`¿Estás seguro de ${u.activo !== false ? 'PAUSAR' : 'ACTIVAR'} a ${u.nombre_completo}?`);
+    const nombreMostrar = u.nombre ? `${u.nombre} ${u.apellido || ''}` : u.nombre_completo;
+    const confirmacion = confirm(`¿Estás seguro de ${u.activo !== false ? 'PAUSAR' : 'ACTIVAR'} a ${nombreMostrar}?`);
     if (!confirmacion) return;
 
     const res = await toggleEstadoUsuarioAction(u.id, u.activo !== false);
@@ -179,7 +194,8 @@ export default function GestionUsuariosAdminPage() {
   };
 
   const handleEliminar = async (u: UsuarioProfile) => {
-    const confirmacion = confirm(`¡ATENCIÓN! Se eliminará definitivamente al usuario ${u.nombre_completo}. Esta acción no se puede deshacer.\n\n¿Continuar?`);
+    const nombreMostrar = u.nombre ? `${u.nombre} ${u.apellido || ''}` : u.nombre_completo;
+    const confirmacion = confirm(`¡ATENCIÓN! Se eliminará definitivamente al usuario ${nombreMostrar}. Esta acción no se puede deshacer.\n\n¿Continuar?`);
     if (!confirmacion) return;
 
     const res = await eliminarUsuarioAction(u.id);
@@ -276,12 +292,13 @@ export default function GestionUsuariosAdminPage() {
             <div className="space-y-3">
               {usuarios.map((u) => {
                 const estaActivo = u.activo !== false;
+                const nombreMostrar = u.nombre ? `${u.nombre} ${u.apellido || ''}` : (u.nombre_completo || 'Sin nombre');
 
                 return (
                   <div key={u.id} className={`bg-[#131826] border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${estaActivo ? 'border-slate-800/90' : 'border-red-900/40 opacity-60'}`}>
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-white text-sm tracking-wide uppercase">{u.nombre_completo || 'Sin nombre'}</h4>
+                        <h4 className="font-bold text-white text-sm tracking-wide uppercase">{nombreMostrar}</h4>
                         {!estaActivo && (
                           <span className="px-2 py-0.5 bg-red-950/80 text-red-400 border border-red-800/60 rounded text-[9px] font-extrabold uppercase">
                             PAUSADO
@@ -379,9 +396,15 @@ export default function GestionUsuariosAdminPage() {
             </div>
 
             <form onSubmit={handleCrearSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Nombre y Apellido</label>
-                <input required name="nombre_completo" type="text" placeholder="Ej: Juan Pérez" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500" />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Nombre</label>
+                  <input required name="nombre" type="text" placeholder="Ej: JUAN" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Apellido</label>
+                  <input required name="apellido" type="text" placeholder="Ej: PEREZ" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500" />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -397,7 +420,7 @@ export default function GestionUsuariosAdminPage() {
 
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Correo Electrónico (Usuario)</label>
-                <input required name="email" type="text" placeholder="usuario@cop.estadistica.ar" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500" />
+                <input required name="email" type="email" placeholder="usuario@cop.estadistica.ar" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500" />
               </div>
 
               <div>
@@ -470,9 +493,15 @@ export default function GestionUsuariosAdminPage() {
             </div>
 
             <form onSubmit={handleEditarSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Nombre y Apellido</label>
-                <input required defaultValue={usuarioEditando.nombre_completo} name="nombre_completo" type="text" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500" />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Nombre</label>
+                  <input required defaultValue={usuarioEditando.nombre || usuarioEditando.nombre_completo?.split(' ')[0] || ''} name="nombre" type="text" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Apellido</label>
+                  <input required defaultValue={usuarioEditando.apellido || usuarioEditando.nombre_completo?.split(' ').slice(1).join(' ') || ''} name="apellido" type="text" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500" />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -561,7 +590,7 @@ export default function GestionUsuariosAdminPage() {
                   const res = await resetearPasswordAction(usuarioACambiarPass, nuevaPass);
                   setCargando(false);
                   if (res.success) {
-                    setMensaje({ tipo: 'ok', texto: 'Contraseña actualizada. Se exigirá el cambio al iniciar sesión.' });
+                    setMensaje({ tipo: 'ok', texto: 'Contraseña actualizada correctamente.' });
                     setUsuarioACambiarPass(null);
                     setNuevaPass('');
                     recargarUsuarios();

@@ -9,17 +9,21 @@ const supabaseAdmin = createClient(
 
 export async function crearUsuarioAction(formData: FormData, creadorId: string) {
   try {
-    const nombre_completo = formData.get('nombre_completo') as string;
-    const dni = formData.get('dni') as string;
-    const legajo = formData.get('legajo') as string;
-    const email = formData.get('email') as string;
+    const nombre = (formData.get('nombre') as string || '').trim();
+    const apellido = (formData.get('apellido') as string || '').trim();
+    const dni = (formData.get('dni') as string || '').trim();
+    const legajo = (formData.get('legajo') as string || '').trim();
+    const email = (formData.get('email') as string || '').trim().toLowerCase();
     const superintendencia_id = formData.get('superintendencia_id') as string;
     const rol = formData.get('rol') as string;
 
-    const modulosRaw = formData.get('modulos_permitidos') as string;
-    const modulos_permitidos = modulosRaw ? JSON.parse(modulosRaw) : ['allanamientos'];
+    // Lee la clave modulos_array enviada desde el front
+    const modulosRaw = formData.get('modulos_array') as string;
+    const modulos_permitidos: string[] = modulosRaw ? JSON.parse(modulosRaw) : ['allanamientos'];
 
-    if (!email || !nombre_completo || !dni || !legajo || !superintendencia_id || !rol) {
+    const nombre_completo = `${nombre} ${apellido}`.trim();
+
+    if (!email || !nombre || !apellido || !dni || !legajo || !superintendencia_id || !rol) {
       return { success: false, error: 'Todos los campos son obligatorios.' };
     }
 
@@ -33,24 +37,27 @@ export async function crearUsuarioAction(formData: FormData, creadorId: string) 
       return { success: false, error: 'No tienes permisos para crear un usuario con rol de Administrador.' };
     }
 
-    const formattedEmail = email.trim().toLowerCase();
     const passwordTemporal = 'ABCdef123';
 
+    // 1. Crear en Supabase Auth
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: formattedEmail,
+      email,
       password: passwordTemporal,
       email_confirm: true,
-      user_metadata: { nombre_completo, dni, legajo },
+      user_metadata: { nombre, apellido, nombre_completo, dni, legajo },
     });
 
     if (authError) return { success: false, error: authError.message };
 
+    // 2. Guardar en tabla profiles con el esquema desagregado
     const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
       id: authData.user!.id,
-      email: formattedEmail,
+      email,
+      nombre,
+      apellido,
+      nombre_completo,
       dni,
       legajo,
-      nombre_completo,
       rol,
       superintendencia_id,
       modulos_permitidos,
@@ -65,24 +72,30 @@ export async function crearUsuarioAction(formData: FormData, creadorId: string) 
 
     return { success: true };
   } catch (err: any) {
-    return { success: false, error: err.message };
+    return { success: false, error: err.message || 'Error inesperado al crear usuario.' };
   }
 }
 
 export async function editarUsuarioAction(formData: FormData) {
   try {
     const id = formData.get('id') as string;
-    const nombre_completo = formData.get('nombre_completo') as string;
-    const dni = formData.get('dni') as string;
-    const legajo = formData.get('legajo') as string;
+    const nombre = (formData.get('nombre') as string || '').trim();
+    const apellido = (formData.get('apellido') as string || '').trim();
+    const dni = (formData.get('dni') as string || '').trim();
+    const legajo = (formData.get('legajo') as string || '').trim();
     const superintendencia_id = formData.get('superintendencia_id') as string;
     const rol = formData.get('rol') as string;
-    const modulosRaw = formData.get('modulos_permitidos') as string;
-    const modulos_permitidos = modulosRaw ? JSON.parse(modulosRaw) : [];
+
+    const modulosRaw = formData.get('modulos_array') as string;
+    const modulos_permitidos: string[] = modulosRaw ? JSON.parse(modulosRaw) : [];
+
+    const nombre_completo = `${nombre} ${apellido}`.trim();
 
     const { error } = await supabaseAdmin
       .from('profiles')
       .update({
+        nombre,
+        apellido,
         nombre_completo,
         dni,
         legajo,
@@ -103,7 +116,7 @@ export async function toggleEstadoUsuarioAction(userId: string, estadoActual: bo
   try {
     const nuevoEstado = !estadoActual;
     
-    // 1. Actualizamos perfil
+    // 1. Actualizar perfil
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .update({ activo: nuevoEstado })
@@ -111,10 +124,10 @@ export async function toggleEstadoUsuarioAction(userId: string, estadoActual: bo
 
     if (profileError) throw profileError;
 
-    // 2. Si se pausa, podemos banearlo en Auth de Supabase para cortar la sesión al instante
+    // 2. Aplicar/remover baneo en Auth para forzar el cierre de sesión al suspender
     await supabaseAdmin.auth.admin.updateUserById(
       userId,
-      { ban_duration: nuevoEstado ? 'none' : '876600h' } // 100 años si se pausa
+      { ban_duration: nuevoEstado ? 'none' : '876600h' }
     );
 
     return { success: true };
