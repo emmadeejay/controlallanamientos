@@ -132,13 +132,12 @@ export default function GestionUsuariosAdminPage() {
 
     try {
       const formData = new FormData(e.currentTarget);
-      // Pasa el array real a la acción
       formData.append('modulos_array', JSON.stringify(modulosSeleccionados));
 
       const res = await crearUsuarioAction(formData, miUsuarioId);
 
       if (res.success) {
-        setMensaje({ tipo: 'ok', texto: '¡Usuario creado correctamente!' });
+        setMensaje({ tipo: 'ok', texto: '¡Usuario creado correctamente con clave inicial ABCdef123!' });
         setModalAbierto(false);
         setModulosSeleccionados(['allanamientos']);
         recargarUsuarios();
@@ -146,7 +145,7 @@ export default function GestionUsuariosAdminPage() {
         setMensaje({ tipo: 'error', texto: res.error || 'Ocurrió un error al crear el usuario.' });
       }
     } catch (err: any) {
-      setMensaje({ tipo: 'error', texto: 'Error inesperado al conectar con el servidor.' });
+      setMensaje({ tipo: 'error', texto: 'Error inesperado en el servidor.' });
     } finally {
       setCargando(false);
     }
@@ -174,7 +173,7 @@ export default function GestionUsuariosAdminPage() {
         setMensaje({ tipo: 'error', texto: res.error || 'Error al editar usuario.' });
       }
     } catch (err: any) {
-      setMensaje({ tipo: 'error', texto: 'Error de red o procesamiento.' });
+      setMensaje({ tipo: 'error', texto: 'Error de conexión con el servidor.' });
     } finally {
       setCargando(false);
     }
@@ -347,7 +346,10 @@ export default function GestionUsuariosAdminPage() {
                           {/* Botón Cambiar Clave */}
                           <button
                             title="Resetear clave"
-                            onClick={() => setUsuarioACambiarPass(u.id)}
+                            onClick={() => {
+                              setUsuarioACambiarPass(u.id);
+                              setNuevaPass('');
+                            }}
                             className="p-1.5 text-slate-400 hover:text-amber-400 transition"
                           >
                             <KeyRound className="w-4 h-4" />
@@ -469,7 +471,7 @@ export default function GestionUsuariosAdminPage() {
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-800 mt-4">
                 <button type="button" onClick={() => setModalAbierto(false)} className="px-4 py-2 text-xs font-semibold uppercase text-slate-400 hover:text-white">Cancelar</button>
-                <button disabled={cargando} type="submit" className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs uppercase transition-all shadow-lg shadow-purple-900/40">
+                <button disabled={cargando} type="submit" className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs uppercase transition-all shadow-lg shadow-purple-900/40 disabled:opacity-50">
                   {cargando ? 'Guardando...' : 'Crear Usuario'}
                 </button>
               </div>
@@ -558,7 +560,7 @@ export default function GestionUsuariosAdminPage() {
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-800 mt-4">
                 <button type="button" onClick={() => setUsuarioEditando(null)} className="px-4 py-2 text-xs font-semibold uppercase text-slate-400 hover:text-white">Cancelar</button>
-                <button disabled={cargando} type="submit" className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs uppercase transition-all shadow-lg shadow-purple-900/40">
+                <button disabled={cargando} type="submit" className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs uppercase transition-all shadow-lg shadow-purple-900/40 disabled:opacity-50">
                   {cargando ? 'Guardando...' : 'Guardar Cambios'}
                 </button>
               </div>
@@ -572,33 +574,52 @@ export default function GestionUsuariosAdminPage() {
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#0f1420] border border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
             <h2 className="text-xs font-bold text-white uppercase tracking-wider">Cambiar Contraseña</h2>
-            <p className="text-xs text-slate-400">Ingresá la nueva clave para el usuario.</p>
+            <p className="text-xs text-slate-400">Ingresá la nueva clave para el usuario (mínimo 6 caracteres).</p>
             
             <input
               type="password"
               placeholder="Nueva contraseña"
+              value={nuevaPass}
               className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
               onChange={(e) => setNuevaPass(e.target.value)}
             />
 
             <div className="flex gap-3 pt-2">
-              <button onClick={() => setUsuarioACambiarPass(null)} className="flex-1 px-4 py-2 text-xs font-semibold uppercase text-slate-400 hover:text-white bg-slate-800 rounded-xl">Cancelar</button>
+              <button 
+                onClick={() => {
+                  setUsuarioACambiarPass(null);
+                  setNuevaPass('');
+                }} 
+                className="flex-1 px-4 py-2 text-xs font-semibold uppercase text-slate-400 hover:text-white bg-slate-800 rounded-xl"
+              >
+                Cancelar
+              </button>
               <button
+                disabled={cargando}
                 onClick={async () => {
-                  if (!nuevaPass) return alert("Ingresá una contraseña");
-                  setCargando(true);
-                  const res = await resetearPasswordAction(usuarioACambiarPass, nuevaPass);
-                  setCargando(false);
-                  if (res.success) {
-                    setMensaje({ tipo: 'ok', texto: 'Contraseña actualizada correctamente.' });
-                    setUsuarioACambiarPass(null);
-                    setNuevaPass('');
-                    recargarUsuarios();
-                  } else {
-                    alert(res.error);
+                  if (!nuevaPass || nuevaPass.length < 6) {
+                    return alert("La contraseña debe tener al menos 6 caracteres");
+                  }
+
+                  try {
+                    setCargando(true);
+                    const res = await resetearPasswordAction(usuarioACambiarPass, nuevaPass);
+                    
+                    if (res.success) {
+                      setMensaje({ tipo: 'ok', texto: 'Contraseña actualizada correctamente.' });
+                      setUsuarioACambiarPass(null);
+                      setNuevaPass('');
+                      recargarUsuarios();
+                    } else {
+                      alert(`Error: ${res.error}`);
+                    }
+                  } catch (err: any) {
+                    alert("Error al conectar con el servidor: " + err.message);
+                  } finally {
+                    setCargando(false);
                   }
                 }}
-                className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-xl text-xs uppercase transition shadow-lg shadow-purple-900/40"
+                className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-xl text-xs uppercase transition shadow-lg shadow-purple-900/40 disabled:opacity-50"
               >
                 {cargando ? 'Guardando...' : 'Confirmar'}
               </button>
