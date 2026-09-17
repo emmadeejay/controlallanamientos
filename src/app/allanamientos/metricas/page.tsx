@@ -26,7 +26,6 @@ type DesglosePersonas = {
   'Aprehendido': number;
 };
 
-// Convierte cadenas de fecha a Date local omitiendo desfasajes UTC
 function parseFechaLocal(fechaStr: any): Date {
   if (!fechaStr) return new Date(0);
   if (fechaStr instanceof Date) return fechaStr;
@@ -169,20 +168,20 @@ export default function MetricasPage() {
   const [datosEspecialidades, setDatosEspecialidades] = useState<any[]>([]);
 
   useEffect(() => {
+    // 1. Carga inicial de métricas
     cargarMetricas();
 
+    // 2. Polling de seguridad cada 5 segundos
+    const intervalId = setInterval(() => {
+      cargarMetricas();
+    }, 5000);
+
+    // 3. Suscripción a canal de cambios en vivo
     const canalRealtime = supabase
-      .channel('auditoria-allanamientos-tv')
+      .channel('schema-db-changes')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'allanamientos' },
-        () => {
-          cargarMetricas();
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'allanamiento_colaboraciones' },
+        { event: '*', schema: 'public' },
         () => {
           cargarMetricas();
         }
@@ -190,13 +189,13 @@ export default function MetricasPage() {
       .subscribe();
 
     return () => {
+      clearInterval(intervalId);
       supabase.removeChannel(canalRealtime);
     };
   }, []);
 
   async function cargarMetricas() {
     try {
-      // 1. Consulta limpia a la tabla sin joins que disparen error 400
       const { data, error } = await supabase
         .from('allanamientos')
         .select('*');
@@ -211,7 +210,6 @@ export default function MetricasPage() {
         return;
       }
 
-      // 2. Carga defensiva de colaboraciones
       let colaboracionesData: any[] = [];
       try {
         const { data: colabs } = await supabase.from('allanamiento_colaboraciones').select('*');
@@ -223,7 +221,6 @@ export default function MetricasPage() {
       const { inicio: inicioSemana, fin: finSemana } = getRangoSemanaActual();
       const { inicio: inicioMes, fin: finMes } = getRangoMesActual();
 
-      // Filtrado por fechas locales
       const registrosSemana = data.filter(item => {
         const f = parseFechaLocal(item.fecha_ejecucion || item.fecha || item.created_at);
         return f >= inicioSemana && f <= finSemana;
@@ -242,7 +239,6 @@ export default function MetricasPage() {
       ).length;
       setEfectividad(registrosSemana.length > 0 ? Math.round((positivosSemana / registrosSemana.length) * 100) : 100);
 
-      // Desgloses de secuestros
       const armasConteoMes = procesarDetallesExhaustivo(registrosMes, 'arma');
       const vehiculosConteoMes = procesarDetallesExhaustivo(registrosMes, 'vehiculo');
       const personasConteoMes = procesarDetallesExhaustivo(registrosMes, 'detenido');
@@ -270,7 +266,6 @@ export default function MetricasPage() {
         'Aprehendido': personasConteoMes['Aprehendido'] || 0,
       });
 
-      // Totales numéricos
       const parseNum = (val: any) => { const n = parseInt(val, 10); return isNaN(n) ? 0 : n; };
 
       setArmasSemana(registrosSemana.reduce((acc, curr) => acc + parseNum(curr.armas_secuestradas), 0) || Object.values(armasConteoSem).reduce((a, b) => a + b, 0));
@@ -281,7 +276,6 @@ export default function MetricasPage() {
       setVehiculosMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.vehiculos_secuestrados), 0) || Object.values(vehiculosConteoMes).reduce((a, b) => a + b, 0));
       setDetenidosMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.detenidos_aprehendidos), 0) || Object.values(personasConteoMes).reduce((a, b) => a + b, 0));
 
-      // Evolución semanal (4 semanas)
       const semanas = [0, 1, 2, 3].map(offset => {
         const inicio = new Date(inicioSemana);
         inicio.setDate(inicio.getDate() - (offset * 7));
@@ -300,7 +294,6 @@ export default function MetricasPage() {
 
       setDatosEvolucion(semanas);
 
-      // Top 5 Partidos
       const conteoPartidos: Record<string, number> = {};
       data.forEach(item => {
         const p = item.partido || 'Sin Especificar';
@@ -314,7 +307,6 @@ export default function MetricasPage() {
           .slice(0, 5)
       );
 
-      // Distribución por Superintendencias
       const conteoSupers: Record<string, number> = {};
       data.forEach(item => {
         const s = item.superintendencia || item.superintendencia_nombre || 'Sin Especificar';
@@ -327,7 +319,6 @@ export default function MetricasPage() {
           .sort((a, b) => b.total - a.total)
       );
 
-      // Especialidades
       const conteoEspecialidades: Record<string, number> = {};
       if (colaboracionesData.length > 0) {
         colaboracionesData.forEach((c: any) => {
@@ -381,7 +372,7 @@ export default function MetricasPage() {
           MONITOREO AUDITORÍA EN VIVO
         </div>
         <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
-          <Radio className="w-3.5 h-3.5 text-blue-400" />
+          <Radio className="w-3.5 h-3.5 text-blue-400 animate-pulse" />
           Última actualización: <span className="text-white font-mono">{ultimaActualizacion}</span>
         </div>
       </div>
