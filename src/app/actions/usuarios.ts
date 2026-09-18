@@ -2,26 +2,21 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// Helper para instanciar el cliente Admin únicamente cuando se ejecuta la función
-function getSupabaseAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url || !key) {
-    throw new Error('Faltan configurar las variables de entorno SUPABASE_SERVICE_ROLE_KEY o NEXT_PUBLIC_SUPABASE_URL en Vercel/Servidor.');
-  }
-
-  return createClient(url, key, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
-}
-
 export async function crearUsuarioAction(formData: FormData, creadorId?: string) {
   try {
-    const supabaseAdmin = getSupabaseAdmin();
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!url || !key) {
+      return { 
+        success: false, 
+        error: `Falta configurar en Vercel: ${!url ? 'NEXT_PUBLIC_SUPABASE_URL ' : ''}${!key ? 'SUPABASE_SERVICE_ROLE_KEY' : ''}` 
+      };
+    }
+
+    const supabaseAdmin = createClient(url, key, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
 
     const nombre = (formData.get('nombre') as string || '').trim();
     const apellido = (formData.get('apellido') as string || '').trim();
@@ -40,7 +35,6 @@ export async function crearUsuarioAction(formData: FormData, creadorId?: string)
       return { success: false, error: 'Todos los campos son obligatorios.' };
     }
 
-    // Verificar rol del creador si viene creadorId
     if (creadorId) {
       const { data: perfilCreador } = await supabaseAdmin
         .from('profiles')
@@ -55,7 +49,6 @@ export async function crearUsuarioAction(formData: FormData, creadorId?: string)
 
     const passwordTemporal = 'ABCdef123';
 
-    // 1. Crear en Supabase Auth
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password: passwordTemporal,
@@ -65,7 +58,6 @@ export async function crearUsuarioAction(formData: FormData, creadorId?: string)
 
     if (authError) return { success: false, error: authError.message };
 
-    // 2. Insertar en tabla profiles
     const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
       id: authData.user!.id,
       email,
@@ -82,7 +74,6 @@ export async function crearUsuarioAction(formData: FormData, creadorId?: string)
     });
 
     if (profileError) {
-      // Limpieza en caso de error
       await supabaseAdmin.auth.admin.deleteUser(authData.user!.id);
       return { success: false, error: `Error en perfil: ${profileError.message}` };
     }
@@ -90,13 +81,22 @@ export async function crearUsuarioAction(formData: FormData, creadorId?: string)
     return { success: true };
   } catch (err: any) {
     console.error('Error en crearUsuarioAction:', err);
-    return { success: false, error: err?.message || 'Error inesperado al crear usuario.' };
+    return { success: false, error: `Excepción en servidor: ${err?.message || err}` };
   }
 }
 
 export async function editarUsuarioAction(formData: FormData) {
   try {
-    const supabaseAdmin = getSupabaseAdmin();
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!url || !key) {
+      return { success: false, error: 'Faltan variables de entorno en el servidor.' };
+    }
+
+    const supabaseAdmin = createClient(url, key, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
 
     const id = formData.get('id') as string;
     const nombre = (formData.get('nombre') as string || '').trim();
@@ -134,7 +134,17 @@ export async function editarUsuarioAction(formData: FormData) {
 
 export async function toggleEstadoUsuarioAction(userId: string, estadoActual: boolean) {
   try {
-    const supabaseAdmin = getSupabaseAdmin();
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!url || !key) {
+      return { success: false, error: 'Faltan variables de entorno en el servidor.' };
+    }
+
+    const supabaseAdmin = createClient(url, key, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
     const nuevoEstado = !estadoActual;
     
     const { error: profileError } = await supabaseAdmin
@@ -157,7 +167,16 @@ export async function toggleEstadoUsuarioAction(userId: string, estadoActual: bo
 
 export async function eliminarUsuarioAction(userId: string) {
   try {
-    const supabaseAdmin = getSupabaseAdmin();
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!url || !key) {
+      return { success: false, error: 'Faltan variables de entorno en el servidor.' };
+    }
+
+    const supabaseAdmin = createClient(url, key, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
 
     const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
     if (authError) return { success: false, error: authError.message };
@@ -173,7 +192,17 @@ export async function eliminarUsuarioAction(userId: string) {
 
 export async function resetearPasswordAction(userId: string, nuevaPassword: string) {
   try {
-    const supabaseAdmin = getSupabaseAdmin();
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!url || !key) {
+      return { success: false, error: 'Faltan variables de entorno en el servidor.' };
+    }
+
+    const supabaseAdmin = createClient(url, key, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
     if (!userId) return { success: false, error: 'ID de usuario no proporcionado.' };
 
     const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
@@ -198,7 +227,16 @@ export async function resetearPasswordAction(userId: string, nuevaPassword: stri
 
 export async function cambiarPasswordObligatorioAction(userId: string, nuevaPassword: string) {
   try {
-    const supabaseAdmin = getSupabaseAdmin();
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!url || !key) {
+      return { success: false, error: 'Faltan variables de entorno en el servidor.' };
+    }
+
+    const supabaseAdmin = createClient(url, key, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
 
     const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
       userId,
