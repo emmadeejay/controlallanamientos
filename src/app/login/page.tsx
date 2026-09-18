@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Mail, Lock, Eye, EyeOff, ArrowRight, Loader2 } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, CheckCircle2, X } from 'lucide-react'
 import Image from 'next/image'
 
 export default function LoginPage() {
@@ -13,6 +13,12 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Estados para Recuperar Contraseña
+  const [modalReset, setModalReset] = useState(false)
+  const [emailReset, setEmailReset] = useState('')
+  const [loadingReset, setLoadingReset] = useState(false)
+  const [mensajeReset, setMensajeReset] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -30,7 +36,6 @@ export default function LoginPage() {
       }
 
       if (data.user) {
-        // Redirigir al selector de módulos en lugar de ir directo a allanamientos
         router.push('/select-app')
         router.refresh()
       }
@@ -41,9 +46,36 @@ export default function LoginPage() {
     }
   }
 
+  const handleRecuperarPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoadingReset(true)
+    setMensajeReset(null)
+
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(emailReset, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      })
+
+      if (resetError) {
+        throw new Error(resetError.message)
+      }
+
+      setMensajeReset({
+        tipo: 'ok',
+        texto: 'Se ha enviado un enlace de recuperación a tu correo electrónico.',
+      })
+    } catch (err: any) {
+      setMensajeReset({
+        tipo: 'error',
+        texto: err.message || 'No se pudo enviar el correo de recuperación.',
+      })
+    } finally {
+      setLoadingReset(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[#070b12] text-slate-100 flex flex-col justify-between items-center p-4">
-      {/* Contenedor central vacio para empujar el formulario al centro */}
       <div />
 
       {/* Tarjeta de Login */}
@@ -97,7 +129,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Campo Contraseña con Ojito */}
+          {/* Campo Contraseña */}
           <div>
             <label className="block text-xs font-semibold text-slate-300 tracking-wider uppercase mb-2">
               Contraseña
@@ -149,14 +181,96 @@ export default function LoginPage() {
 
         {/* Link Olvidaste contraseña */}
         <div className="mt-6 text-center">
-          <a
-            href="#"
-            className="text-xs text-slate-400 hover:text-blue-400 underline transition"
+          <button
+            type="button"
+            onClick={() => {
+              setEmailReset(email)
+              setMensajeReset(null)
+              setModalReset(true)
+            }}
+            className="text-xs text-slate-400 hover:text-blue-400 underline transition cursor-pointer"
           >
             ¿Olvidaste tu contraseña?
-          </a>
+          </button>
         </div>
       </div>
+
+      {/* Modal para Recuperar Contraseña */}
+      {modalReset && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0f172a] border border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <div className="flex justify-between items-center">
+              <h2 className="text-sm font-bold text-white uppercase tracking-wider">
+                Recuperar Contraseña
+              </h2>
+              <button
+                type="button"
+                onClick={() => setModalReset(false)}
+                className="text-slate-500 hover:text-white transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              Ingresá tu correo electrónico y te enviaremos las instrucciones para restablecer tu contraseña.
+            </p>
+
+            {mensajeReset && (
+              <div
+                className={`p-3 rounded-xl text-xs border flex items-center gap-2 ${
+                  mensajeReset.tipo === 'ok'
+                    ? 'bg-emerald-950/60 border-emerald-800/80 text-emerald-300'
+                    : 'bg-red-950/60 border-red-800/80 text-red-300'
+                }`}
+              >
+                {mensajeReset.tipo === 'ok' && <CheckCircle2 className="w-4 h-4 flex-shrink-0" />}
+                <span>{mensajeReset.texto}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleRecuperarPassword} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                  Correo Electrónico
+                </label>
+                <div className="relative flex items-center">
+                  <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 pointer-events-none" />
+                  <input
+                    type="email"
+                    required
+                    value={emailReset}
+                    onChange={(e) => setEmailReset(e.target.value)}
+                    placeholder="ejemplo@cop.gob.ar"
+                    className="w-full bg-[#090d16] border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setModalReset(false)}
+                  className="flex-1 px-4 py-2 text-xs font-semibold uppercase text-slate-400 hover:text-white bg-slate-800 rounded-xl transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={loadingReset}
+                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs uppercase transition shadow-lg shadow-blue-600/25 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {loadingReset ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    'Enviar'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="py-4 text-center text-xs text-slate-500">
