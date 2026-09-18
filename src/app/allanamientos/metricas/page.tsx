@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid 
 } from 'recharts';
@@ -137,6 +137,8 @@ function procesarDetallesExhaustivo(registros: any[], campoJson: string) {
 
 export default function MetricasPage() {
   const router = useRouter();
+  const supabase = createClient();
+  
   const [loading, setLoading] = useState(true);
   const [autorizado, setAutorizado] = useState<boolean | null>(null);
   const [ultimaActualizacion, setUltimaActualizacion] = useState<string>('');
@@ -170,38 +172,34 @@ export default function MetricasPage() {
 
   useEffect(() => {
     async function verificarPermisos() {
-      const cachedRole = localStorage.getItem('cop_user_role')?.toUpperCase() || '';
+      // Se eliminó la lectura de localStorage[cite: 8]. Ahora se consulta la sesión real almacenada en cookies.
+      const { data: { user }, error } = await supabase.auth.getUser();
       
-      if (cachedRole && ROLES_PERMITIDOS.includes(cachedRole)) {
-        setAutorizado(true);
-        return;
-      }
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      if (error || !user) {
         setAutorizado(false);
         setLoading(false);
         return;
       }
 
-      const rolUsuario = (user.user_metadata?.role || user.user_metadata?.rol || '').toUpperCase();
+      // Validamos contra la tabla profiles para mayor seguridad
+      const { data: perfil } = await supabase
+        .from('profiles')
+        .select('rol')
+        .eq('id', user.id)
+        .maybeSingle();
 
-      if (!rolUsuario) {
-        const { data: perfil } = await supabase
-          .from('profiles')
-          .select('rol')
-          .eq('id', user.id)
-          .maybeSingle();
-
-        const rolTabla = (perfil?.rol || '').toUpperCase();
+      if (perfil && perfil.rol) {
+        const rolTabla = String(perfil.rol).toUpperCase();
         setAutorizado(ROLES_PERMITIDOS.includes(rolTabla));
       } else {
-        setAutorizado(ROLES_PERMITIDOS.includes(rolUsuario));
+        // Fallback a metadata si no se encuentra el perfil
+        const rolMetadata = (user.user_metadata?.role || user.user_metadata?.rol || '').toUpperCase();
+        setAutorizado(ROLES_PERMITIDOS.includes(rolMetadata));
       }
     }
 
     verificarPermisos();
-  }, []);
+  }, [supabase]);
 
   useEffect(() => {
     if (!autorizado) return;
@@ -227,7 +225,7 @@ export default function MetricasPage() {
       clearInterval(intervalId);
       supabase.removeChannel(canalRealtime);
     };
-  }, [autorizado]);
+  }, [autorizado, supabase]);
 
   async function cargarMetricas() {
     try {

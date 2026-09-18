@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { cambiarPasswordObligatorioAction } from '@/app/actions/usuarios';
 import { Shield, Users, FileText, ArrowRight, LogOut, User, Trophy, ShieldAlert, Bike, KeyRound, AlertTriangle } from 'lucide-react';
 
@@ -10,13 +10,14 @@ const LOGO_URL = '/logo_cop.png';
 
 export default function SelectAppPage() {
   const router = useRouter();
+  const supabase = createClient();
+  
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string>('operador');
   const [modulosPermitidos, setModulosPermitidos] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Estados para cambio obligatorio de contraseña
   const [requiereCambioClave, setRequiereCambioClave] = useState(false);
   const [nuevaClave, setNuevaClave] = useState('');
   const [confirmarClave, setConfirmarClave] = useState('');
@@ -33,39 +34,22 @@ export default function SelectAppPage() {
         const { data: { user }, error } = await supabase.auth.getUser();
 
         if (error || !user) {
-          localStorage.clear();
-          sessionStorage.clear();
-          window.location.href = '/login';
+          window.location.replace('/login');
           return;
         }
 
         const email = user.email ? user.email.toLowerCase().trim() : '';
 
-        // 1. Búsqueda por ID
-        let { data: profile } = await supabase
+        const { data: profile } = await supabase
           .from('profiles')
           .select('rol, activo, requiere_cambio_clave, modulos_permitidos')
           .eq('id', user.id)
-          .maybeSingle();
+          .single();
 
-        // 2. Búsqueda de respaldo por Email
-        if (!profile && email) {
-          const { data: profileByEmail } = await supabase
-            .from('profiles')
-            .select('rol, activo, requiere_cambio_clave, modulos_permitidos')
-            .eq('email', email)
-            .maybeSingle();
-
-          if (profileByEmail) profile = profileByEmail;
-        }
-
-        // 3. Validar estado de cuenta
         if (profile && profile.activo === false) {
           alert('Tu cuenta se encuentra desactivada por un administrador.');
-          localStorage.clear();
-          sessionStorage.clear();
           await supabase.auth.signOut();
-          window.location.href = '/login';
+          window.location.replace('/login');
           return;
         }
 
@@ -73,17 +57,11 @@ export default function SelectAppPage() {
           setUserId(user.id);
           setUserEmail(email);
 
-          // Forzar administrador si coincide tu correo o si el rol en DB es admin
-          const esAdminPorMail = email.includes('emmanuelmachado');
-          const rolDetectado = esAdminPorMail
-            ? 'administrador'
-            : (profile?.rol ? String(profile.rol).trim().toLowerCase() : 'operador');
-
+          const rolDetectado = profile?.rol ? String(profile.rol).trim().toLowerCase() : 'operador';
           setUserRole(rolDetectado);
 
-          setModulosPermitidos(
-            profile?.modulos_permitidos || ['allanamientos', 'deporte', 'contravenciones', 'motochorros']
-          );
+          // Fail-Safe: Si no hay módulos en la base, se deniega todo por defecto asignando []
+          setModulosPermitidos(profile?.modulos_permitidos || []);
 
           if (profile?.requiere_cambio_clave) {
             setRequiereCambioClave(true);
@@ -113,10 +91,8 @@ export default function SelectAppPage() {
 
   const handleLogout = async () => {
     setLoading(true);
-    localStorage.clear();
-    sessionStorage.clear();
     await supabase.auth.signOut();
-    window.location.href = '/login';
+    window.location.replace('/login');
   };
 
   const handleCambiarPassword = async (e: React.FormEvent) => {
@@ -168,7 +144,6 @@ export default function SelectAppPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-purple-600 selection:text-white">
-      {/* Header */}
       <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -209,7 +184,6 @@ export default function SelectAppPage() {
         </div>
       </header>
 
-      {/* Tarjetas de Módulos */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex-1 flex flex-col justify-center">
         <div className="mb-8 text-center sm:text-left">
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
@@ -221,7 +195,6 @@ export default function SelectAppPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* 1. Allanamientos */}
           {tieneAcceso('allanamientos') && (
             <div
               onClick={() => router.push('/allanamientos')}
@@ -247,7 +220,6 @@ export default function SelectAppPage() {
             </div>
           )}
 
-          {/* 2. Deporte */}
           {tieneAcceso('deporte') && (
             <div
               onClick={() => router.push('/seguridad-deporte')}
@@ -273,7 +245,6 @@ export default function SelectAppPage() {
             </div>
           )}
 
-          {/* 3. Contravenciones */}
           {tieneAcceso('contravenciones') && (
             <div
               onClick={() => router.push('/contravenciones')}
@@ -299,7 +270,6 @@ export default function SelectAppPage() {
             </div>
           )}
 
-          {/* 4. Motochorros */}
           {tieneAcceso('motochorros') && (
             <div
               onClick={() => router.push('/motochorros')}
@@ -325,7 +295,6 @@ export default function SelectAppPage() {
             </div>
           )}
 
-          {/* 5. Gestión de Usuarios (Admin / Supervisor) */}
           {esAdminOSupervisor && (
             <div
               onClick={() => router.push('/admin/usuarios')}
@@ -353,7 +322,6 @@ export default function SelectAppPage() {
         </div>
       </main>
 
-      {/* Modal Obligatorio de Cambio de Contraseña */}
       {requiereCambioClave && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-[#0f1420] border border-amber-500/40 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
@@ -415,7 +383,6 @@ export default function SelectAppPage() {
         </div>
       )}
 
-      {/* Footer */}
       <footer className="border-t border-slate-800/80 py-6 text-center text-xs text-slate-500 bg-slate-900/40 backdrop-blur-sm">
         <p className="font-medium text-slate-400">
           Desarrollado por <span className="text-blue-400 font-semibold">Emmanuel Machado</span>

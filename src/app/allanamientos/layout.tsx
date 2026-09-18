@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { LogOut, User, Shield, FileText, BarChart3, Grid, Search } from 'lucide-react';
 
 const LOGO_URL = '/logo_cop.png';
@@ -11,6 +11,8 @@ const LOGO_URL = '/logo_cop.png';
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const supabase = createClient();
+  
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string>('operador');
   const [loading, setLoading] = useState(true);
@@ -20,68 +22,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     const checkAndFetchUser = async () => {
       try {
-        const cachedEmail = localStorage.getItem('cop_user_email');
-        const cachedRole = localStorage.getItem('cop_user_role');
-
-        if (cachedEmail && cachedRole) {
-          if (isMounted) {
-            setUserEmail(cachedEmail);
-            setUserRole(cachedRole);
-            setLoading(false);
-          }
-        }
-
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Timeout al verificar sesión')), 6000)
-        );
-
-        const getUserPromise = supabase.auth.getUser();
-        const res: any = await Promise.race([getUserPromise, timeoutPromise]);
-        const { data: { user }, error: userError } = res;
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
 
         if (userError || !user) {
-          localStorage.clear();
-          window.location.href = '/login';
+          window.location.replace('/login');
           return;
         }
 
         const email = user.email || '';
         let rolFinal = 'operador';
 
-        let { data: profile } = await supabase
+        const { data: profile } = await supabase
           .from('profiles')
           .select('rol')
           .eq('id', user.id)
-          .maybeSingle();
-
-        if (!profile && email) {
-          const { data: profileByEmail } = await supabase
-            .from('profiles')
-            .select('rol')
-            .eq('email', email)
-            .maybeSingle();
-          
-          if (profileByEmail) profile = profileByEmail;
-        }
+          .single();
 
         if (profile && profile.rol) {
           rolFinal = String(profile.rol).trim().toLowerCase();
-        } else if (email === '1234567@cop.estadistica.ar' || email.includes('cop.estadistica.ar')) {
-          rolFinal = 'administrador';
         }
-
-        localStorage.setItem('cop_user_email', email);
-        localStorage.setItem('cop_user_role', rolFinal);
 
         if (isMounted) {
           setUserEmail(email);
           setUserRole(rolFinal);
         }
       } catch (err) {
-        console.error('Error o timeout al verificar sesión:', err);
-        if (!localStorage.getItem('cop_user_email')) {
-          window.location.href = '/login';
-        }
+        console.error('Error al verificar sesión:', err);
+        window.location.replace('/login');
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -91,10 +58,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT') {
-        localStorage.clear();
         setUserEmail(null);
         setUserRole('operador');
-        window.location.href = '/login';
+        window.location.replace('/login');
       }
     });
 
@@ -106,10 +72,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const handleLogout = async () => {
     setLoading(true);
-    localStorage.clear();
-    sessionStorage.clear();
     await supabase.auth.signOut();
-    window.location.href = '/login';
+    window.location.replace('/login');
   };
 
   if (loading) {
@@ -123,7 +87,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
-  // Se oculta la pestaña si el rol es operador
   const esOperador = userRole.toLowerCase() === 'operador';
 
   return (
@@ -132,7 +95,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
             
-            {/* Logo y Navegación del Módulo */}
             <div className="flex items-center gap-3 sm:gap-6">
               <div 
                 onClick={() => router.push('/select-app')} 
@@ -152,7 +114,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </div>
               </div>
 
-              {/* Botón rápido para volver al menú de aplicaciones */}
               <button
                 onClick={() => router.push('/select-app')}
                 className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition"
@@ -161,7 +122,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <Grid className="w-4 h-4" />
               </button>
 
-              {/* Pestañas de Allanamientos */}
               <nav className="flex items-center gap-1 border-l border-slate-800 pl-3 sm:pl-6">
                 <Link
                   href="/allanamientos"
@@ -187,7 +147,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <span>Buscar</span>
                 </Link>
 
-                {/* Se muestra únicamente si NO es operador */}
                 {!esOperador && (
                   <Link
                     href="/allanamientos/metricas"
@@ -204,7 +163,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </nav>
             </div>
 
-            {/* Perfil & Logout */}
             <div className="flex items-center gap-2 sm:gap-4">
               <div className="hidden md:flex items-center gap-3 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl">
                 <div className="flex items-center gap-1.5 text-xs text-slate-300">
