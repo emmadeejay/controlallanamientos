@@ -13,7 +13,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import {
   UserPlus, X, ShieldAlert, CheckCircle2, ArrowLeft, Users, LogOut,
-  User, Edit, PauseCircle, PlayCircle, Trash2, KeyRound, Search, Building2
+  User, Edit, PauseCircle, PlayCircle, Trash2, KeyRound, Search, Building2, Filter
 } from 'lucide-react';
 
 interface Superintendencia {
@@ -52,8 +52,9 @@ export default function GestionUsuariosAdminPage() {
   const [superintendencias, setSuperintendencias] = useState<Superintendencia[]>([]);
   const [usuarios, setUsuarios] = useState<UsuarioProfile[]>([]);
 
-  // Estado del Buscador
+  // Filtros
   const [busqueda, setBusqueda] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState<'todos' | 'activos' | 'pausados'>('todos');
 
   // Modales y Edición
   const [usuarioACambiarPass, setUsuarioACambiarPass] = useState<string | null>(null);
@@ -129,18 +130,28 @@ export default function GestionUsuariosAdminPage() {
     }
   };
 
+  // Contadores de estado
+  const totalActivos = useMemo(() => usuarios.filter(u => u.activo !== false).length, [usuarios]);
+  const totalPausados = useMemo(() => usuarios.filter(u => u.activo === false).length, [usuarios]);
+
   // Filtrado reactivo en tiempo real
   const usuariosFiltrados = useMemo(() => {
-    if (!busqueda.trim()) return usuarios;
-    const term = busqueda.toLowerCase().trim();
-
     return usuarios.filter((u) => {
+      const estaActivo = u.activo !== false;
+      
+      // Filtro de Pestañas
+      if (filtroEstado === 'activos' && !estaActivo) return false;
+      if (filtroEstado === 'pausados' && estaActivo) return false;
+
+      // Filtro de Texto
+      if (!busqueda.trim()) return true;
+      const term = busqueda.toLowerCase().trim();
+
       const nombreFull = `${u.nombre || ''} ${u.apellido || ''} ${u.nombre_completo || ''}`.toLowerCase();
       const dni = (u.dni || '').toLowerCase();
       const legajo = (u.legajo || '').toLowerCase();
       const email = (u.email || '').toLowerCase();
       
-      // Buscar también el nombre de la superintendencia asociada
       const supNombre = u.superintendencias?.nombre?.toLowerCase() || 
         superintendencias.find(s => s.id === u.superintendencia_id)?.nombre.toLowerCase() || '';
 
@@ -152,7 +163,7 @@ export default function GestionUsuariosAdminPage() {
         supNombre.includes(term)
       );
     });
-  }, [usuarios, busqueda, superintendencias]);
+  }, [usuarios, busqueda, superintendencias, filtroEstado]);
 
   const handleCrearSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -318,20 +329,50 @@ export default function GestionUsuariosAdminPage() {
         {/* Nómina de Usuarios */}
         <div className="bg-[#0f1420]/80 border border-slate-800/90 rounded-2xl p-6 shadow-2xl backdrop-blur-md space-y-4">
           
-          {/* Bar de Búsqueda y Estadísticas */}
-          <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3 pb-2 border-b border-slate-800/80">
-            <div className="flex items-center gap-2">
+          {/* Bar de Búsqueda y Pestañas de Estado */}
+          <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4 pb-3 border-b border-slate-800/80">
+            
+            {/* Título y Pestañas de Filtro */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                Nómina de usuarios registrados ({usuariosFiltrados.length} / {usuarios.length})
+                Nómina ({usuariosFiltrados.length} / {usuarios.length})
               </h3>
+
+              {/* Botones de filtro de estado */}
+              <div className="flex bg-[#080b12] p-1 rounded-xl border border-slate-800/80 self-start">
+                <button
+                  onClick={() => setFiltroEstado('todos')}
+                  className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition ${
+                    filtroEstado === 'todos' ? 'bg-purple-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Todos ({usuarios.length})
+                </button>
+                <button
+                  onClick={() => setFiltroEstado('activos')}
+                  className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition ${
+                    filtroEstado === 'activos' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-emerald-400'
+                  }`}
+                >
+                  Activos ({totalActivos})
+                </button>
+                <button
+                  onClick={() => setFiltroEstado('pausados')}
+                  className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition ${
+                    filtroEstado === 'pausados' ? 'bg-red-600 text-white shadow' : 'text-slate-400 hover:text-red-400'
+                  }`}
+                >
+                  Pausados ({totalPausados})
+                </button>
+              </div>
             </div>
 
             {/* Input de Búsqueda */}
-            <div className="relative w-full md:w-80">
+            <div className="relative w-full lg:w-80">
               <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Buscar por Nombre, DNI, Legajo o Superintendencia..."
+                placeholder="Buscar por Nombre, DNI, Legajo..."
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
                 className="w-full pl-10 pr-8 py-2 bg-[#090c13] border border-slate-800 focus:border-purple-500 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none transition-all"
@@ -349,7 +390,7 @@ export default function GestionUsuariosAdminPage() {
           
           {usuariosFiltrados.length === 0 ? (
             <p className="text-xs text-slate-500 py-12 text-center">
-              {busqueda ? 'No se encontraron usuarios coincidentes con la búsqueda.' : 'No se encontraron usuarios.'}
+              {busqueda || filtroEstado !== 'todos' ? 'No se encontraron usuarios coincidentes con los filtros.' : 'No se encontraron usuarios.'}
             </p>
           ) : (
             <div className="space-y-3">
@@ -357,7 +398,6 @@ export default function GestionUsuariosAdminPage() {
                 const estaActivo = u.activo !== false;
                 const nombreMostrar = u.nombre ? `${u.nombre} ${u.apellido || ''}` : (u.nombre_completo || 'Sin nombre');
 
-                // Resolver nombre de la Superintendencia
                 const supNombre = u.superintendencias?.nombre || 
                   superintendencias.find(s => s.id === u.superintendencia_id)?.nombre || 'Sin Superintendencia';
 
@@ -365,7 +405,6 @@ export default function GestionUsuariosAdminPage() {
                   <div key={u.id} className={`bg-[#131826] border rounded-xl p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 transition-all ${estaActivo ? 'border-slate-800/90 hover:border-slate-700' : 'border-red-900/40 opacity-60'}`}>
                     <div className="space-y-1.5 flex-1 min-w-0">
                       
-                      {/* Cabecera del usuario con badges */}
                       <div className="flex flex-wrap items-center gap-2">
                         <h4 className="font-bold text-white text-sm tracking-wide uppercase">{nombreMostrar}</h4>
                         
@@ -380,7 +419,6 @@ export default function GestionUsuariosAdminPage() {
                           </span>
                         )}
 
-                        {/* Badge de Superintendencia elegante e inteligente para textos largos */}
                         <span 
                           title={supNombre} 
                           className="max-w-[260px] sm:max-w-[340px] truncate inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-indigo-950/50 border border-indigo-800/50 text-indigo-300 rounded-md text-[10px] font-bold uppercase tracking-wide"
@@ -412,7 +450,6 @@ export default function GestionUsuariosAdminPage() {
                       
                       {rolNormalizado === 'administrador' && (
                         <div className="flex items-center gap-1 bg-[#0b0e17] p-1 rounded-xl border border-slate-800">
-                          {/* Botón Editar */}
                           <button
                             title="Editar usuario"
                             onClick={() => {
@@ -424,7 +461,6 @@ export default function GestionUsuariosAdminPage() {
                             <Edit className="w-4 h-4" />
                           </button>
 
-                          {/* Botón Cambiar Clave */}
                           <button
                             title="Resetear clave"
                             onClick={() => {
@@ -436,7 +472,6 @@ export default function GestionUsuariosAdminPage() {
                             <KeyRound className="w-4 h-4" />
                           </button>
 
-                          {/* Botón Pausar / Activar */}
                           <button
                             title={estaActivo ? 'Pausar usuario' : 'Activar usuario'}
                             onClick={() => handleToggleEstado(u)}
@@ -445,7 +480,6 @@ export default function GestionUsuariosAdminPage() {
                             {estaActivo ? <PauseCircle className="w-4 h-4" /> : <PlayCircle className="w-4 h-4" />}
                           </button>
 
-                          {/* Botón Eliminar */}
                           <button
                             title="Eliminar permanentemente"
                             onClick={() => handleEliminar(u)}
