@@ -136,16 +136,21 @@ export default function GestionUsuariosAdminPage() {
 
       const res = await crearUsuarioAction(formData, miUsuarioId);
 
-      if (res.success) {
+      if (res?.success) {
         setMensaje({ tipo: 'ok', texto: '¡Usuario creado correctamente con clave inicial ABCdef123!' });
         setModalAbierto(false);
         setModulosSeleccionados(['allanamientos']);
         recargarUsuarios();
       } else {
-        setMensaje({ tipo: 'error', texto: res.error || 'Ocurrió un error al crear el usuario.' });
+        const errorMsg = res?.error || 'Ocurrió un error al crear el usuario.';
+        setMensaje({ tipo: 'error', texto: errorMsg });
+        alert(`Error al crear: ${errorMsg}`);
       }
     } catch (err: any) {
-      setMensaje({ tipo: 'error', texto: 'Error inesperado en el servidor.' });
+      console.error('Error en handleCrearSubmit:', err);
+      const errorMsg = 'Error inesperado al conectar con el servidor.';
+      setMensaje({ tipo: 'error', texto: errorMsg });
+      alert(errorMsg);
     } finally {
       setCargando(false);
     }
@@ -165,12 +170,14 @@ export default function GestionUsuariosAdminPage() {
 
       const res = await editarUsuarioAction(formData);
 
-      if (res.success) {
+      if (res?.success) {
         setMensaje({ tipo: 'ok', texto: 'Usuario actualizado correctamente.' });
         setUsuarioEditando(null);
         recargarUsuarios();
       } else {
-        setMensaje({ tipo: 'error', texto: res.error || 'Error al editar usuario.' });
+        const errorMsg = res?.error || 'Error al editar usuario.';
+        setMensaje({ tipo: 'error', texto: errorMsg });
+        alert(`Error: ${errorMsg}`);
       }
     } catch (err: any) {
       setMensaje({ tipo: 'error', texto: 'Error de conexión con el servidor.' });
@@ -185,10 +192,10 @@ export default function GestionUsuariosAdminPage() {
     if (!confirmacion) return;
 
     const res = await toggleEstadoUsuarioAction(u.id, u.activo !== false);
-    if (res.success) {
+    if (res?.success) {
       recargarUsuarios();
     } else {
-      alert(res.error);
+      alert(res?.error || 'Error al cambiar el estado.');
     }
   };
 
@@ -198,11 +205,11 @@ export default function GestionUsuariosAdminPage() {
     if (!confirmacion) return;
 
     const res = await eliminarUsuarioAction(u.id);
-    if (res.success) {
+    if (res?.success) {
       setMensaje({ tipo: 'ok', texto: 'Usuario eliminado exitosamente.' });
       recargarUsuarios();
     } else {
-      alert(res.error);
+      alert(res?.error || 'Error al eliminar usuario.');
     }
   };
 
@@ -605,13 +612,13 @@ export default function GestionUsuariosAdminPage() {
                     setCargando(true);
                     const res = await resetearPasswordAction(usuarioACambiarPass, nuevaPass);
                     
-                    if (res.success) {
+                    if (res?.success) {
                       setMensaje({ tipo: 'ok', texto: 'Contraseña actualizada correctamente.' });
                       setUsuarioACambiarPass(null);
                       setNuevaPass('');
                       recargarUsuarios();
                     } else {
-                      alert(`Error: ${res.error}`);
+                      alert(`Error: ${res?.error || 'Error inesperado'}`);
                     }
                   } catch (err: any) {
                     alert("Error al conectar con el servidor: " + err.message);
