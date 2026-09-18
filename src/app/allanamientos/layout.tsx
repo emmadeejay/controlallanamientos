@@ -199,7 +199,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <p className="mt-1 text-[10px] text-slate-600">
           Sistema de Gestión de Allanamientos | Módulo Operativo COP
         </p>
-      </footer>
+      </footer> 
     </div>
   );
 }
