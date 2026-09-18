@@ -122,6 +122,38 @@ export default function GestionUsuariosAdminPage() {
   const rolNormalizado = miRolActual?.toLowerCase();
   const puedeCrearUsuarios = rolNormalizado === 'administrador' || rolNormalizado === 'supervisor';
 
+  // Lógica de permisos para Supervisor
+  const normalizarRol = (r?: string) => String(r || '').trim().toLowerCase();
+
+  const puedeEditarOEstado = (targetUser: UsuarioProfile) => {
+    const miRol = normalizarRol(miRolActual);
+    const targetRol = normalizarRol(targetUser.rol);
+
+    if (miRol === 'administrador') return true;
+
+    if (miRol === 'supervisor') {
+      const rolesInferiores = ['auditor', 'operador', 'consulta'];
+      return rolesInferiores.includes(targetRol);
+    }
+
+    return false;
+  };
+
+  const puedeCambiarPassword = (targetUser: UsuarioProfile) => {
+    const miRol = normalizarRol(miRolActual);
+    const targetRol = normalizarRol(targetUser.rol);
+
+    if (miRol === 'administrador') return true;
+    if (miUsuarioId === targetUser.id) return true; // Su propio usuario
+
+    if (miRol === 'supervisor') {
+      const rolesInferiores = ['auditor', 'operador', 'consulta'];
+      return rolesInferiores.includes(targetRol);
+    }
+
+    return false;
+  };
+
   const toggleModulo = (idModulo: string) => {
     if (modulosSeleccionados.includes(idModulo)) {
       setModulosSeleccionados(modulosSeleccionados.filter(m => m !== idModulo));
@@ -448,45 +480,66 @@ export default function GestionUsuariosAdminPage() {
                         {u.rol || 'OPERADOR'}
                       </span>
                       
-                      {rolNormalizado === 'administrador' && (
+                      {(rolNormalizado === 'administrador' || rolNormalizado === 'supervisor') && (
                         <div className="flex items-center gap-1 bg-[#0b0e17] p-1 rounded-xl border border-slate-800">
-                          <button
-                            title="Editar usuario"
-                            onClick={() => {
-                              setUsuarioEditando(u);
-                              setModulosSeleccionados(u.modulos_permitidos || []);
-                            }}
-                            className="p-1.5 text-slate-400 hover:text-purple-400 transition"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
+                          
+                          {/* Botón Editar */}
+                          {puedeEditarOEstado(u) && (
+                            <button
+                              title="Editar usuario"
+                              onClick={() => {
+                                setUsuarioEditando(u);
+                                setModulosSeleccionados(u.modulos_permitidos || []);
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-purple-400 transition cursor-pointer"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          )}
 
-                          <button
-                            title="Resetear clave"
-                            onClick={() => {
-                              setUsuarioACambiarPass(u.id);
-                              setNuevaPass('');
-                            }}
-                            className="p-1.5 text-slate-400 hover:text-amber-400 transition"
-                          >
-                            <KeyRound className="w-4 h-4" />
-                          </button>
+                          {/* Botón Cambiar Clave */}
+                          {puedeCambiarPassword(u) && (
+                            <button
+                              title="Resetear clave"
+                              onClick={() => {
+                                setUsuarioACambiarPass(u.id);
+                                setNuevaPass('');
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-amber-400 transition cursor-pointer"
+                            >
+                              <KeyRound className="w-4 h-4" />
+                            </button>
+                          )}
 
-                          <button
-                            title={estaActivo ? 'Pausar usuario' : 'Activar usuario'}
-                            onClick={() => handleToggleEstado(u)}
-                            className={`p-1.5 transition ${estaActivo ? 'text-slate-400 hover:text-amber-500' : 'text-emerald-400 hover:text-emerald-300'}`}
-                          >
-                            {estaActivo ? <PauseCircle className="w-4 h-4" /> : <PlayCircle className="w-4 h-4" />}
-                          </button>
+                          {/* Botón Pausar / Activar */}
+                          {puedeEditarOEstado(u) && (
+                            <button
+                              title={estaActivo ? 'Pausar usuario' : 'Activar usuario'}
+                              onClick={() => handleToggleEstado(u)}
+                              className={`p-1.5 transition cursor-pointer ${
+                                estaActivo
+                                  ? 'text-slate-400 hover:text-amber-500'
+                                  : 'text-emerald-400 hover:text-emerald-300'
+                              }`}
+                            >
+                              {estaActivo ? (
+                                <PauseCircle className="w-4 h-4" />
+                              ) : (
+                                <PlayCircle className="w-4 h-4" />
+                              )}
+                            </button>
+                          )}
 
-                          <button
-                            title="Eliminar permanentemente"
-                            onClick={() => handleEliminar(u)}
-                            className="p-1.5 text-slate-400 hover:text-red-400 transition"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {/* Botón Eliminar (Exclusivo Administrador) */}
+                          {rolNormalizado === 'administrador' && (
+                            <button
+                              title="Eliminar permanentemente"
+                              onClick={() => handleEliminar(u)}
+                              className="p-1.5 text-slate-400 hover:text-red-400 transition cursor-pointer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -555,10 +608,12 @@ export default function GestionUsuariosAdminPage() {
                 <select required name="rol" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500">
                   <option value="operador">OPERADOR (Carga diaria)</option>
                   <option value="consulta">CONSULTA (Solo lectura)</option>
-                  <option value="supervisor">SUPERVISOR (Control)</option>
                   <option value="auditor">AUDITOR (Inspección)</option>
                   {rolNormalizado === 'administrador' && (
-                    <option value="administrador">ADMINISTRADOR (Total)</option>
+                    <>
+                      <option value="supervisor">SUPERVISOR (Control)</option>
+                      <option value="administrador">ADMINISTRADOR (Total)</option>
+                    </>
                   )}
                 </select>
               </div>
@@ -646,9 +701,13 @@ export default function GestionUsuariosAdminPage() {
                 <select required defaultValue={usuarioEditando.rol} name="rol" className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500">
                   <option value="operador">OPERADOR</option>
                   <option value="consulta">CONSULTA</option>
-                  <option value="supervisor">SUPERVISOR</option>
                   <option value="auditor">AUDITOR</option>
-                  <option value="administrador">ADMINISTRADOR</option>
+                  {rolNormalizado === 'administrador' && (
+                    <>
+                      <option value="supervisor">SUPERVISOR</option>
+                      <option value="administrador">ADMINISTRADOR</option>
+                    </>
+                  )}
                 </select>
               </div>
 
