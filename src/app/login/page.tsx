@@ -64,6 +64,12 @@ export default function LoginPage() {
         tipo: 'ok',
         texto: 'Se ha enviado un enlace de recuperación a tu correo electrónico.',
       })
+
+      // Cierra el modal automáticamente pasados 3 segundos
+      setTimeout(() => {
+        setModalReset(false)
+      }, 3000)
+
     } catch (err: any) {
       setMensajeReset({
         tipo: 'error',
@@ -251,14 +257,14 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setModalReset(false)}
-                  className="flex-1 px-4 py-2 text-xs font-semibold uppercase text-slate-400 hover:text-white bg-slate-800 rounded-xl transition"
+                  className="flex-1 px-4 py-2 text-xs font-semibold uppercase text-slate-400 hover:text-white bg-slate-800 rounded-xl transition cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={loadingReset}
-                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs uppercase transition shadow-lg shadow-blue-600/25 disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs uppercase transition shadow-lg shadow-blue-600/25 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {loadingReset ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
