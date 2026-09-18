@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { cambiarPasswordObligatorioAction } from '@/app/actions/usuarios';
 import { Shield, Users, FileText, ArrowRight, LogOut, User, Trophy, ShieldAlert, Bike, KeyRound, AlertTriangle } from 'lucide-react';
-import { abort } from 'node:process';
 
 const LOGO_URL = '/logo_cop.png';
 
