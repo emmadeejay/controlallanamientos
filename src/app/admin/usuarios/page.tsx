@@ -13,7 +13,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import {
   UserPlus, X, ShieldAlert, CheckCircle2, ArrowLeft, Users, LogOut,
-  User, Edit, PauseCircle, PlayCircle, Trash2, KeyRound, Search, Building2, Filter
+  User, Edit, PauseCircle, PlayCircle, Trash2, KeyRound, Search, Building2
 } from 'lucide-react';
 
 interface Superintendencia {
@@ -421,10 +421,10 @@ export default function GestionUsuariosAdminPage() {
 
                         <span 
                           title={supNombre} 
-                          className="max-w-[260px] sm:max-w-[340px] truncate inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-indigo-950/50 border border-indigo-800/50 text-indigo-300 rounded-md text-[10px] font-bold uppercase tracking-wide"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-indigo-950/50 border border-indigo-800/50 text-indigo-300 rounded-md text-[9px] sm:text-[10px] font-bold uppercase tracking-wide whitespace-normal leading-tight max-w-full text-left"
                         >
                           <Building2 className="w-3 h-3 text-indigo-400 flex-shrink-0" />
-                          <span className="truncate">{supNombre}</span>
+                          <span>{supNombre}</span>
                         </span>
                       </div>
 
