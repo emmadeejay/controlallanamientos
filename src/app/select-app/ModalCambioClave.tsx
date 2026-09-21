@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { cambiarPasswordObligatorioAction } from '@/app/actions/usuarios';
 import { KeyRound, AlertTriangle } from 'lucide-react';
 
-export default function ModalCambioClave({ userId }: { userId: string }) {
+export default function ModalCambioClave() {
   const [open, setOpen] = useState(true);
   const [nuevaClave, setNuevaClave] = useState('');
   const [confirmarClave, setConfirmarClave] = useState('');
@@ -17,8 +17,13 @@ export default function ModalCambioClave({ userId }: { userId: string }) {
     e.preventDefault();
     setErrorClave(null);
 
-    if (nuevaClave.length < 6) {
-      setErrorClave('La contraseña debe tener al menos 6 caracteres.');
+    if (nuevaClave.length < 10) {
+      setErrorClave('La contraseña debe tener al menos 10 caracteres.');
+      return;
+    }
+
+    if (!/[a-z]/.test(nuevaClave) || !/[A-Z]/.test(nuevaClave) || !/\d/.test(nuevaClave)) {
+      setErrorClave('La contraseña debe incluir mayúscula, minúscula y número.');
       return;
     }
 
@@ -33,7 +38,7 @@ export default function ModalCambioClave({ userId }: { userId: string }) {
     }
 
     setGuardandoClave(true);
-    const res = await cambiarPasswordObligatorioAction(userId, nuevaClave);
+    const res = await cambiarPasswordObligatorioAction(nuevaClave);
     setGuardandoClave(false);
 
     if (res.success) {
@@ -72,7 +77,7 @@ export default function ModalCambioClave({ userId }: { userId: string }) {
             <input
               required
               type="password"
-              placeholder="Mínimo 6 caracteres"
+              placeholder="Mínimo 10 caracteres"
               value={nuevaClave}
               onChange={(e) => setNuevaClave(e.target.value)}
               className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"

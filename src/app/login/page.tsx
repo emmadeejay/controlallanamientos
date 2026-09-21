@@ -2,12 +2,14 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase/client'
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, CheckCircle2, X } from 'lucide-react'
 import Image from 'next/image'
 
 export default function LoginPage() {
   const router = useRouter()
+  const supabase = createClient()
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -27,7 +29,7 @@ export default function LoginPage() {
 
     try {
       const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim().toLowerCase(),
         password,
       })
 
@@ -39,8 +41,12 @@ export default function LoginPage() {
         router.push('/select-app')
         router.refresh()
       }
-    } catch (err: any) {
-      setError(err.message || 'Error al iniciar sesión')
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message)
+      } else {
+        setError('Error al iniciar sesión')
+      }
     } finally {
       setLoading(false)
     }
@@ -70,10 +76,11 @@ export default function LoginPage() {
         setModalReset(false)
       }, 3000)
 
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'No se pudo enviar el correo de recuperación.'
       setMensajeReset({
         tipo: 'error',
-        texto: err.message || 'No se pudo enviar el correo de recuperación.',
+        texto: errorMsg,
       })
     } finally {
       setLoadingReset(false)

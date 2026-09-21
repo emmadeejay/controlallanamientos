@@ -39,9 +39,6 @@ interface UsuarioProfile {
 
 const MODULOS_DISPONIBLES = [
   { id: 'allanamientos', label: 'Control de Allanamientos' },
-  { id: 'deporte', label: 'Seguridad en el Deporte' },
-  { id: 'contravenciones', label: 'Contravenciones' },
-  { id: 'motochorros', label: 'Operación Motochorros' },
 ];
 
 export default function GestionUsuariosAdminPage() {
@@ -206,10 +203,13 @@ export default function GestionUsuariosAdminPage() {
       const formData = new FormData(e.currentTarget);
       formData.append('modulos_array', JSON.stringify(modulosSeleccionados));
 
-      const res = await crearUsuarioAction(formData, miUsuarioId);
+      const res = await crearUsuarioAction(formData);
 
       if (res?.success) {
-        setMensaje({ tipo: 'ok', texto: '¡Usuario creado correctamente con clave inicial ABCdef123!' });
+        setMensaje({
+          tipo: 'ok',
+          texto: `Usuario creado. Clave temporal única: ${res.temporaryPassword}`,
+        });
         setModalAbierto(false);
         setModulosSeleccionados(['allanamientos']);
         recargarUsuarios();
@@ -263,7 +263,7 @@ export default function GestionUsuariosAdminPage() {
     const confirmacion = confirm(`¿Estás seguro de ${u.activo !== false ? 'PAUSAR' : 'ACTIVAR'} a ${nombreMostrar}?`);
     if (!confirmacion) return;
 
-    const res = await toggleEstadoUsuarioAction(u.id, u.activo !== false);
+    const res = await toggleEstadoUsuarioAction(u.id);
     if (res?.success) {
       recargarUsuarios();
     } else {
@@ -748,7 +748,7 @@ export default function GestionUsuariosAdminPage() {
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#0f1420] border border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
             <h2 className="text-xs font-bold text-white uppercase tracking-wider">Cambiar Contraseña</h2>
-            <p className="text-xs text-slate-400">Ingresá la nueva clave para el usuario (mínimo 6 caracteres).</p>
+            <p className="text-xs text-slate-400">Ingresá la nueva clave para el usuario (mínimo 10 caracteres, con mayúscula, minúscula y número).</p>
             
             <input
               type="password"
@@ -771,8 +771,12 @@ export default function GestionUsuariosAdminPage() {
               <button
                 disabled={cargando}
                 onClick={async () => {
-                  if (!nuevaPass || nuevaPass.length < 6) {
-                    return alert("La contraseña debe tener al menos 6 caracteres");
+                  if (!nuevaPass || nuevaPass.length < 10) {
+                    return alert("La contraseña debe tener al menos 10 caracteres");
+                  }
+
+                  if (!/[a-z]/.test(nuevaPass) || !/[A-Z]/.test(nuevaPass) || !/\d/.test(nuevaPass)) {
+                    return alert("La contraseña debe incluir mayúscula, minúscula y número");
                   }
 
                   try {
