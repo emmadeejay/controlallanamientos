@@ -188,14 +188,8 @@ export default function MetricasPage() {
         .eq('id', user.id)
         .maybeSingle();
 
-      if (perfil && perfil.rol) {
-        const rolTabla = String(perfil.rol).toUpperCase();
-        setAutorizado(ROLES_PERMITIDOS.includes(rolTabla));
-      } else {
-        // Fallback a metadata si no se encuentra el perfil
-        const rolMetadata = (user.user_metadata?.role || user.user_metadata?.rol || '').toUpperCase();
-        setAutorizado(ROLES_PERMITIDOS.includes(rolMetadata));
-      }
+      const rolTabla = String(perfil?.rol ?? '').toUpperCase();
+      setAutorizado(ROLES_PERMITIDOS.includes(rolTabla));
     }
 
     verificarPermisos();

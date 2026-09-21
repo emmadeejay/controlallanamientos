@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { obtenerValoresSecuestros } from '@/lib/allanamientos'
 import * as XLSX from 'xlsx'
 import { 
   Filter, Download, ArrowLeft, Loader2, RefreshCw, 
@@ -77,85 +78,7 @@ export default function BuscarAllanamientosPage() {
     ejecutarBusqueda({ desde: '', hasta: '', partido: '' })
   }
 
-  // Parseador ultra flexible para campos JSON / Numéricos
-  const obtenerValores = (item: any) => {
-    let corta = 0, larga = 0, blanca = 0, replica = 0, totalArmas = 0
-    let autos = 0, motos = 0, camionetas = 0, otrosVeh = 0, totalVehiculos = 0
-    let detenidos = 0, aprehendidos = 0, totalPersonas = 0
-
-    // --- PARSEO DE PERSONAS (detenidos_aprehendidos) ---
-    const pVal = item.detenidos_aprehendidos
-    if (typeof pVal === 'number' || (typeof pVal === 'string' && !isNaN(Number(pVal)))) {
-      totalPersonas = Number(pVal)
-      detenidos = totalPersonas
-    } else if (Array.isArray(pVal)) {
-      totalPersonas = pVal.length
-      pVal.forEach(p => {
-        if (typeof p === 'number') totalPersonas += p
-        else if (typeof p === 'object' && p !== null) {
-          detenidos += Number(p.detenidos || p.detenido || 0)
-          aprehendidos += Number(p.aprehendidos || p.aprehendido || 0)
-        }
-      })
-      if (detenidos + aprehendidos > 0) totalPersonas = detenidos + aprehendidos
-    } else if (typeof pVal === 'object' && pVal !== null) {
-      detenidos = Number(pVal.detenidos || pVal.detenido || 0)
-      aprehendidos = Number(pVal.aprehendidos || pVal.aprehendido || 0)
-      totalPersonas = detenidos + aprehendidos || Number(pVal.total || 0)
-    }
-
-    // --- PARSEO DE ARMAS (secuestro_armas) ---
-    const aVal = item.secuestro_armas
-    if (typeof aVal === 'number' || (typeof aVal === 'string' && !isNaN(Number(aVal)))) {
-      totalArmas = Number(aVal)
-    } else if (Array.isArray(aVal)) {
-      totalArmas = aVal.length
-      aVal.forEach(a => {
-        if (typeof a === 'object' && a !== null) {
-          corta += Number(a.corta || 0)
-          larga += Number(a.larga || 0)
-          blanca += Number(a.blanca || 0)
-          replica += Number(a.replica || 0)
-        }
-      })
-      if (corta + larga + blanca + replica > 0) totalArmas = corta + larga + blanca + replica
-    } else if (typeof aVal === 'object' && aVal !== null) {
-      corta = Number(aVal.corta || 0)
-      larga = Number(aVal.larga || 0)
-      blanca = Number(aVal.blanca || 0)
-      replica = Number(aVal.replica || 0)
-      totalArmas = corta + larga + blanca + replica || Number(aVal.total || 0)
-    }
-
-    // --- PARSEO DE VEHÍCULOS (secuestro_vehiculos) ---
-    const vVal = item.secuestro_vehiculos
-    if (typeof vVal === 'number' || (typeof vVal === 'string' && !isNaN(Number(vVal)))) {
-      totalVehiculos = Number(vVal)
-    } else if (Array.isArray(vVal)) {
-      totalVehiculos = vVal.length
-      vVal.forEach(v => {
-        if (typeof v === 'object' && v !== null) {
-          autos += Number(v.autos || v.auto || 0)
-          motos += Number(v.motos || v.moto || 0)
-          camionetas += Number(v.camionetas || v.camioneta || 0)
-          otrosVeh += Number(v.otros || 0)
-        }
-      })
-      if (autos + motos + camionetas + otrosVeh > 0) totalVehiculos = autos + motos + camionetas + otrosVeh
-    } else if (typeof vVal === 'object' && vVal !== null) {
-      autos = Number(vVal.autos || vVal.auto || 0)
-      motos = Number(vVal.motos || vVal.moto || 0)
-      camionetas = Number(vVal.camionetas || vVal.camioneta || 0)
-      otrosVeh = Number(vVal.otros || 0)
-      totalVehiculos = autos + motos + camionetas + otrosVeh || Number(vVal.total || 0)
-    }
-
-    return {
-      corta, larga, blanca, replica, totalArmas,
-      autos, motos, camionetas, otrosVeh, totalVehiculos,
-      detenidos, aprehendidos, totalPersonas
-    }
-  }
+  const obtenerValores = (item: any) => obtenerValoresSecuestros(item)
 
   const ejecutarBusqueda = async (overrides?: any) => {
     setLoading(true)

@@ -4,6 +4,12 @@ import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { ArrowLeft, Plus, Trash2, Save, ShieldAlert, Building2, Loader2, Lock } from 'lucide-react'
+import {
+  obtenerRangoSemanaRendida,
+  sanitizarDetalles,
+  sumarDetalles,
+  validarFechasAllanamiento,
+} from '@/lib/allanamientos'
 
 const LOCAL_STORAGE_KEY = 'borrador_nuevo_allanamiento'
 
@@ -144,7 +150,9 @@ export default function NuevoAllanamientosPage() {
           .eq('id', user.id)
           .maybeSingle()
 
-        const rawRole = user.user_metadata?.role || user.app_metadata?.role || profile?.role || profile?.rol || ''
+        // El rol autorizado siempre sale de public.profiles. Los metadatos del
+        // usuario no se usan para elevar permisos porque pueden quedar obsoletos.
+        const rawRole = profile?.rol || profile?.role || ''
         const rolNormalizado = String(rawRole).toLowerCase().trim()
 
         const elevado = 
@@ -154,6 +162,16 @@ export default function NuevoAllanamientosPage() {
           rolNormalizado === 'superadmin' ||
           profile?.role_id === 2 || 
           profile?.role_id === 3
+
+        const puedeCargar = profile?.activo !== false && (
+          elevado
+          || (rolNormalizado === 'operador' && profile?.modulos_permitidos?.includes('allanamientos'))
+        )
+
+        if (!puedeCargar) {
+          router.replace('/allanamientos')
+          return
+        }
 
         setEsElevado(elevado)
         setSuperintendenciaUsuario(profile?.superintendencia_id || null)
@@ -221,6 +239,17 @@ export default function NuevoAllanamientosPage() {
       return
     }
 
+    const errorFechas = validarFechasAllanamiento({
+      fechaEjecucion: formData.fecha_ejecucion,
+      fechaSolicitud: formData.fecha_solicitud,
+      esElevado,
+    })
+
+    if (errorFechas) {
+      setError(errorFechas)
+      return
+    }
+
     setLoading(true)
     setError(null)
 
@@ -238,30 +267,13 @@ export default function NuevoAllanamientosPage() {
 
       const horarioFinal = `${horaEjecucion}:${minutoEjecucion}`
 
-      // Totales acumulados para métricas numéricas globales
-      const totalArmas = formData.resultado_secuestros === 'Positivo' 
-        ? armas.reduce((sum, item) => sum + (Number(item.cantidad) || 0), 0) : 0
-      const totalVehiculos = formData.resultado_secuestros === 'Positivo' 
-        ? vehiculos.reduce((sum, item) => sum + (Number(item.cantidad) || 0), 0) : 0
-      const totalDetenidos = formData.resultado_secuestros === 'Positivo' 
-        ? detenidos.reduce((sum, item) => sum + (Number(item.cantidad) || 0), 0) : 0
-
-      let detalleSecuestrosTexto = ''
-      if (formData.resultado_secuestros === 'Positivo') {
-        const resumenArmas = armas.filter(a => a.cantidad > 0).map(a => `${a.subtipo}: ${a.cantidad}`).join(', ')
-        const resumenVehiculos = vehiculos.filter(v => v.cantidad > 0).map(v => `${v.subtipo}: ${v.cantidad}`).join(', ')
-        const resumenDetenidos = detenidos.filter(d => d.cantidad > 0).map(d => `${d.subtipo}: ${d.cantidad}`).join(', ')
-        
-        detalleSecuestrosTexto = [
-          resumenArmas ? `Armas [${resumenArmas}]` : '',
-          resumenVehiculos ? `Vehículos [${resumenVehiculos}]` : '',
-          resumenDetenidos ? `Personas [${resumenDetenidos}]` : ''
-        ].filter(Boolean).join(' | ')
-      }
-
-      const obsFinales = [formData.observaciones, detalleSecuestrosTexto ? `Secuestros: ${detalleSecuestrosTexto}` : '']
-        .filter(Boolean)
-        .join(' - ')
+      const secuestrosPositivos = formData.resultado_secuestros === 'Positivo'
+      const armasValidas = secuestrosPositivos ? sanitizarDetalles(armas) : []
+      const vehiculosValidos = secuestrosPositivos ? sanitizarDetalles(vehiculos) : []
+      const detenidosValidos = secuestrosPositivos ? sanitizarDetalles(detenidos) : []
+      const totalArmas = sumarDetalles(armasValidas)
+      const totalVehiculos = sumarDetalles(vehiculosValidos)
+      const totalDetenidos = sumarDetalles(detenidosValidos)
 
       const payloadAllanamiento = {
         operador_id: user.id,
@@ -281,33 +293,31 @@ export default function NuevoAllanamientosPage() {
         resultado_medida: formData.resultado_medida,
         es_positivo: formData.resultado_medida === 'Positivo',
         resultado_secuestros: formData.resultado_secuestros,
+        secuestro_armas: armasValidas,
+        secuestro_vehiculos: vehiculosValidos,
+        detenidos_aprehendidos: detenidosValidos,
         armas_secuestradas: totalArmas,
         vehiculos_secuestrados: totalVehiculos,
-        detenidos_aprehendidos: totalDetenidos,
+        detenidos_aprehendidos_cant: totalDetenidos,
         orden_servicio_propia: formData.orden_servicio_propia || 'S/N',
         orden_servicio_cop: formData.orden_servicio_cop || null,
         numero_parte_urgente: formData.numero_parte_urgente || null,
-        observaciones: obsFinales || null
+        observaciones: formData.observaciones.trim() || null
       }
 
-      const { data: allanamientoData, error: allanamientoError } = await supabase
-        .from('allanamientos')
-        .insert([payloadAllanamiento])
-        .select()
-        .single()
+      const colaboracionesValidas = colaboraciones.filter(c => c.especialidad)
+      const colabToInsert = colaboracionesValidas.map(c => ({
+        especialidad: c.especialidad,
+        cant_solicitada: Number(c.cant_solicitada) || 0,
+        cant_afectada: Number(c.cant_afectada) || 0
+      }))
 
-      if (allanamientoError) throw allanamientoError
+      const { error: guardarError } = await supabase.rpc('crear_allanamiento_completo', {
+        p_datos: payloadAllanamiento,
+        p_colaboraciones: colabToInsert,
+      })
 
-      if (colaboraciones.length > 0 && colaboraciones[0].especialidad && allanamientoData) {
-        const colabToInsert = colaboraciones.map(c => ({
-          allanamiento_id: allanamientoData.id,
-          especialidad: c.especialidad,
-          cant_solicitada: Number(c.cant_solicitada) || 0,
-          cant_afectada: Number(c.cant_afectada) || 0
-        }))
-        const { error: colabError } = await supabase.from('allanamiento_colaboraciones').insert(colabToInsert)
-        if (colabError) throw colabError
-      }
+      if (guardarError) throw guardarError
 
       // Vaciar borrador tras guardar correctamente
       localStorage.removeItem(LOCAL_STORAGE_KEY)
@@ -321,6 +331,8 @@ export default function NuevoAllanamientosPage() {
       setLoading(false)
     }
   }
+
+  const rangoSemanaRendida = obtenerRangoSemanaRendida()
 
   if (fueraDeVentana && !esElevado) {
     return (
@@ -423,6 +435,7 @@ export default function NuevoAllanamientosPage() {
                   name="fecha_solicitud" 
                   value={formData.fecha_solicitud} 
                   onChange={handleChange}
+                  max={formData.fecha_ejecucion || rangoSemanaRendida.hoy}
                   onClick={(e) => e.currentTarget.showPicker?.()}
                   onKeyDown={(e) => e.preventDefault()}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer [color-scheme:dark]"
@@ -522,6 +535,8 @@ export default function NuevoAllanamientosPage() {
                   placeholder="Ej: Conurbano Norte"
                   value={formData.departamental} 
                   onChange={handleChange}
+                  required
+                  maxLength={150}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
@@ -534,6 +549,8 @@ export default function NuevoAllanamientosPage() {
                   placeholder="Ej: Comisaría San Fernando 1ra"
                   value={formData.dependencia} 
                   onChange={handleChange}
+                  required
+                  maxLength={150}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
@@ -546,6 +563,8 @@ export default function NuevoAllanamientosPage() {
                   required 
                   value={formData.fecha_ejecucion} 
                   onChange={handleChange}
+                  min={esElevado ? undefined : rangoSemanaRendida.inicio}
+                  max={esElevado ? rangoSemanaRendida.hoy : rangoSemanaRendida.fin}
                   onClick={(e) => e.currentTarget.showPicker?.()}
                   onKeyDown={(e) => e.preventDefault()}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer [color-scheme:dark]"

@@ -34,12 +34,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         const { data: profile } = await supabase
           .from('profiles')
-          .select('rol')
+          .select('rol, activo, modulos_permitidos')
           .eq('id', user.id)
           .single();
 
         if (profile && profile.rol) {
           rolFinal = String(profile.rol).trim().toLowerCase();
+        }
+
+        const esGestion = ['admin', 'administrador', 'supervisor'].includes(rolFinal);
+        const tieneModulo = esGestion || profile?.modulos_permitidos?.includes('allanamientos');
+        if (!profile || profile.activo === false || !tieneModulo) {
+          window.location.replace('/select-app');
+          return;
         }
 
         if (isMounted) {
@@ -135,17 +142,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <span className="hidden md:inline">Allanamientos</span>
                 </Link>
 
-                <Link
-                  href="/allanamientos/buscar"
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition ${
-                    pathname === '/allanamientos/buscar'
-                      ? 'bg-blue-600 text-white'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                  }`}
-                >
-                  <Search className="w-3.5 h-3.5" />
-                  <span>Buscar</span>
-                </Link>
+                {!esOperador && (
+                  <Link
+                    href="/allanamientos/buscar"
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition ${
+                      pathname === '/allanamientos/buscar'
+                        ? 'bg-blue-600 text-white'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    }`}
+                  >
+                    <Search className="w-3.5 h-3.5" />
+                    <span>Buscar</span>
+                  </Link>
+                )}
 
                 {!esOperador && (
                   <Link

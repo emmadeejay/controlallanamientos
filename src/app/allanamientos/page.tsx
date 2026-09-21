@@ -5,7 +5,8 @@ export const dynamic = 'force-dynamic';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { Plus, Search, Edit3, Trash2, Lock, Upload, Eye, X, Shield, Calendar, MapPin, FileText, UserCheck, Crosshair, Car } from 'lucide-react';
+import { Plus, Search, Edit3, Trash2, Lock, Upload, Eye, X, Shield, Calendar, MapPin, FileText, UserCheck, Crosshair, Car, CheckCircle2, Send } from 'lucide-react';
+import { obtenerRangoSemanaRendida, obtenerValoresSecuestros } from '@/lib/allanamientos';
 import * as XLSX from 'xlsx';
 
 // Sincronización precisa con la hora oficial de Argentina (UTC-3)
@@ -35,21 +36,18 @@ function esVentanaHorariaValida(): boolean {
   return dia === 1 || dia === 2 || (dia === 3 && hora < 8);
 }
 
-function getInicioSemanaActual(): Date {
-  const ahora = new Date();
-  const diaSemana = ahora.getDay();
-  const diffLunes = (diaSemana === 0 ? -6 : 1) - diaSemana;
-
-  const lunesActual = new Date(ahora);
-  lunesActual.setDate(ahora.getDate() + diffLunes);
-  lunesActual.setHours(0, 0, 0, 0);
-  return lunesActual;
-}
-
-function SemaforoSuperintendencias({ allanamientos }: { allanamientos: any[] }) {
+function SemaforoSuperintendencias({
+  allanamientos,
+  puedeReabrir,
+}: {
+  allanamientos: any[];
+  puedeReabrir: boolean;
+}) {
   const [superintendencias, setSuperintendencias] = useState<any[]>([]);
+  const [rendiciones, setRendiciones] = useState<any[]>([]);
   const [desplegado, setDesplegado] = useState(true);
   const [cargandoSupers, setCargandoSupers] = useState(true);
+  const [reabriendoId, setReabriendoId] = useState<string | null>(null);
 
   useEffect(() => {
     obtenerSuperintendencias();
@@ -57,14 +55,24 @@ function SemaforoSuperintendencias({ allanamientos }: { allanamientos: any[] }) 
 
   async function obtenerSuperintendencias() {
     try {
-      const { data, error } = await supabase
-        .from('superintendencias')
-        .select('id, nombre, activa')
-        .eq('activa', true)
-        .order('nombre');
+      const { inicio } = obtenerRangoSemanaRendida();
+      const [supersResultado, rendicionesResultado] = await Promise.all([
+        supabase
+          .from('superintendencias')
+          .select('id, nombre, activa')
+          .eq('activa', true)
+          .order('nombre'),
+        supabase
+          .from('rendiciones_allanamientos')
+          .select('superintendencia_id, estado, cantidad_allanamientos')
+          .eq('semana_inicio', inicio),
+      ]);
         
-      if (!error && data) {
-        setSuperintendencias(data);
+      if (!supersResultado.error && supersResultado.data) {
+        setSuperintendencias(supersResultado.data);
+      }
+      if (!rendicionesResultado.error && rendicionesResultado.data) {
+        setRendiciones(rendicionesResultado.data);
       }
     } catch (err) {
       console.error('Error al cargar superintendencias:', err);
@@ -73,13 +81,29 @@ function SemaforoSuperintendencias({ allanamientos }: { allanamientos: any[] }) 
     }
   }
 
-  const inicioSemana = getInicioSemanaActual();
+  async function reabrirRendicion(superintendenciaId: string) {
+    const motivo = prompt('Motivo obligatorio de la reapertura:')?.trim();
+    if (!motivo) return;
+
+    setReabriendoId(superintendenciaId);
+    const { error } = await supabase.rpc('reabrir_rendicion_allanamientos', {
+      p_superintendencia_id: superintendenciaId,
+      p_semana_inicio: obtenerRangoSemanaRendida().inicio,
+      p_motivo: motivo,
+    });
+
+    if (error) {
+      alert(error.message || 'No se pudo reabrir la rendición.');
+    } else {
+      await obtenerSuperintendencias();
+    }
+    setReabriendoId(null);
+  }
+
+  const rangoSemana = obtenerRangoSemanaRendida();
 
   const conteoPorSuper = allanamientos
-    .filter(item => {
-      const fechaRegistro = new Date(item.created_at || item.fecha_ejecucion);
-      return fechaRegistro >= inicioSemana;
-    })
+    .filter(item => item.fecha_ejecucion >= rangoSemana.inicio && item.fecha_ejecucion <= rangoSemana.fin)
     .reduce((acc: Record<string, number>, item) => {
       if (item.superintendencia_id) {
         acc[item.superintendencia_id] = (acc[item.superintendencia_id] || 0) + 1;
@@ -87,8 +111,10 @@ function SemaforoSuperintendencias({ allanamientos }: { allanamientos: any[] }) 
       return acc;
     }, {});
 
-  const activas = superintendencias.filter(s => (conteoPorSuper[s.id] || 0) > 0).length;
-  const sinRegistros = superintendencias.length - activas;
+  const rendicionPorSuper = new Map(rendiciones.map((rendicion) => [rendicion.superintendencia_id, rendicion]));
+  const finalizadas = superintendencias.filter((s) => ['finalizado', 'bloqueado'].includes(rendicionPorSuper.get(s.id)?.estado)).length;
+  const enCarga = superintendencias.filter((s) => !rendicionPorSuper.has(s.id) && (conteoPorSuper[s.id] || 0) > 0).length;
+  const pendientes = superintendencias.length - finalizadas - enCarga;
 
   if (cargandoSupers) return null;
 
@@ -105,7 +131,7 @@ function SemaforoSuperintendencias({ allanamientos }: { allanamientos: any[] }) 
               Control de Presentación Semanal por Superintendencia
             </h3>
             <p className="text-[11px] text-slate-400">
-              Estado de actividad en la semana en curso (Lunes a Domingo - Mínimo 1 registro requerido)
+              Allanamientos ejecutados del {rangoSemana.inicio} al {rangoSemana.fin}
             </p>
           </div>
         </div>
@@ -113,10 +139,13 @@ function SemaforoSuperintendencias({ allanamientos }: { allanamientos: any[] }) 
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              ✓ {activas} Activas
+              ✓ {finalizadas} Finalizadas
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              ◷ {enCarga} En carga
             </span>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20">
-              ✕ {sinRegistros} Sin Registros
+              ✕ {pendientes} Pendientes
             </span>
           </div>
 
@@ -130,27 +159,50 @@ function SemaforoSuperintendencias({ allanamientos }: { allanamientos: any[] }) 
         <div className="p-5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-96 overflow-y-auto custom-scrollbar">
           {superintendencias.map((sup) => {
             const cantidad = conteoPorSuper[sup.id] || 0;
+            const rendicion = rendicionPorSuper.get(sup.id);
+            const finalizada = ['finalizado', 'bloqueado'].includes(rendicion?.estado);
             const tieneRegistros = cantidad > 0;
+            const estadoClase = finalizada
+              ? 'bg-slate-950/40 border-slate-800/80 hover:border-emerald-500/30'
+              : tieneRegistros
+                ? 'bg-amber-950/10 border-amber-900/30 hover:border-amber-500/40'
+                : 'bg-red-950/10 border-red-900/30 hover:border-red-500/40';
+            const estadoTexto = finalizada
+              ? `Finalizada · ${rendicion?.cantidad_allanamientos ?? cantidad} informados`
+              : tieneRegistros
+                ? `${cantidad} ${cantidad === 1 ? 'registro cargado' : 'registros cargados'} · Sin finalizar`
+                : 'Pendiente de rendición';
+            const puntoClase = finalizada
+              ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50'
+              : tieneRegistros
+                ? 'bg-amber-500 shadow-sm shadow-amber-500/50'
+                : 'bg-red-500 animate-pulse shadow-sm shadow-red-500/50';
 
             return (
               <div 
                 key={sup.id}
-                className={`p-3 rounded-xl border flex items-center justify-between gap-2 transition-all ${
-                  tieneRegistros
-                    ? 'bg-slate-950/40 border-slate-800/80 hover:border-emerald-500/30'
-                    : 'bg-red-950/10 border-red-900/30 hover:border-red-500/40'
-                }`}
+                className={`p-3 rounded-xl border flex items-center justify-between gap-2 transition-all ${estadoClase}`}
               >
                 <div className="min-w-0 flex-1">
                   <p className="text-[11px] font-semibold text-slate-200 truncate" title={sup.nombre}>
                     {sup.nombre}
                   </p>
                   <p className="text-[10px] text-slate-500 mt-0.5">
-                    {tieneRegistros ? `${cantidad} ${cantidad === 1 ? 'registro esta semana' : 'registros esta semana'}` : 'Sin datos esta semana'}
+                    {estadoTexto}
                   </p>
+                  {finalizada && puedeReabrir && (
+                    <button
+                      type="button"
+                      onClick={() => reabrirRendicion(sup.id)}
+                      disabled={reabriendoId === sup.id}
+                      className="mt-2 text-[10px] font-semibold text-amber-400 hover:text-amber-300 disabled:opacity-50"
+                    >
+                      {reabriendoId === sup.id ? 'Reabriendo...' : 'Reabrir con motivo'}
+                    </button>
+                  )}
                 </div>
 
-                <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${tieneRegistros ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50' : 'bg-red-500 animate-pulse shadow-sm shadow-red-500/50'}`} />
+                <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${puntoClase}`} />
               </div>
             );
           })}
@@ -162,6 +214,7 @@ function SemaforoSuperintendencias({ allanamientos }: { allanamientos: any[] }) 
 
 function ModalVistaPrevia({ item, onClose, puedeEditar, onEdit }: { item: any; onClose: () => void; puedeEditar: boolean; onEdit: () => void }) {
   if (!item) return null;
+  const valores = obtenerValoresSecuestros(item);
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all">
@@ -237,19 +290,19 @@ function ModalVistaPrevia({ item, onClose, puedeEditar, onEdit }: { item: any; o
             <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/60 text-center">
               <Crosshair className="w-4 h-4 text-rose-400 mx-auto mb-1" />
               <p className="text-[9px] uppercase font-bold text-slate-500">Armas</p>
-              <p className="text-sm font-bold text-white mt-0.5">{item.armas_secuestradas || 0}</p>
+              <p className="text-sm font-bold text-white mt-0.5">{valores.totalArmas}</p>
             </div>
 
             <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/60 text-center">
               <Car className="w-4 h-4 text-cyan-400 mx-auto mb-1" />
               <p className="text-[9px] uppercase font-bold text-slate-500">Vehículos</p>
-              <p className="text-sm font-bold text-white mt-0.5">{item.vehiculos_secuestrados || 0}</p>
+              <p className="text-sm font-bold text-white mt-0.5">{valores.totalVehiculos}</p>
             </div>
 
             <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/60 text-center">
               <UserCheck className="w-4 h-4 text-purple-400 mx-auto mb-1" />
               <p className="text-[9px] uppercase font-bold text-slate-500">Detenidos</p>
-              <p className="text-sm font-bold text-white mt-0.5">{item.detenidos_aprehendidos || 0}</p>
+              <p className="text-sm font-bold text-white mt-0.5">{valores.totalPersonas}</p>
             </div>
           </div>
 
@@ -297,35 +350,17 @@ function BotonImportarExcel({ onImportSuccess }: { onImportSuccess?: () => void 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const userMetaRole = user.user_metadata?.role || user.app_metadata?.role;
       const { data: profile } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
         .maybeSingle();
 
-      const rawRole = userMetaRole || profile?.role || profile?.rol || '';
+      const rawRole = profile?.rol || profile?.role || '';
       const rol = String(rawRole).toLowerCase().trim();
 
       const esAdminOSupervisor = ['administrador', 'supervisor', 'admin', 'superadmin'].includes(rol);
-      if (esAdminOSupervisor) {
-        setPermitido(true);
-        setLoading(false);
-        return;
-      }
-
-      if (rol === 'operador' && profile?.superintendencia_id) {
-        const { data: supData } = await supabase
-          .from('superintendencias')
-          .select('nombre')
-          .eq('id', profile.superintendencia_id)
-          .single();
-
-        const superNombre = (supData?.nombre || '').toLowerCase();
-        if (superNombre.includes('investigación judicial')) {
-          setPermitido(true);
-        }
-      }
+      setPermitido(esAdminOSupervisor);
     } catch (err) {
       console.error('Error al verificar permisos de importación:', err);
     } finally {
@@ -358,32 +393,47 @@ function BotonImportarExcel({ onImportSuccess }: { onImportSuccess?: () => void 
         const { data: supers } = await supabase.from('superintendencias').select('id, nombre');
         const mapSupers = new Map(supers?.map(s => [s.nombre.toLowerCase().trim(), s.id]));
 
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('La sesión ya no es válida. Volvé a iniciar sesión.');
+
         const registrosParaInsertar = data.map(row => {
           const nombreSupExcel = String(row.superintendencia || row.Superintendencia || '').toLowerCase().trim();
           const superintendenciaId = mapSupers.get(nombreSupExcel) || null;
+          const cantidadArmas = Math.max(0, Number(row.armas || row.armas_secuestradas || 0));
+          const cantidadVehiculos = Math.max(0, Number(row.vehiculos || row.vehiculos_secuestrados || 0));
+          const cantidadPersonas = Math.max(0, Number(row.personas || row.detenidos_aprehendidos_cant || 0));
+
+          if (!superintendenciaId) {
+            throw new Error(`Superintendencia inexistente en el archivo: ${nombreSupExcel || '(vacía)'}`);
+          }
 
           return {
+            operador_id: user.id,
             numero_ipp: row.numero_ipp || row.IPP || null,
             caratula: row.caratula || row.Caratula || null,
-            ufi_juzgado: row.ufi_juzgado || row.UFI || null,
+            ufi_juzgado: row.ufi_juzgado || row.UFI || 'Sin especificar',
             fecha_solicitud: row.fecha_solicitud || null,
-            numero_pu: row.numero_pu || null,
-            nro_orden_serv_propia: row.nro_orden_serv_propia || null,
-            nro_orden_serv_cop: row.nro_orden_serv_cop || null,
+            numero_parte_urgente: row.numero_parte_urgente || row.numero_pu || null,
+            orden_servicio_propia: row.orden_servicio_propia || row.nro_orden_serv_propia || 'S/N',
+            orden_servicio_cop: row.orden_servicio_cop || row.nro_orden_serv_cop || null,
             superintendencia_id: superintendenciaId, 
             partido: row.partido || null,
-            departamental: row.departamental || null,
-            dependencia: row.dependencia || null,
+            departamental: row.departamental || 'Sin especificar',
+            dependencia: row.dependencia || 'Sin especificar',
+            lugar_presentacion: row.lugar_presentacion || row.dependencia || row.partido || 'Sin especificar',
             fecha_ejecucion: row.fecha_ejecucion || null,
-            horario_ejecucion: row.horario_ejecucion || null,
+            horario_ejecucion: row.horario_ejecucion || '00:00',
             personal_propio: Number(row.personal_propio || 1),
             resultado_medida: row.resultado_medida || 'Positivo',
-            cantidad_objetivos: Number(row.cantidad_objetivos || 1),
-            personal_colaboracion: row.colaboracion || null,
+            es_positivo: (row.resultado_medida || 'Positivo') === 'Positivo',
+            objetivos: Number(row.objetivos || row.cantidad_objetivos || 1),
             resultado_secuestros: row.resultado_secuestros || 'Positivo',
-            armas_secuestradas: Number(row.armas || row.armas_secuestradas || 0),
-            vehiculos_secuestrados: Number(row.vehiculos || row.vehiculos_secuestrados || 0),
-            detenidos_aprehendidos: Number(row.personas || row.detenidos_aprehendidos || 0),
+            secuestro_armas: cantidadArmas > 0 ? [{ subtipo: 'Sin especificar', cantidad: cantidadArmas }] : [],
+            secuestro_vehiculos: cantidadVehiculos > 0 ? [{ subtipo: 'Sin especificar', cantidad: cantidadVehiculos }] : [],
+            detenidos_aprehendidos: cantidadPersonas > 0 ? [{ subtipo: 'Sin especificar', cantidad: cantidadPersonas }] : [],
+            armas_secuestradas: cantidadArmas,
+            vehiculos_secuestrados: cantidadVehiculos,
+            detenidos_aprehendidos_cant: cantidadPersonas,
             observaciones: row.observaciones || 'Carga masiva Excel'
           };
         });
@@ -432,6 +482,9 @@ export default function DashboardPage() {
   const [busqueda, setBusqueda] = useState('');
   const [puedeEditar, setPuedeEditar] = useState(false);
   const [esAdministradorOSupervisor, setEsAdministradorOSupervisor] = useState(false);
+  const [rolUsuario, setRolUsuario] = useState('');
+  const [rendicionActual, setRendicionActual] = useState<any | null>(null);
+  const [finalizando, setFinalizando] = useState(false);
   const [itemSeleccionado, setItemSeleccionado] = useState<any | null>(null);
 
   const [paginaActual, setPaginaActual] = useState(1);
@@ -452,15 +505,15 @@ export default function DashboardPage() {
         return;
       }
 
-      const userMetaRole = session.user.user_metadata?.role || session.user.app_metadata?.role;
       const { data: profile } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', session.user.id)
         .maybeSingle();
 
-      const rawRole = userMetaRole || profile?.role || profile?.rol || '';
+      const rawRole = profile?.rol || '';
       const rolNormalizado = String(rawRole).toLowerCase().trim();
+      const rolNormalizadoCompatible = rolNormalizado === 'admin' ? 'administrador' : rolNormalizado;
 
       const esElevado = 
         rolNormalizado === 'supervisor' || 
@@ -470,25 +523,53 @@ export default function DashboardPage() {
         profile?.role_id === 2 || 
         profile?.role_id === 3;
 
+      const tieneModulo = esElevado || profile?.modulos_permitidos?.includes('allanamientos');
+      if (!profile || profile.activo === false || !tieneModulo) {
+        router.replace('/select-app');
+        return;
+      }
+
       setEsAdministradorOSupervisor(esElevado);
-      setPuedeEditar(esElevado || estaEnVentana);
-      await fetchData(esElevado, profile?.superintendencia_id);
+      setRolUsuario(rolNormalizadoCompatible);
+      setRendicionActual(null);
+
+      let rendicion: any | null = null;
+      if (rolNormalizadoCompatible === 'operador' && profile?.superintendencia_id) {
+        const { inicio } = obtenerRangoSemanaRendida();
+        const { data } = await supabase
+          .from('rendiciones_allanamientos')
+          .select('estado, semana_inicio, semana_fin, cantidad_allanamientos, finalizada_at')
+          .eq('superintendencia_id', profile.superintendencia_id)
+          .eq('semana_inicio', inicio)
+          .maybeSingle();
+
+        rendicion = data ?? null;
+        setRendicionActual(rendicion);
+      }
+
+      const rendicionCerrada = ['finalizado', 'bloqueado'].includes(rendicion?.estado);
+      setPuedeEditar(esElevado || (rolNormalizadoCompatible === 'operador' && estaEnVentana && !rendicionCerrada));
+      await fetchData(rolNormalizadoCompatible, session.user.id);
     } catch (err) {
       console.error('Error al verificar permisos:', err);
-      await fetchData(false);
+      setAllanamientos([]);
     } finally {
       setLoading(false);
     }
   }
 
-  async function fetchData(esElevado: boolean, superintendenciaId?: string) {
+  async function fetchData(rol: string, userId?: string) {
     let query = supabase
       .from('allanamientos')
       .select('*, superintendencias(nombre)')
       .order('created_at', { ascending: false });
 
-    if (!esElevado && superintendenciaId) {
-      query = query.eq('superintendencia_id', superintendenciaId);
+    if (rol === 'operador' && userId) {
+      const { inicio, fin } = obtenerRangoSemanaRendida();
+      query = query
+        .eq('operador_id', userId)
+        .gte('fecha_ejecucion', inicio)
+        .lte('fecha_ejecucion', fin);
     }
 
     const { data, error } = await query;
@@ -496,6 +577,24 @@ export default function DashboardPage() {
       setAllanamientos(data);
     }
   }
+
+  const finalizarRendicion = async () => {
+    if (!confirm('¿Confirmás que la superintendencia terminó de cargar la semana? Después no podrás agregar ni modificar registros.')) {
+      return;
+    }
+
+    setFinalizando(true);
+    const { error } = await supabase.rpc('finalizar_rendicion_allanamientos');
+
+    if (error) {
+      alert(error.message || 'No se pudo finalizar la rendición.');
+      setFinalizando(false);
+      return;
+    }
+
+    await checkPeriodoYUsuario();
+    setFinalizando(false);
+  };
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -526,6 +625,10 @@ export default function DashboardPage() {
     item.superintendencias?.nombre?.toLowerCase().includes(busqueda.toLowerCase())
   );
 
+  const esOperador = rolUsuario === 'operador';
+  const rangoSemanaRendida = obtenerRangoSemanaRendida();
+  const rendicionCerrada = ['finalizado', 'bloqueado'].includes(rendicionActual?.estado);
+
   const totalPaginas = Math.ceil(filtrados.length / registrosPorPagina);
   const indiceInicio = (paginaActual - 1) * registrosPorPagina;
   const registrosPaginados = filtrados.slice(indiceInicio, indiceInicio + registrosPorPagina);
@@ -541,15 +644,17 @@ export default function DashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-white tracking-tight">
-            Control de Allanamientos
+            {esOperador ? 'Rendición semanal de Allanamientos' : 'Control de Allanamientos'}
           </h1>
           <p className="text-xs text-slate-400">
-            Haz clic en cualquier registro para ver su detalle rápido
+            {esOperador
+              ? `Período informado: ${rangoSemanaRendida.inicio} al ${rangoSemanaRendida.fin}`
+              : 'Haz clic en cualquier registro para ver su detalle rápido'}
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          <BotonImportarExcel onImportSuccess={() => checkPeriodoYUsuario()} />
+          {!esOperador && <BotonImportarExcel onImportSuccess={() => checkPeriodoYUsuario()} />}
 
           {puedeEditar ? (
             <button
@@ -558,9 +663,26 @@ export default function DashboardPage() {
             >
               <Plus className="w-4 h-4" /> Nuevo Allanamiento
             </button>
-          ) : (
+          ) : !rendicionCerrada ? (
             <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-2 rounded-xl">
               <Lock className="w-4 h-4" /> Fuera de período de carga (Lun 00hs a Mié 08hs)
+            </div>
+          ) : null}
+
+          {esOperador && puedeEditar && (
+            <button
+              onClick={finalizarRendicion}
+              disabled={finalizando}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-semibold shadow-lg shadow-emerald-600/20 transition"
+            >
+              <Send className="w-4 h-4" />
+              {finalizando ? 'Finalizando...' : 'Finalizar carga'}
+            </button>
+          )}
+
+          {esOperador && rendicionCerrada && (
+            <div className="flex items-center gap-2 text-xs text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 rounded-xl">
+              <CheckCircle2 className="w-4 h-4" /> Rendición finalizada
             </div>
           )}
         </div>
@@ -568,7 +690,7 @@ export default function DashboardPage() {
 
       {/* 2. BUSCADOR Y TABLA */}
       <div className="space-y-4">
-        <div className="relative">
+        {!esOperador && <div className="relative">
           <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-500" />
           <input
             type="text"
@@ -577,9 +699,9 @@ export default function DashboardPage() {
             onChange={(e) => setBusqueda(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
           />
-        </div>
+        </div>}
 
-        <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow-xl backdrop-blur-md">
+        {!rendicionCerrada && <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow-xl backdrop-blur-md">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-300">
               <thead className="bg-slate-950/80 text-slate-400 font-semibold border-b border-slate-800 uppercase tracking-wider text-[10px]">
@@ -718,11 +840,26 @@ export default function DashboardPage() {
               </div>
             </div>
           )}
-        </div>
+        </div>}
+
+        {esOperador && rendicionCerrada && (
+          <div className="bg-emerald-950/20 border border-emerald-500/20 rounded-2xl p-6 text-center">
+            <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto mb-3" />
+            <h2 className="text-base font-bold text-white">Rendición enviada correctamente</h2>
+            <p className="text-xs text-slate-400 mt-1">
+              Semana {rendicionActual?.semana_inicio} al {rendicionActual?.semana_fin}. Registros informados: {rendicionActual?.cantidad_allanamientos ?? 0}.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* 3. CONTROL SEMÁFORO GENERAL */}
-      <SemaforoSuperintendencias allanamientos={allanamientos} />
+      {!esOperador && (
+        <SemaforoSuperintendencias
+          allanamientos={allanamientos}
+          puedeReabrir={esAdministradorOSupervisor}
+        />
+      )}
 
       {/* VISTA PREVIA INTERACTIVA */}
       <ModalVistaPrevia

@@ -7,15 +7,21 @@ export function puedeEditarAllanamiento(rolUsuario: string): boolean {
 
   // Validación para Operadores
   const ahora = new Date();
-  const diaSemana = ahora.getDay(); // 0: Dom, 1: Lun, 2: Mar, 3: Mié, 4: Jue, 5: Vie, 6: Sáb
-  const hora = ahora.getHours();
+  const partes = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Argentina/Buenos_Aires',
+    weekday: 'short',
+    hour: '2-digit',
+    hour12: false,
+  }).formatToParts(ahora);
+  const dia = partes.find((parte) => parte.type === 'weekday')?.value;
+  const hora = Number(partes.find((parte) => parte.type === 'hour')?.value ?? 24);
 
-  // Lunes a partir de las 08:00 hs
-  if (diaSemana === 1 && hora >= 8) return true;
+  // Lunes completo desde las 00:00 hs
+  if (dia === 'Mon') return true;
   // Martes todo el día
-  if (diaSemana === 2) return true;
+  if (dia === 'Tue') return true;
   // Miércoles antes de las 08:00 hs
-  if (diaSemana === 3 && hora < 8) return true;
+  if (dia === 'Wed' && hora < 8) return true;
 
   return false;
 }
