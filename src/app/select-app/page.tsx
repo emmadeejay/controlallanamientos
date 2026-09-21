@@ -12,7 +12,6 @@ export default function SelectAppPage() {
   const router = useRouter();
   const supabase = createClient();
   
-  const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string>('operador');
   const [modulosPermitidos, setModulosPermitidos] = useState<string[]>([]);
@@ -54,7 +53,6 @@ export default function SelectAppPage() {
         }
 
         if (isMounted) {
-          setUserId(user.id);
           setUserEmail(email);
 
           const rolDetectado = profile?.rol ? String(profile.rol).trim().toLowerCase() : 'operador';
@@ -99,8 +97,13 @@ export default function SelectAppPage() {
     e.preventDefault();
     setErrorClave(null);
 
-    if (nuevaClave.length < 6) {
-      setErrorClave('La contraseña debe tener al menos 6 caracteres.');
+    if (nuevaClave.length < 10) {
+      setErrorClave('La contraseña debe tener al menos 10 caracteres.');
+      return;
+    }
+
+    if (!/[a-z]/.test(nuevaClave) || !/[A-Z]/.test(nuevaClave) || !/\d/.test(nuevaClave)) {
+      setErrorClave('La contraseña debe incluir mayúscula, minúscula y número.');
       return;
     }
 
@@ -114,10 +117,8 @@ export default function SelectAppPage() {
       return;
     }
 
-    if (!userId) return;
-
     setGuardandoClave(true);
-    const res = await cambiarPasswordObligatorioAction(userId, nuevaClave);
+    const res = await cambiarPasswordObligatorioAction(nuevaClave);
     setGuardandoClave(false);
 
     if (res.success) {

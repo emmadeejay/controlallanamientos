@@ -17,8 +17,13 @@ export default function ActualizarPasswordPage() {
   const handleActualizar = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (nuevaPassword.length < 6) {
-      setMensaje({ tipo: 'error', texto: 'La contraseña debe tener al menos 6 caracteres.' });
+    if (nuevaPassword.length < 10) {
+      setMensaje({ tipo: 'error', texto: 'La contraseña debe tener al menos 10 caracteres.' });
+      return;
+    }
+
+    if (!/[a-z]/.test(nuevaPassword) || !/[A-Z]/.test(nuevaPassword) || !/\d/.test(nuevaPassword)) {
+      setMensaje({ tipo: 'error', texto: 'La contraseña debe incluir mayúscula, minúscula y número.' });
       return;
     }
 
@@ -106,10 +111,10 @@ export default function ActualizarPasswordPage() {
               <input
                 type={showPassword ? 'text' : 'password'}
                 required
-                minLength={6}
+                minLength={10}
                 value={nuevaPassword}
                 onChange={(e) => setNuevaPassword(e.target.value)}
-                placeholder="Mínimo 6 caracteres"
+                placeholder="Mínimo 10 caracteres"
                 className="w-full bg-[#090d16] border border-slate-800 rounded-xl pl-10 pr-11 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition"
               />
               <button
@@ -131,7 +136,7 @@ export default function ActualizarPasswordPage() {
               <input
                 type={showPassword ? 'text' : 'password'}
                 required
-                minLength={6}
+                minLength={10}
                 value={confirmarPassword}
                 onChange={(e) => setConfirmarPassword(e.target.value)}
                 placeholder="Repetir contraseña"
