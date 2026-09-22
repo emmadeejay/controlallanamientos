@@ -49,7 +49,11 @@ const ETIQUETAS_ACCION: Record<string, string> = {
   crear_usuario: 'Alta de usuario',
   editar_usuario: 'Edición de usuario',
   activar_usuario: 'Usuario activado',
+  reactivar_usuario: 'Identidad reactivada',
   pausar_usuario: 'Usuario pausado',
+  deshabilitar_usuario: 'Baja operativa de usuario',
+  revalidar_usuario: 'Revalidación institucional',
+  trasladar_usuario: 'Traslado de usuario',
   eliminar_usuario: 'Usuario eliminado',
   restablecer_password: 'Contraseña restablecida',
   cambiar_password_obligatorio: 'Cambio obligatorio de contraseña',
@@ -77,7 +81,13 @@ function resumenDetalles(detalles: Record<string, unknown> | null) {
   const campos = Array.isArray(detalles.campos_modificados)
     ? `Campos: ${detalles.campos_modificados.join(', ')}`
     : '';
-  return [ipp, cantidad, email, campos].filter(Boolean).join(' · ') || '—';
+  const vigencia = typeof detalles.vigencia_hasta === 'string'
+    ? `Vigencia ${detalles.vigencia_hasta}`
+    : '';
+  const estado = typeof detalles.estado_nuevo === 'string'
+    ? `Estado ${detalles.estado_nuevo}`
+    : '';
+  return [ipp, cantidad, email, campos, vigencia, estado].filter(Boolean).join(' · ') || '—';
 }
 
 export default function AuditoriaPage() {

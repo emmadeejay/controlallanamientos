@@ -10,6 +10,7 @@ import {
   sumarDetalles,
   validarFechasAllanamiento,
 } from '@/lib/allanamientos'
+import { perfilTieneAcceso } from '@/lib/usuarios'
 
 const LOCAL_STORAGE_KEY = 'borrador_nuevo_allanamiento'
 
@@ -163,7 +164,7 @@ export default function NuevoAllanamientosPage() {
           profile?.role_id === 2 || 
           profile?.role_id === 3
 
-        const puedeCargar = profile?.activo !== false && (
+        const puedeCargar = !!profile && perfilTieneAcceso(profile) && (
           elevado
           || (rolNormalizado === 'operador' && profile?.modulos_permitidos?.includes('allanamientos'))
         )

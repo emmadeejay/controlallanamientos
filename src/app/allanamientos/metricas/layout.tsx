@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
+import { perfilTieneAcceso } from '@/lib/usuarios';
 
 const ROLES_METRICAS = new Set([
   'administrador',
@@ -21,7 +22,7 @@ export default async function MetricasLayout({ children }: { children: ReactNode
   const supabaseAdmin = createAdminClient();
   const { data: perfil } = await supabaseAdmin
     .from('profiles')
-    .select('rol, activo, modulos_permitidos')
+    .select('rol, activo, estado_cuenta, vigencia_institucional_hasta, modulos_permitidos')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -30,7 +31,7 @@ export default async function MetricasLayout({ children }: { children: ReactNode
   const esGestion = rol === 'administrador' || rol === 'supervisor';
   const tieneModulo = esGestion || perfil?.modulos_permitidos?.includes('allanamientos');
 
-  if (perfil?.activo === false || !ROLES_METRICAS.has(rol) || !tieneModulo) {
+  if (!perfil || !perfilTieneAcceso(perfil) || !ROLES_METRICAS.has(rol) || !tieneModulo) {
     redirect('/allanamientos');
   }
 

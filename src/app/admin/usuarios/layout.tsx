@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
+import { perfilTieneAcceso } from '@/lib/usuarios';
 
 type UsuariosLayoutProps = {
   children: ReactNode;
@@ -16,11 +17,8 @@ function normalizarRol(valor: unknown): string {
   return rol === 'admin' ? 'administrador' : rol;
 }
 
-export default async function UsuariosLayout({
-  children,
-}: UsuariosLayoutProps) {
+export default async function UsuariosLayout({ children }: UsuariosLayoutProps) {
   const supabaseSesion = await createClient();
-
   const {
     data: { user },
     error: userError,
@@ -30,18 +28,17 @@ export default async function UsuariosLayout({
     redirect('/login');
   }
 
-  // Esta consulta se ejecuta exclusivamente en el servidor.
-  // La clave service_role nunca se envía al navegador.
+  // La consulta privilegiada ocurre únicamente en el servidor. La clave
+  // service_role nunca se envía al navegador.
   const supabaseAdmin = createAdminClient();
-
   const { data: perfil, error: perfilError } = await supabaseAdmin
     .from('profiles')
-    .select('rol, activo')
+    .select('rol, activo, estado_cuenta, vigencia_institucional_hasta')
     .eq('id', user.id)
     .maybeSingle();
 
   const rol = normalizarRol(perfil?.rol);
-  const cuentaActiva = perfil?.activo !== false;
+  const cuentaActiva = perfil ? perfilTieneAcceso(perfil) : false;
 
   if (
     perfilError ||

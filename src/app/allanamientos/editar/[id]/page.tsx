@@ -10,6 +10,7 @@ import {
   sumarDetalles,
   validarFechasAllanamiento,
 } from '@/lib/allanamientos'
+import { perfilTieneAcceso } from '@/lib/usuarios'
 
 export default function EditarAllanamientoPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
@@ -88,7 +89,7 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
           profile?.role_id === 2 || 
           profile?.role_id === 3
 
-        const puedeEditarRegistro = profile?.activo !== false && (
+        const puedeEditarRegistro = !!profile && perfilTieneAcceso(profile) && (
           elevado
           || (rolNormalizado === 'operador' && profile?.modulos_permitidos?.includes('allanamientos'))
         )

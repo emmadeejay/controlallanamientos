@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { perfilTieneAcceso } from '@/lib/usuarios';
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -44,6 +45,33 @@ export async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);
+  }
+
+  if (user && isProtectedRoute) {
+    const { data: perfil, error: perfilError } = await supabase
+      .from('profiles')
+      .select(
+        'rol, activo, estado_cuenta, vigencia_institucional_hasta, requiere_cambio_clave',
+      )
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (perfilError || !perfil) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/login';
+      return NextResponse.redirect(url);
+    }
+
+    const debeQuedarEnSelector =
+      !perfilTieneAcceso(perfil) || perfil.requiere_cambio_clave === true;
+    const estaEnSelector = request.nextUrl.pathname.startsWith('/select-app');
+
+    if (debeQuedarEnSelector && !estaEnSelector) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/select-app';
+      url.search = '';
+      return NextResponse.redirect(url);
+    }
   }
 
   // Si ya tiene sesión y entra al login, se redirige al selector

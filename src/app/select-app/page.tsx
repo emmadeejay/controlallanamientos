@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { cambiarPasswordObligatorioAction } from '@/app/actions/usuarios';
-import { Shield, Users, FileText, ArrowRight, LogOut, User, Trophy, ShieldAlert, Bike, KeyRound, AlertTriangle, ClipboardCheck } from 'lucide-react';
+import { diasHastaFecha, evaluarEstadoAcceso, type EstadoAcceso } from '@/lib/usuarios';
+import { Shield, Users, FileText, ArrowRight, LogOut, User, Trophy, ShieldAlert, Bike, KeyRound, AlertTriangle, ClipboardCheck, Clock3 } from 'lucide-react';
 
 const LOGO_URL = '/logo_cop.png';
 
@@ -16,6 +17,8 @@ export default function SelectAppPage() {
   const [userRole, setUserRole] = useState<string>('operador');
   const [modulosPermitidos, setModulosPermitidos] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [estadoAcceso, setEstadoAcceso] = useState<EstadoAcceso>('activo');
+  const [diasVigencia, setDiasVigencia] = useState<number | null>(null);
 
   const [requiereCambioClave, setRequiereCambioClave] = useState(false);
   const [nuevaClave, setNuevaClave] = useState('');
@@ -41,27 +44,30 @@ export default function SelectAppPage() {
 
         const { data: profile } = await supabase
           .from('profiles')
-          .select('rol, activo, requiere_cambio_clave, modulos_permitidos')
+          .select('rol, activo, estado_cuenta, vigencia_institucional_hasta, requiere_cambio_clave, modulos_permitidos')
           .eq('id', user.id)
           .single();
-
-        if (profile && profile.activo === false) {
-          alert('Tu cuenta se encuentra desactivada por un administrador.');
-          await supabase.auth.signOut();
-          window.location.replace('/login');
-          return;
-        }
 
         if (isMounted) {
           setUserEmail(email);
 
           const rolDetectado = profile?.rol ? String(profile.rol).trim().toLowerCase() : 'operador';
           setUserRole(rolDetectado);
+          const estadoDetectado = profile
+            ? evaluarEstadoAcceso(profile)
+            : 'deshabilitado';
+          setEstadoAcceso(estadoDetectado);
+          setDiasVigencia(
+            profile ? diasHastaFecha(profile.vigencia_institucional_hasta) : null,
+          );
 
           // Fail-Safe: Si no hay módulos en la base, se deniega todo por defecto asignando []
           setModulosPermitidos(profile?.modulos_permitidos || []);
 
-          if (profile?.requiere_cambio_clave) {
+          if (
+            profile?.requiere_cambio_clave &&
+            (estadoDetectado === 'activo' || estadoDetectado === 'por_vencer')
+          ) {
             setRequiereCambioClave(true);
           }
         }
@@ -144,6 +150,48 @@ export default function SelectAppPage() {
     );
   }
 
+  const accesoRestringido = ['pausado', 'deshabilitado', 'validacion_vencida'].includes(
+    estadoAcceso,
+  );
+
+  if (accesoRestringido) {
+    const contenido = {
+      pausado: {
+        titulo: 'Cuenta pausada temporalmente',
+        detalle: 'Tu acceso fue pausado por la oficina COP. Comunicate mediante el correo institucional para conocer el estado de la cuenta.',
+      },
+      deshabilitado: {
+        titulo: 'Cuenta con baja operativa',
+        detalle: 'La cuenta permanece registrada para conservar su trazabilidad, pero no tiene acceso a los módulos.',
+      },
+      validacion_vencida: {
+        titulo: 'Validación institucional vencida',
+        detalle: 'Enviá la documentación requerida al correo institucional. Un supervisor deberá revalidar tu asignación antes de que puedas continuar.',
+      },
+    }[estadoAcceso as 'pausado' | 'deshabilitado' | 'validacion_vencida'];
+
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
+        <div className="w-full max-w-xl rounded-2xl border border-amber-800/50 bg-slate-900 p-8 text-center shadow-2xl">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-400">
+            <Clock3 className="h-7 w-7" />
+          </div>
+          <h1 className="text-xl font-bold text-white">{contenido.titulo}</h1>
+          <p className="mt-3 text-sm leading-relaxed text-slate-400">{contenido.detalle}</p>
+          <p className="mt-4 text-xs text-slate-500">Usuario: {userEmail}</p>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="mt-6 inline-flex items-center gap-2 rounded-xl border border-red-800/50 bg-red-950/30 px-4 py-2.5 text-xs font-semibold text-red-300 hover:bg-red-900/40"
+          >
+            <LogOut className="h-4 w-4" />
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-purple-600 selection:text-white">
       <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40">
@@ -187,6 +235,17 @@ export default function SelectAppPage() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex-1 flex flex-col justify-center">
+        {estadoAcceso === 'por_vencer' && diasVigencia !== null && (
+          <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-700/50 bg-amber-950/35 p-4 text-amber-200">
+            <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-bold">Validación institucional próxima a vencer</p>
+              <p className="mt-1 text-xs text-amber-300/80">
+                Restan {diasVigencia} {diasVigencia === 1 ? 'día' : 'días'}. Enviá la documentación al correo institucional para mantener el acceso.
+              </p>
+            </div>
+          </div>
+        )}
         <div className="mb-8 text-center sm:text-left">
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
             Selecciona un Módulo
@@ -377,7 +436,7 @@ export default function SelectAppPage() {
                 <input
                   required
                   type="password"
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder="Mínimo 10 caracteres"
                   value={nuevaClave}
                   onChange={(e) => setNuevaClave(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"

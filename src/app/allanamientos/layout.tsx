@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
-import { LogOut, User, Shield, FileText, BarChart3, Grid, Search } from 'lucide-react';
+import { diasHastaFecha, perfilTieneAcceso } from '@/lib/usuarios';
+import { AlertTriangle, LogOut, User, Shield, FileText, BarChart3, Grid, Search } from 'lucide-react';
 
 const LOGO_URL = '/logo_cop.png';
 
@@ -15,6 +16,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string>('operador');
+  const [diasVigencia, setDiasVigencia] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -34,7 +36,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         const { data: profile } = await supabase
           .from('profiles')
-          .select('rol, activo, modulos_permitidos')
+          .select('rol, activo, estado_cuenta, vigencia_institucional_hasta, modulos_permitidos')
           .eq('id', user.id)
           .single();
 
@@ -44,7 +46,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         const esGestion = ['admin', 'administrador', 'supervisor'].includes(rolFinal);
         const tieneModulo = esGestion || profile?.modulos_permitidos?.includes('allanamientos');
-        if (!profile || profile.activo === false || !tieneModulo) {
+        if (!profile || !perfilTieneAcceso(profile) || !tieneModulo) {
           window.location.replace('/select-app');
           return;
         }
@@ -52,6 +54,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         if (isMounted) {
           setUserEmail(email);
           setUserRole(rolFinal);
+          setDiasVigencia(diasHastaFecha(profile.vigencia_institucional_hasta));
         }
       } catch (err) {
         console.error('Error al verificar sesión:', err);
@@ -197,6 +200,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           </div>
         </header>
+
+        {diasVigencia !== null && diasVigencia >= 0 && diasVigencia <= 10 && (
+          <div className="border-b border-amber-800/50 bg-amber-950/40 px-4 py-2 text-center text-xs text-amber-300">
+            <AlertTriangle className="mr-1.5 inline h-3.5 w-3.5" />
+            Tu validación institucional vence en {diasVigencia} {diasVigencia === 1 ? 'día' : 'días'}.
+            Enviá la documentación al correo institucional.
+          </div>
+        )}
 
         <main className="pt-6">{children}</main>
       </div>
