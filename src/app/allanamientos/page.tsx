@@ -37,14 +37,21 @@ function esVentanaHorariaValida(): boolean {
 }
 
 function SemaforoSuperintendencias({
-  puedeReabrir,
+  puedeGestionar,
 }: {
-  puedeReabrir: boolean;
+  puedeGestionar: boolean;
 }) {
   const [resumen, setResumen] = useState<any[]>([]);
   const [desplegado, setDesplegado] = useState(true);
   const [cargandoSupers, setCargandoSupers] = useState(true);
-  const [reabriendoId, setReabriendoId] = useState<string | null>(null);
+  const [accionGestion, setAccionGestion] = useState<{
+    tipo: 'finalizar' | 'reabrir';
+    superintendencia: any;
+  } | null>(null);
+  const [motivoGestion, setMotivoGestion] = useState('');
+  const [referenciaGestion, setReferenciaGestion] = useState('');
+  const [errorGestion, setErrorGestion] = useState<string | null>(null);
+  const [procesandoGestion, setProcesandoGestion] = useState(false);
 
   useEffect(() => {
     obtenerSuperintendencias();
@@ -68,23 +75,44 @@ function SemaforoSuperintendencias({
     }
   }
 
-  async function reabrirRendicion(superintendenciaId: string) {
-    const motivo = prompt('Motivo obligatorio de la reapertura:')?.trim();
-    if (!motivo) return;
+  function abrirGestion(tipo: 'finalizar' | 'reabrir', superintendencia: any) {
+    setMotivoGestion('');
+    setReferenciaGestion('');
+    setErrorGestion(null);
+    setAccionGestion({ tipo, superintendencia });
+  }
 
-    setReabriendoId(superintendenciaId);
-    const { error } = await supabase.rpc('reabrir_rendicion_allanamientos', {
-      p_superintendencia_id: superintendenciaId,
+  async function confirmarGestion() {
+    if (!accionGestion || !motivoGestion.trim()) {
+      setErrorGestion('El motivo es obligatorio para conservar la trazabilidad.');
+      return;
+    }
+
+    setProcesandoGestion(true);
+    setErrorGestion(null);
+
+    const parametros = {
+      p_superintendencia_id: accionGestion.superintendencia.superintendencia_id,
       p_semana_inicio: obtenerRangoSemanaRendida().inicio,
-      p_motivo: motivo,
-    });
+      p_motivo: motivoGestion.trim(),
+      p_referencia_documental: referenciaGestion.trim() || null,
+    };
+
+    const funcion = accionGestion.tipo === 'finalizar'
+      ? 'finalizar_rendicion_allanamientos_gestion'
+      : 'reabrir_rendicion_allanamientos_gestion';
+
+    const { error } = await supabase.rpc(funcion, parametros);
 
     if (error) {
-      alert(error.message || 'No se pudo reabrir la rendición.');
-    } else {
-      await obtenerSuperintendencias();
+      setErrorGestion(error.message || 'No se pudo completar la operación.');
+      setProcesandoGestion(false);
+      return;
     }
-    setReabriendoId(null);
+
+    await obtenerSuperintendencias();
+    setProcesandoGestion(false);
+    setAccionGestion(null);
   }
 
   const rangoSemana = obtenerRangoSemanaRendida();
@@ -143,7 +171,9 @@ function SemaforoSuperintendencias({
                 ? 'bg-amber-950/10 border-amber-900/30 hover:border-amber-500/40'
                 : 'bg-red-950/10 border-red-900/30 hover:border-red-500/40';
             const estadoTexto = finalizada
-              ? `Finalizada · ${cantidad} informados`
+              ? cantidad === 0
+                ? 'Finalizada · Sin novedades (0)'
+                : `Finalizada · ${cantidad} informados`
               : tieneRegistros
                 ? `${cantidad} ${cantidad === 1 ? 'registro cargado' : 'registros cargados'} · Sin finalizar`
                 : 'Pendiente de rendición';
@@ -165,14 +195,17 @@ function SemaforoSuperintendencias({
                   <p className="text-[10px] text-slate-500 mt-0.5">
                     {estadoTexto}
                   </p>
-                  {finalizada && puedeReabrir && (
+                  {puedeGestionar && (
                     <button
                       type="button"
-                      onClick={() => reabrirRendicion(sup.superintendencia_id)}
-                      disabled={reabriendoId === sup.superintendencia_id}
-                      className="mt-2 text-[10px] font-semibold text-amber-400 hover:text-amber-300 disabled:opacity-50"
+                      onClick={() => abrirGestion(finalizada ? 'reabrir' : 'finalizar', sup)}
+                      className={`mt-2 text-[10px] font-semibold disabled:opacity-50 ${
+                        finalizada
+                          ? 'text-amber-400 hover:text-amber-300'
+                          : 'text-blue-400 hover:text-blue-300'
+                      }`}
                     >
-                      {reabriendoId === sup.superintendencia_id ? 'Reabriendo...' : 'Reabrir con motivo'}
+                      {finalizada ? 'Reabrir con respaldo' : 'Finalizar por gestión'}
                     </button>
                   )}
                 </div>
@@ -181,6 +214,114 @@ function SemaforoSuperintendencias({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {accionGestion && (
+        <div className="fixed inset-0 z-[70] bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <button
+            type="button"
+            aria-label="Cerrar"
+            className="absolute inset-0"
+            onClick={() => !procesandoGestion && setAccionGestion(null)}
+          />
+
+          <div className="relative w-full max-w-lg bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden">
+            <div className="px-5 py-4 bg-slate-950/80 border-b border-slate-800 flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-bold text-white">
+                  {accionGestion.tipo === 'finalizar'
+                    ? 'Finalizar rendición por gestión'
+                    : 'Reabrir rendición'}
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                  {accionGestion.superintendencia.nombre}
+                  {' · '}{rangoSemana.inicio} al {rangoSemana.fin}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAccionGestion(null)}
+                disabled={procesandoGestion}
+                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg disabled:opacity-50"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {accionGestion.tipo === 'finalizar' && Number(accionGestion.superintendencia.cantidad_allanamientos || 0) === 0 && (
+                <div className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
+                  Esta acción registrará una presentación formal sin novedades: 0 allanamientos.
+                </div>
+              )}
+
+              {errorGestion && (
+                <div className="text-xs text-red-300 bg-red-500/10 border border-red-500/20 rounded-xl p-3">
+                  {errorGestion}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                  Motivo obligatorio
+                </label>
+                <textarea
+                  value={motivoGestion}
+                  onChange={(event) => setMotivoGestion(event.target.value)}
+                  maxLength={1000}
+                  rows={4}
+                  placeholder={accionGestion.tipo === 'finalizar'
+                    ? 'Ej.: finalización solicitada por la autoridad responsable.'
+                    : 'Ej.: corrección solicitada por la superintendencia.'}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                  Referencia documental (opcional)
+                </label>
+                <input
+                  value={referenciaGestion}
+                  onChange={(event) => setReferenciaGestion(event.target.value)}
+                  maxLength={500}
+                  placeholder="Ej.: correo institucional 22/09/2026 · asunto..."
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                />
+                <p className="text-[10px] text-slate-500 mt-1.5">
+                  No pegues el cuerpo del correo ni datos sensibles; sólo fecha, asunto o número de nota.
+                </p>
+              </div>
+            </div>
+
+            <div className="px-5 py-4 bg-slate-950/70 border-t border-slate-800 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setAccionGestion(null)}
+                disabled={procesandoGestion}
+                className="px-4 py-2 text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-xl disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarGestion}
+                disabled={procesandoGestion || !motivoGestion.trim()}
+                className={`px-4 py-2 text-xs font-semibold text-white rounded-xl disabled:opacity-50 ${
+                  accionGestion.tipo === 'finalizar'
+                    ? 'bg-emerald-600 hover:bg-emerald-500'
+                    : 'bg-amber-600 hover:bg-amber-500'
+                }`}
+              >
+                {procesandoGestion
+                  ? 'Procesando...'
+                  : accionGestion.tipo === 'finalizar'
+                    ? 'Confirmar finalización'
+                    : 'Confirmar reapertura'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -652,7 +793,11 @@ export default function DashboardPage() {
   }
 
   const finalizarRendicion = async () => {
-    if (!confirm('¿Confirmás que la superintendencia terminó de cargar la semana? Después no podrás agregar ni modificar registros.')) {
+    const mensajeConfirmacion = totalRegistros === 0
+      ? 'No hay allanamientos cargados. ¿Confirmás la presentación formal SIN NOVEDADES (0 registros)? Después no podrás agregar ni modificar registros.'
+      : `¿Confirmás que la superintendencia terminó de cargar la semana con ${totalRegistros} ${totalRegistros === 1 ? 'registro' : 'registros'}? Después no podrás agregar ni modificar registros.`;
+
+    if (!confirm(mensajeConfirmacion)) {
       return;
     }
 
@@ -933,7 +1078,7 @@ export default function DashboardPage() {
       {!esOperador && (
         <SemaforoSuperintendencias
           key={semaforoVersion}
-          puedeReabrir={esAdministradorOSupervisor}
+          puedeGestionar={esAdministradorOSupervisor}
         />
       )}
 

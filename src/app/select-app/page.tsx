@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { cambiarPasswordObligatorioAction } from '@/app/actions/usuarios';
-import { Shield, Users, FileText, ArrowRight, LogOut, User, Trophy, ShieldAlert, Bike, KeyRound, AlertTriangle } from 'lucide-react';
+import { Shield, Users, FileText, ArrowRight, LogOut, User, Trophy, ShieldAlert, Bike, KeyRound, AlertTriangle, ClipboardCheck } from 'lucide-react';
 
 const LOGO_URL = '/logo_cop.png';
 
@@ -130,6 +130,7 @@ export default function SelectAppPage() {
   };
 
   const esAdminOSupervisor = userRole === 'administrador' || userRole === 'supervisor';
+  const esAdministrador = userRole === 'administrador' || userRole === 'admin';
   const tieneAcceso = (moduloId: string) => esAdminOSupervisor || modulosPermitidos.includes(moduloId);
 
   if (loading) {
@@ -316,6 +317,31 @@ export default function SelectAppPage() {
               </div>
               <div className="mt-6 flex items-center gap-2 text-xs font-semibold text-purple-400">
                 <span>Acceder a administración</span>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </div>
+          )}
+
+          {esAdministrador && (
+            <div
+              onClick={() => router.push('/admin/auditoria')}
+              className="group relative bg-slate-900 border border-slate-800 hover:border-cyan-500/50 rounded-2xl p-6 cursor-pointer transition-all duration-300 hover:shadow-2xl hover:shadow-cyan-500/10 flex flex-col justify-between"
+            >
+              <div className="space-y-4">
+                <div className="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 group-hover:scale-110 transition-transform">
+                  <ClipboardCheck className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white group-hover:text-cyan-400 transition-colors">
+                    Centro de Auditoría
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                    Trazabilidad central de usuarios, allanamientos y decisiones sobre rendiciones.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-6 flex items-center gap-2 text-xs font-semibold text-cyan-400">
+                <span>Revisar actividad</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </div>
             </div>

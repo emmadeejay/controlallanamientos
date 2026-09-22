@@ -4,6 +4,7 @@ import { randomInt } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient as createServerClient } from '@/lib/supabase/server';
+import { registrarEventoAuditoria } from '@/lib/auditoria';
 
 type RolAplicacion =
   | 'administrador'
@@ -14,6 +15,7 @@ type RolAplicacion =
 
 type PerfilActor = {
   id: string;
+  email: string | null;
   rol: RolAplicacion;
   activo: boolean;
   superintendencia_id: string | null;
@@ -21,6 +23,8 @@ type PerfilActor = {
 
 type PerfilObjetivo = {
   id: string;
+  email: string | null;
+  nombre_completo: string | null;
   rol: string;
   activo: boolean | null;
   superintendencia_id: string | null;
@@ -152,7 +156,7 @@ async function obtenerActorAutorizado(): Promise<PerfilActor> {
   const supabaseAdmin = createAdminClient();
   const { data: perfil, error: perfilError } = await supabaseAdmin
     .from('profiles')
-    .select('id, rol, activo, superintendencia_id')
+    .select('id, email, rol, activo, superintendencia_id')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -171,6 +175,7 @@ async function obtenerActorAutorizado(): Promise<PerfilActor> {
 
   return {
     id: user.id,
+    email: perfil.email || user.email || null,
     rol,
     activo: true,
     superintendencia_id: perfil.superintendencia_id,
@@ -191,7 +196,7 @@ async function obtenerPerfilObjetivo(userId: string): Promise<PerfilObjetivo> {
   const supabaseAdmin = createAdminClient();
   const { data, error } = await supabaseAdmin
     .from('profiles')
-    .select('id, rol, activo, superintendencia_id')
+    .select('id, email, nombre_completo, rol, activo, superintendencia_id')
     .eq('id', userId)
     .maybeSingle();
 
@@ -329,6 +334,21 @@ export async function crearUsuarioAction(formData: FormData): Promise<ResultadoA
       throw profileError;
     }
 
+    await registrarEventoAuditoria(supabaseAdmin, {
+      actor,
+      modulo: 'usuarios',
+      accion: 'crear_usuario',
+      entidadTipo: 'usuario',
+      entidadId: authData.user.id,
+      superintendenciaId,
+      detalles: {
+        email,
+        nombre_completo: nombreCompleto,
+        rol,
+        modulos_permitidos: modulosPermitidos,
+      },
+    });
+
     revalidatePath('/admin/usuarios');
     return { success: true, temporaryPassword: passwordTemporal };
   } catch (error) {
@@ -374,6 +394,23 @@ export async function editarUsuarioAction(formData: FormData): Promise<Resultado
 
     if (error) throw error;
 
+    await registrarEventoAuditoria(supabaseAdmin, {
+      actor,
+      modulo: 'usuarios',
+      accion: 'editar_usuario',
+      entidadTipo: 'usuario',
+      entidadId: id,
+      superintendenciaId,
+      detalles: {
+        email: objetivo.email,
+        nombre_completo: `${nombre} ${apellido}`.trim(),
+        rol_anterior: objetivo.rol,
+        rol_nuevo: rol,
+        superintendencia_anterior: objetivo.superintendencia_id,
+        modulos_permitidos: modulosPermitidos,
+      },
+    });
+
     revalidatePath('/admin/usuarios');
     return { success: true };
   } catch (error) {
@@ -413,6 +450,20 @@ export async function toggleEstadoUsuarioAction(userId: string): Promise<Resulta
       throw profileError;
     }
 
+    await registrarEventoAuditoria(supabaseAdmin, {
+      actor,
+      modulo: 'usuarios',
+      accion: nuevoEstado ? 'activar_usuario' : 'pausar_usuario',
+      entidadTipo: 'usuario',
+      entidadId: userId,
+      superintendenciaId: objetivo.superintendencia_id,
+      detalles: {
+        email: objetivo.email,
+        nombre_completo: objetivo.nombre_completo,
+        rol: objetivo.rol,
+      },
+    });
+
     revalidatePath('/admin/usuarios');
     return { success: true, nuevoEstado };
   } catch (error) {
@@ -437,6 +488,20 @@ export async function eliminarUsuarioAction(userId: string): Promise<ResultadoAc
     const supabaseAdmin = createAdminClient();
     const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
     if (error) throw error;
+
+    await registrarEventoAuditoria(supabaseAdmin, {
+      actor,
+      modulo: 'usuarios',
+      accion: 'eliminar_usuario',
+      entidadTipo: 'usuario',
+      entidadId: userId,
+      superintendenciaId: objetivo.superintendencia_id,
+      detalles: {
+        email: objetivo.email,
+        nombre_completo: objetivo.nombre_completo,
+        rol: objetivo.rol,
+      },
+    });
 
     // profiles.id tiene FK a auth.users con ON DELETE CASCADE.
     revalidatePath('/admin/usuarios');
@@ -472,6 +537,19 @@ export async function resetearPasswordAction(
       .eq('id', userId);
 
     if (profileError) throw profileError;
+
+    await registrarEventoAuditoria(supabaseAdmin, {
+      actor,
+      modulo: 'usuarios',
+      accion: 'restablecer_password',
+      entidadTipo: 'usuario',
+      entidadId: userId,
+      superintendenciaId: objetivo.superintendencia_id,
+      detalles: {
+        email: objetivo.email,
+        requiere_cambio_clave: true,
+      },
+    });
 
     revalidatePath('/admin/usuarios');
     return { success: true };
@@ -510,6 +588,19 @@ export async function cambiarPasswordObligatorioAction(
       .eq('id', user.id);
 
     if (profileError) throw profileError;
+
+    await registrarEventoAuditoria(supabaseAdmin, {
+      actor: {
+        id: user.id,
+        email: user.email || null,
+        rol: 'usuario',
+      },
+      modulo: 'seguridad',
+      accion: 'cambiar_password_obligatorio',
+      entidadTipo: 'usuario',
+      entidadId: user.id,
+      detalles: { requiere_cambio_clave: false },
+    });
 
     revalidatePath('/select-app');
     return { success: true };
