@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { obtenerRangoSemanaRendida } from '@/lib/allanamientos';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid 
 } from 'recharts';
@@ -29,119 +30,16 @@ type DesglosePersonas = {
 
 const ROLES_PERMITIDOS = ['AUDITOR', 'CONSULTA', 'ADMINISTRADOR', 'SUPERVISOR'];
 
-function parseFechaLocal(fechaStr: any): Date {
-  if (!fechaStr) return new Date(0);
-  if (fechaStr instanceof Date) return fechaStr;
-
-  const str = String(fechaStr).replace('Z', '').split('.')[0];
-  const partes = str.split('T');
-  const fechaPartes = partes[0].split('-');
-
-  if (fechaPartes.length === 3) {
-    const anio = parseInt(fechaPartes[0], 10);
-    const mes = parseInt(fechaPartes[1], 10) - 1;
-    const dia = parseInt(fechaPartes[2], 10);
-
-    let hora = 0, min = 0, seg = 0;
-    if (partes[1]) {
-      const horaPartes = partes[1].split(':');
-      hora = parseInt(horaPartes[0] || '0', 10);
-      min = parseInt(horaPartes[1] || '0', 10);
-      seg = parseInt(horaPartes[2] || '0', 10);
-    }
-    return new Date(anio, mes, dia, hora, min, seg);
-  }
-
-  return new Date(fechaStr);
-}
-
-function getRangoSemanaActual() {
-  const ahora = new Date();
-  const diaSemana = ahora.getDay();
-  const diffLunes = diaSemana === 0 ? -6 : 1 - diaSemana;
-
-  const inicio = new Date(ahora);
-  inicio.setDate(ahora.getDate() + diffLunes);
-  inicio.setHours(0, 0, 0, 0);
-
-  const fin = new Date(inicio);
-  fin.setDate(fin.getDate() + 6);
-  fin.setHours(23, 59, 59, 999);
-
-  return { inicio, fin };
-}
-
-function getRangoMesActual() {
-  const ahora = new Date();
-  const inicio = new Date(ahora.getFullYear(), ahora.getMonth(), 1, 0, 0, 0);
-  const fin = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0, 23, 59, 59);
-  return { inicio, fin };
-}
-
-function procesarDetallesExhaustivo(registros: any[], campoJson: string) {
-  const conteo: Record<string, number> = {
-    'Arma Corta': 0, 'Arma Larga': 0, 'Arma Blanca': 0, 'Réplica': 0,
-    'Auto': 0, 'Moto': 0, 'Camioneta': 0, 'Otros': 0,
-    'Detenido': 0, 'Aprehendido': 0
-  };
-
-  registros.forEach(item => {
-    let contenido = item[campoJson];
-    if (!contenido) return;
-
-    if (typeof contenido === 'string') {
-      try { 
-        contenido = JSON.parse(contenido); 
-      } catch { 
-        const valNum = parseInt(contenido, 10);
-        if (!isNaN(valNum) && valNum > 0) contenido = valNum;
-      }
-    }
-
-    if (typeof contenido === 'number' && contenido > 0) {
-      if (campoJson === 'detenidos_aprehendidos') {
-        conteo['Detenido'] += contenido;
-      }
-      return;
-    }
-
-    if (Array.isArray(contenido)) {
-      contenido.forEach((element: any) => {
-        if (!element) return;
-
-        const tipoStr = (
-          element.subtipo || 
-          element.tipo || 
-          element.categoria || 
-          (typeof element === 'string' ? element : '')
-        ).toLowerCase();
-
-        const cant = parseInt(element.cantidad || element.cant || 1, 10) || 1;
-
-        if (tipoStr.includes('corta')) conteo['Arma Corta'] += cant;
-        else if (tipoStr.includes('larga')) conteo['Arma Larga'] += cant;
-        else if (tipoStr.includes('blanca')) conteo['Arma Blanca'] += cant;
-        else if (tipoStr.includes('replica') || tipoStr.includes('réplica')) conteo['Réplica'] += cant;
-        else if (tipoStr.includes('auto') || tipoStr.includes('vehiculo')) conteo['Auto'] += cant;
-        else if (tipoStr.includes('moto')) conteo['Moto'] += cant;
-        else if (tipoStr.includes('camion')) conteo['Camioneta'] += cant;
-        else if (tipoStr.includes('detenido')) conteo['Detenido'] += cant;
-        else if (tipoStr.includes('aprehendido')) conteo['Aprehendido'] += cant;
-        else if (campoJson === 'secuestro_vehiculos' && tipoStr) conteo['Otros'] += cant;
-      });
-    }
-  });
-
-  return conteo;
-}
+const supabase = createClient();
 
 export default function MetricasPage() {
   const router = useRouter();
-  const supabase = createClient();
-  
   const [loading, setLoading] = useState(true);
   const [autorizado, setAutorizado] = useState<boolean | null>(null);
   const [ultimaActualizacion, setUltimaActualizacion] = useState<string>('');
+  const [errorCarga, setErrorCarga] = useState('');
+  const [semanaDesde, setSemanaDesde] = useState('');
+  const [semanaHasta, setSemanaHasta] = useState('');
   
   const [rendicionSemanal, setRendicionSemanal] = useState(0);
   const [totalMensual, setTotalMensual] = useState(0);
@@ -172,7 +70,6 @@ export default function MetricasPage() {
 
   useEffect(() => {
     async function verificarPermisos() {
-      // Se eliminó la lectura de localStorage[cite: 8]. Ahora se consulta la sesión real almacenada en cookies.
       const { data: { user }, error } = await supabase.auth.getUser();
       
       if (error || !user) {
@@ -181,7 +78,6 @@ export default function MetricasPage() {
         return;
       }
 
-      // Validamos contra la tabla profiles para mayor seguridad
       const { data: perfil } = await supabase
         .from('profiles')
         .select('rol')
@@ -193,186 +89,98 @@ export default function MetricasPage() {
     }
 
     verificarPermisos();
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
     if (!autorizado) return;
 
-    cargarMetricas();
+    void cargarMetricas();
 
-    const intervalId = setInterval(() => {
-      cargarMetricas();
-    }, 5000);
+    let temporizador: ReturnType<typeof setTimeout> | undefined;
+    const solicitarActualizacion = () => {
+      if (temporizador) clearTimeout(temporizador);
+      temporizador = setTimeout(() => void cargarMetricas(), 1200);
+    };
+
+    const intervalId = setInterval(() => void cargarMetricas(), 60000);
 
     const canalRealtime = supabase
-      .channel('schema-db-changes')
+      .channel('metricas-allanamientos')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public' },
-        () => {
-          cargarMetricas();
-        }
+        { event: '*', schema: 'public', table: 'allanamientos' },
+        solicitarActualizacion,
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'allanamiento_colaboraciones' },
+        solicitarActualizacion,
       )
       .subscribe();
 
     return () => {
       clearInterval(intervalId);
+      if (temporizador) clearTimeout(temporizador);
       supabase.removeChannel(canalRealtime);
     };
-  }, [autorizado, supabase]);
+  }, [autorizado]);
 
   async function cargarMetricas() {
     try {
-      const { data, error } = await supabase
-        .from('allanamientos')
-        .select('*, superintendencias(nombre)');
+      const { inicio } = obtenerRangoSemanaRendida();
+      const { data, error } = await supabase.rpc('metricas_allanamientos_semana', {
+        p_semana_inicio: inicio,
+      });
 
       if (error) {
-        console.error('Error al traer allanamientos:', error);
-        return;
+        throw error;
       }
 
-      if (!data || data.length === 0) {
-        setLoading(false);
-        return;
-      }
+      const metricas = (data ?? {}) as Record<string, any>;
+      setErrorCarga('');
+      setSemanaDesde(String(metricas.semana_desde ?? inicio));
+      setSemanaHasta(String(metricas.semana_hasta ?? ''));
+      setRendicionSemanal(Number(metricas.rendicion_semanal) || 0);
+      setTotalMensual(Number(metricas.total_mensual) || 0);
+      setEfectividad(Number(metricas.efectividad) || 0);
+      setArmasSemana(Number(metricas.armas_semana) || 0);
+      setVehiculosSemana(Number(metricas.vehiculos_semana) || 0);
+      setDetenidosSemana(Number(metricas.personas_semana) || 0);
+      setArmasMes(Number(metricas.armas_mes) || 0);
+      setVehiculosMes(Number(metricas.vehiculos_mes) || 0);
+      setDetenidosMes(Number(metricas.personas_mes) || 0);
 
-      let colaboracionesData: any[] = [];
-      try {
-        const { data: colabs } = await supabase.from('allanamiento_colaboraciones').select('*');
-        if (colabs) colaboracionesData = colabs;
-      } catch (e) {
-        console.warn('Sin acceso a allanamiento_colaboraciones:', e);
-      }
-
-      const { inicio: inicioSemana, fin: finSemana } = getRangoSemanaActual();
-      const { inicio: inicioMes, fin: finMes } = getRangoMesActual();
-
-      const registrosSemana = data.filter(item => {
-        const f = parseFechaLocal(item.fecha_ejecucion || item.fecha || item.created_at);
-        return f >= inicioSemana && f <= finSemana;
-      });
-
-      const registrosMes = data.filter(item => {
-        const f = parseFechaLocal(item.fecha_ejecucion || item.fecha || item.created_at);
-        return f >= inicioMes && f <= finMes;
-      });
-
-      setRendicionSemanal(registrosSemana.length);
-      setTotalMensual(registrosMes.length);
-
-      const positivosSemana = registrosSemana.filter(
-        i => (i.resultado_medida || i.resultado || '').toLowerCase() === 'positivo'
-      ).length;
-      setEfectividad(registrosSemana.length > 0 ? Math.round((positivosSemana / registrosSemana.length) * 100) : 100);
-
-      const armasConteoMes = procesarDetallesExhaustivo(registrosMes, 'secuestro_armas');
-      const vehiculosConteoMes = procesarDetallesExhaustivo(registrosMes, 'secuestro_vehiculos');
-      const personasConteoMes = procesarDetallesExhaustivo(registrosMes, 'detenidos_aprehendidos');
-
-      const armasConteoSem = procesarDetallesExhaustivo(registrosSemana, 'secuestro_armas');
-      const vehiculosConteoSem = procesarDetallesExhaustivo(registrosSemana, 'secuestro_vehiculos');
-      const personasConteoSem = procesarDetallesExhaustivo(registrosSemana, 'detenidos_aprehendidos');
+      const armas = metricas.desglose_armas ?? {};
+      const vehiculos = metricas.desglose_vehiculos ?? {};
+      const personas = metricas.desglose_personas ?? {};
 
       setDesgloseArmas({
-        'Arma Corta': armasConteoMes['Arma Corta'] || 0,
-        'Arma Larga': armasConteoMes['Arma Larga'] || 0,
-        'Arma Blanca': armasConteoMes['Arma Blanca'] || 0,
-        'Réplica': armasConteoMes['Réplica'] || 0,
+        'Arma Corta': Number(armas['Arma Corta']) || 0,
+        'Arma Larga': Number(armas['Arma Larga']) || 0,
+        'Arma Blanca': Number(armas['Arma Blanca']) || 0,
+        'Réplica': Number(armas['Réplica']) || 0,
       });
 
       setDesgloseVehiculos({
-        'Auto': vehiculosConteoMes['Auto'] || 0,
-        'Moto': vehiculosConteoMes['Moto'] || 0,
-        'Camioneta': vehiculosConteoMes['Camioneta'] || 0,
-        'Otros': vehiculosConteoMes['Otros'] || 0,
+        'Auto': Number(vehiculos.Auto) || 0,
+        'Moto': Number(vehiculos.Moto) || 0,
+        'Camioneta': Number(vehiculos.Camioneta) || 0,
+        'Otros': Number(vehiculos.Otros) || 0,
       });
 
       setDesglosePersonas({
-        'Detenido': personasConteoMes['Detenido'] || 0,
-        'Aprehendido': personasConteoMes['Aprehendido'] || 0,
+        'Detenido': Number(personas.Detenido) || 0,
+        'Aprehendido': Number(personas.Aprehendido) || 0,
       });
-
-      const parseNum = (val: any) => { const n = parseInt(val, 10); return isNaN(n) ? 0 : n; };
-
-      setArmasSemana(registrosSemana.reduce((acc, curr) => acc + parseNum(curr.armas_secuestradas), 0) || Object.values(armasConteoSem).reduce((a, b) => a + b, 0));
-      setVehiculosSemana(registrosSemana.reduce((acc, curr) => acc + parseNum(curr.vehiculos_secuestrados), 0) || Object.values(vehiculosConteoSem).reduce((a, b) => a + b, 0));
-      setDetenidosSemana(registrosSemana.reduce((acc, curr) => acc + parseNum(curr.detenidos_aprehendidos_cant), 0) || Object.values(personasConteoSem).reduce((a, b) => a + b, 0));
-
-      setArmasMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.armas_secuestradas), 0) || Object.values(armasConteoMes).reduce((a, b) => a + b, 0));
-      setVehiculosMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.vehiculos_secuestrados), 0) || Object.values(vehiculosConteoMes).reduce((a, b) => a + b, 0));
-      setDetenidosMes(registrosMes.reduce((acc, curr) => acc + parseNum(curr.detenidos_aprehendidos_cant), 0) || Object.values(personasConteoMes).reduce((a, b) => a + b, 0));
-
-      const semanas = [0, 1, 2, 3].map(offset => {
-        const inicio = new Date(inicioSemana);
-        inicio.setDate(inicio.getDate() - (offset * 7));
-        const fin = new Date(inicio);
-        fin.setDate(fin.getDate() + 6);
-        fin.setHours(23, 59, 59, 999);
-        
-        const count = data.filter(item => {
-          const f = parseFechaLocal(item.fecha_ejecucion || item.fecha || item.created_at);
-          return f >= inicio && f <= fin;
-        }).length;
-
-        const label = offset === 0 ? 'Sem Actual' : `Sem -${offset}`;
-        return { name: label, total: count };
-      }).reverse();
-
-      setDatosEvolucion(semanas);
-
-      const conteoPartidos: Record<string, number> = {};
-      data.forEach(item => {
-        const p = item.partido || 'Sin Especificar';
-        conteoPartidos[p] = (conteoPartidos[p] || 0) + 1;
-      });
-
-      setDatosPartidos(
-        Object.entries(conteoPartidos)
-          .map(([name, total]) => ({ name, total }))
-          .sort((a, b) => b.total - a.total)
-          .slice(0, 5)
-      );
-
-      const conteoSupers: Record<string, number> = {};
-      data.forEach(item => {
-        const s = item.superintendencias?.nombre || item.superintendencia_nombre || 'Sin Especificar';
-        conteoSupers[s] = (conteoSupers[s] || 0) + 1;
-      });
-
-      setDatosSuperintendencias(
-        Object.entries(conteoSupers)
-          .map(([name, total]) => ({ name, total }))
-          .sort((a, b) => b.total - a.total)
-      );
-
-      const conteoEspecialidades: Record<string, number> = {};
-      if (colaboracionesData.length > 0) {
-        colaboracionesData.forEach((c: any) => {
-          const esp = c.especialidad || 'Sin Especificar';
-          conteoEspecialidades[esp] = (conteoEspecialidades[esp] || 0) + 1;
-        });
-      } else {
-        data.forEach(item => {
-          if (item.personal_colaboracion) {
-            conteoEspecialidades[item.personal_colaboracion] = (conteoEspecialidades[item.personal_colaboracion] || 0) + 1;
-          } else {
-            conteoEspecialidades['No se Solicitó'] = (conteoEspecialidades['No se Solicitó'] || 0) + 1;
-          }
-        });
-      }
-
-      setDatosEspecialidades(
-        Object.entries(conteoEspecialidades)
-          .map(([name, total]) => ({ name, total }))
-          .sort((a, b) => b.total - a.total)
-          .slice(0, 5)
-      );
+      setDatosEvolucion(Array.isArray(metricas.evolucion) ? metricas.evolucion : []);
+      setDatosPartidos(Array.isArray(metricas.partidos) ? metricas.partidos : []);
+      setDatosSuperintendencias(Array.isArray(metricas.superintendencias) ? metricas.superintendencias : []);
+      setDatosEspecialidades(Array.isArray(metricas.especialidades) ? metricas.especialidades : []);
 
       setUltimaActualizacion(new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-
     } catch (err) {
       console.error('Error cargando métricas:', err);
+      setErrorCarga('No se pudieron actualizar los indicadores. Verificá que la Fase 02.1 esté aplicada en Supabase.');
     } finally {
       setLoading(false);
     }
@@ -422,6 +230,12 @@ export default function MetricasPage() {
         </div>
       </div>
 
+      {errorCarga && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-300">
+          {errorCarga}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
           <div className="flex items-center justify-between text-slate-400 mb-2">
@@ -429,7 +243,7 @@ export default function MetricasPage() {
             <Calendar className="w-4 h-4 text-blue-400" />
           </div>
           <div className="text-3xl font-extrabold text-white">{rendicionSemanal}</div>
-          <p className="text-[10px] text-slate-500 mt-1">Lunes a Domingo en curso</p>
+          <p className="text-[10px] text-slate-500 mt-1">Semana informada: {semanaDesde} al {semanaHasta}</p>
         </div>
 
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
@@ -459,7 +273,7 @@ export default function MetricasPage() {
               <ShieldAlert className="w-4 h-4 text-red-400" />
             </div>
             <div className="text-3xl font-extrabold text-white">{armasSemana}</div>
-            <p className="text-[10px] text-slate-500 mt-1">Esta semana ({armasMes} en el mes)</p>
+            <p className="text-[10px] text-slate-500 mt-1">Semana informada ({armasMes} en el mes)</p>
           </div>
 
           <div className="grid grid-cols-2 gap-1.5 pt-3 mt-3 border-t border-slate-800/80 text-[11px]">
@@ -477,7 +291,7 @@ export default function MetricasPage() {
               <Car className="w-4 h-4 text-cyan-400" />
             </div>
             <div className="text-3xl font-extrabold text-white">{vehiculosSemana}</div>
-            <p className="text-[10px] text-slate-500 mt-1">Esta semana ({vehiculosMes} en el mes)</p>
+            <p className="text-[10px] text-slate-500 mt-1">Semana informada ({vehiculosMes} en el mes)</p>
           </div>
 
           <div className="grid grid-cols-2 gap-1.5 pt-3 mt-3 border-t border-slate-800/80 text-[11px]">
@@ -495,7 +309,7 @@ export default function MetricasPage() {
               <UserCheck className="w-4 h-4 text-purple-400" />
             </div>
             <div className="text-3xl font-extrabold text-white">{detenidosSemana}</div>
-            <p className="text-[10px] text-slate-500 mt-1">Esta semana ({detenidosMes} en el mes)</p>
+            <p className="text-[10px] text-slate-500 mt-1">Semana informada ({detenidosMes} en el mes)</p>
           </div>
 
           <div className="grid grid-cols-2 gap-1.5 pt-3 mt-3 border-t border-slate-800/80 text-[11px]">
@@ -525,7 +339,7 @@ export default function MetricasPage() {
 
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
           <h3 className="text-xs font-bold text-white mb-4 flex items-center gap-2">
-            <Shield className="w-4 h-4 text-emerald-400" /> Top 5 Partidos con Mayor Registros
+            <Shield className="w-4 h-4 text-emerald-400" /> Top 5 Partidos con más registros · Semana informada
           </h3>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -542,7 +356,7 @@ export default function MetricasPage() {
 
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
           <h3 className="text-xs font-bold text-white mb-4 flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-cyan-400" /> Distribución Operativa por Superintendencias
+            <ShieldCheck className="w-4 h-4 text-cyan-400" /> Distribución por Superintendencias · Semana informada
           </h3>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -559,7 +373,7 @@ export default function MetricasPage() {
 
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
           <h3 className="text-xs font-bold text-white mb-4 flex items-center gap-2">
-            <UserCheck className="w-4 h-4 text-purple-400" /> Top 5 de Especialidades / Colaboradores
+            <UserCheck className="w-4 h-4 text-purple-400" /> Top 5 de Especialidades · Personal afectado
           </h3>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">

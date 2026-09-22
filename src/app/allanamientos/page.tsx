@@ -37,14 +37,11 @@ function esVentanaHorariaValida(): boolean {
 }
 
 function SemaforoSuperintendencias({
-  allanamientos,
   puedeReabrir,
 }: {
-  allanamientos: any[];
   puedeReabrir: boolean;
 }) {
-  const [superintendencias, setSuperintendencias] = useState<any[]>([]);
-  const [rendiciones, setRendiciones] = useState<any[]>([]);
+  const [resumen, setResumen] = useState<any[]>([]);
   const [desplegado, setDesplegado] = useState(true);
   const [cargandoSupers, setCargandoSupers] = useState(true);
   const [reabriendoId, setReabriendoId] = useState<string | null>(null);
@@ -56,24 +53,14 @@ function SemaforoSuperintendencias({
   async function obtenerSuperintendencias() {
     try {
       const { inicio } = obtenerRangoSemanaRendida();
-      const [supersResultado, rendicionesResultado] = await Promise.all([
-        supabase
-          .from('superintendencias')
-          .select('id, nombre, activa')
-          .eq('activa', true)
-          .order('nombre'),
-        supabase
-          .from('rendiciones_allanamientos')
-          .select('superintendencia_id, estado, cantidad_allanamientos')
-          .eq('semana_inicio', inicio),
-      ]);
-        
-      if (!supersResultado.error && supersResultado.data) {
-        setSuperintendencias(supersResultado.data);
+      const { data, error } = await supabase.rpc('resumen_presentacion_allanamientos', {
+        p_semana_inicio: inicio,
+      });
+
+      if (error) {
+        throw error;
       }
-      if (!rendicionesResultado.error && rendicionesResultado.data) {
-        setRendiciones(rendicionesResultado.data);
-      }
+      setResumen(data ?? []);
     } catch (err) {
       console.error('Error al cargar superintendencias:', err);
     } finally {
@@ -101,20 +88,9 @@ function SemaforoSuperintendencias({
   }
 
   const rangoSemana = obtenerRangoSemanaRendida();
-
-  const conteoPorSuper = allanamientos
-    .filter(item => item.fecha_ejecucion >= rangoSemana.inicio && item.fecha_ejecucion <= rangoSemana.fin)
-    .reduce((acc: Record<string, number>, item) => {
-      if (item.superintendencia_id) {
-        acc[item.superintendencia_id] = (acc[item.superintendencia_id] || 0) + 1;
-      }
-      return acc;
-    }, {});
-
-  const rendicionPorSuper = new Map(rendiciones.map((rendicion) => [rendicion.superintendencia_id, rendicion]));
-  const finalizadas = superintendencias.filter((s) => ['finalizado', 'bloqueado'].includes(rendicionPorSuper.get(s.id)?.estado)).length;
-  const enCarga = superintendencias.filter((s) => !rendicionPorSuper.has(s.id) && (conteoPorSuper[s.id] || 0) > 0).length;
-  const pendientes = superintendencias.length - finalizadas - enCarga;
+  const finalizadas = resumen.filter((s) => ['finalizado', 'bloqueado'].includes(s.estado)).length;
+  const enCarga = resumen.filter((s) => s.estado === 'en_tramite').length;
+  const pendientes = resumen.length - finalizadas - enCarga;
 
   if (cargandoSupers) return null;
 
@@ -156,11 +132,10 @@ function SemaforoSuperintendencias({
       </div>
 
       {desplegado && (
-        <div className="p-5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-96 overflow-y-auto custom-scrollbar">
-          {superintendencias.map((sup) => {
-            const cantidad = conteoPorSuper[sup.id] || 0;
-            const rendicion = rendicionPorSuper.get(sup.id);
-            const finalizada = ['finalizado', 'bloqueado'].includes(rendicion?.estado);
+        <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[32rem] overflow-y-auto custom-scrollbar">
+          {resumen.map((sup) => {
+            const cantidad = Number(sup.cantidad_allanamientos) || 0;
+            const finalizada = ['finalizado', 'bloqueado'].includes(sup.estado);
             const tieneRegistros = cantidad > 0;
             const estadoClase = finalizada
               ? 'bg-slate-950/40 border-slate-800/80 hover:border-emerald-500/30'
@@ -168,7 +143,7 @@ function SemaforoSuperintendencias({
                 ? 'bg-amber-950/10 border-amber-900/30 hover:border-amber-500/40'
                 : 'bg-red-950/10 border-red-900/30 hover:border-red-500/40';
             const estadoTexto = finalizada
-              ? `Finalizada · ${rendicion?.cantidad_allanamientos ?? cantidad} informados`
+              ? `Finalizada · ${cantidad} informados`
               : tieneRegistros
                 ? `${cantidad} ${cantidad === 1 ? 'registro cargado' : 'registros cargados'} · Sin finalizar`
                 : 'Pendiente de rendición';
@@ -180,11 +155,11 @@ function SemaforoSuperintendencias({
 
             return (
               <div 
-                key={sup.id}
-                className={`p-3 rounded-xl border flex items-center justify-between gap-2 transition-all ${estadoClase}`}
+                key={sup.superintendencia_id}
+                className={`p-3 rounded-xl border flex items-start justify-between gap-3 min-h-24 transition-all ${estadoClase}`}
               >
                 <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-semibold text-slate-200 truncate" title={sup.nombre}>
+                  <p className="text-[11px] font-semibold text-slate-200 whitespace-normal break-words leading-snug" title={sup.nombre}>
                     {sup.nombre}
                   </p>
                   <p className="text-[10px] text-slate-500 mt-0.5">
@@ -193,11 +168,11 @@ function SemaforoSuperintendencias({
                   {finalizada && puedeReabrir && (
                     <button
                       type="button"
-                      onClick={() => reabrirRendicion(sup.id)}
-                      disabled={reabriendoId === sup.id}
+                      onClick={() => reabrirRendicion(sup.superintendencia_id)}
+                      disabled={reabriendoId === sup.superintendencia_id}
                       className="mt-2 text-[10px] font-semibold text-amber-400 hover:text-amber-300 disabled:opacity-50"
                     >
-                      {reabriendoId === sup.id ? 'Reabriendo...' : 'Reabrir con motivo'}
+                      {reabriendoId === sup.superintendencia_id ? 'Reabriendo...' : 'Reabrir con motivo'}
                     </button>
                   )}
                 </div>
@@ -306,6 +281,34 @@ function ModalVistaPrevia({ item, onClose, puedeEditar, onEdit }: { item: any; o
             </div>
           </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <DetalleGrupo
+              titulo="Detalle de armas"
+              items={[
+                ['Arma corta', valores.corta],
+                ['Arma larga', valores.larga],
+                ['Arma blanca', valores.blanca],
+                ['Réplica', valores.replica],
+              ]}
+            />
+            <DetalleGrupo
+              titulo="Detalle de vehículos"
+              items={[
+                ['Auto', valores.autos],
+                ['Moto', valores.motos],
+                ['Camioneta', valores.camionetas],
+                ['Otros', valores.otrosVeh],
+              ]}
+            />
+            <DetalleGrupo
+              titulo="Detalle de personas"
+              items={[
+                ['Detenidos', valores.detenidos],
+                ['Aprehendidos', valores.aprehendidos],
+              ]}
+            />
+          </div>
+
           {item.observaciones && (
             <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/60">
               <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Observaciones / Notas</p>
@@ -332,6 +335,28 @@ function ModalVistaPrevia({ item, onClose, puedeEditar, onEdit }: { item: any; o
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function DetalleGrupo({ titulo, items }: { titulo: string; items: Array<[string, number]> }) {
+  const visibles = items.filter(([, cantidad]) => cantidad > 0);
+
+  return (
+    <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/60">
+      <p className="text-[10px] font-bold text-slate-500 uppercase mb-2">{titulo}</p>
+      {visibles.length === 0 ? (
+        <p className="text-[10px] text-slate-600">Sin elementos informados</p>
+      ) : (
+        <div className="space-y-1.5">
+          {visibles.map(([nombre, cantidad]) => (
+            <div key={nombre} className="flex items-center justify-between gap-2 text-[11px]">
+              <span className="text-slate-400">{nombre}</span>
+              <span className="font-bold text-white bg-slate-800 px-2 py-0.5 rounded-md">{cantidad}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -483,12 +508,15 @@ export default function DashboardPage() {
   const [puedeEditar, setPuedeEditar] = useState(false);
   const [esAdministradorOSupervisor, setEsAdministradorOSupervisor] = useState(false);
   const [rolUsuario, setRolUsuario] = useState('');
+  const [usuarioId, setUsuarioId] = useState('');
   const [rendicionActual, setRendicionActual] = useState<any | null>(null);
   const [finalizando, setFinalizando] = useState(false);
   const [itemSeleccionado, setItemSeleccionado] = useState<any | null>(null);
 
   const [paginaActual, setPaginaActual] = useState(1);
   const [registrosPorPagina, setRegistrosPorPagina] = useState(10);
+  const [totalRegistros, setTotalRegistros] = useState(0);
+  const [semaforoVersion, setSemaforoVersion] = useState(0);
 
   useEffect(() => {
     checkPeriodoYUsuario();
@@ -531,6 +559,7 @@ export default function DashboardPage() {
 
       setEsAdministradorOSupervisor(esElevado);
       setRolUsuario(rolNormalizadoCompatible);
+      setUsuarioId(session.user.id);
       setRendicionActual(null);
 
       let rendicion: any | null = null;
@@ -549,7 +578,8 @@ export default function DashboardPage() {
 
       const rendicionCerrada = ['finalizado', 'bloqueado'].includes(rendicion?.estado);
       setPuedeEditar(esElevado || (rolNormalizadoCompatible === 'operador' && estaEnVentana && !rendicionCerrada));
-      await fetchData(rolNormalizadoCompatible, session.user.id);
+      setPaginaActual(1);
+      await fetchData(rolNormalizadoCompatible, session.user.id, 1, registrosPorPagina, '');
     } catch (err) {
       console.error('Error al verificar permisos:', err);
       setAllanamientos([]);
@@ -558,24 +588,67 @@ export default function DashboardPage() {
     }
   }
 
-  async function fetchData(rol: string, userId?: string) {
+  async function fetchData(
+    rol: string,
+    userId: string,
+    pagina = paginaActual,
+    porPagina = registrosPorPagina,
+    termino = busqueda,
+  ) {
+    setLoading(true);
+    const { inicio, fin } = obtenerRangoSemanaRendida();
+    const desde = (pagina - 1) * porPagina;
+    const hasta = desde + porPagina - 1;
+
     let query = supabase
       .from('allanamientos')
-      .select('*, superintendencias(nombre)')
-      .order('created_at', { ascending: false });
+      .select('*, superintendencias(nombre)', { count: 'exact' })
+      .gte('fecha_ejecucion', inicio)
+      .lte('fecha_ejecucion', fin)
+      .order('fecha_ejecucion', { ascending: false })
+      .order('created_at', { ascending: false })
+      .range(desde, hasta);
 
-    if (rol === 'operador' && userId) {
-      const { inicio, fin } = obtenerRangoSemanaRendida();
-      query = query
-        .eq('operador_id', userId)
-        .gte('fecha_ejecucion', inicio)
-        .lte('fecha_ejecucion', fin);
+    if (rol === 'operador') {
+      query = query.eq('operador_id', userId);
     }
 
-    const { data, error } = await query;
-    if (!error && data) {
-      setAllanamientos(data);
+    const terminoSeguro = termino.trim().replace(/[(),]/g, ' ');
+    if (terminoSeguro) {
+      query = query.or(
+        `numero_ipp.ilike.%${terminoSeguro}%,caratula.ilike.%${terminoSeguro}%,partido.ilike.%${terminoSeguro}%,dependencia.ilike.%${terminoSeguro}%`,
+      );
     }
+
+    const { data, error, count } = await query;
+    if (error) {
+      console.error('Error al cargar la semana informada:', error);
+      setAllanamientos([]);
+      setTotalRegistros(0);
+    } else {
+      setAllanamientos(data ?? []);
+      setTotalRegistros(count ?? 0);
+    }
+    setLoading(false);
+  }
+
+  async function ejecutarBusqueda() {
+    if (!usuarioId || !rolUsuario) return;
+    setPaginaActual(1);
+    await fetchData(rolUsuario, usuarioId, 1, registrosPorPagina, busqueda);
+  }
+
+  async function cambiarPagina(nuevaPagina: number) {
+    if (!usuarioId || nuevaPagina < 1) return;
+    setPaginaActual(nuevaPagina);
+    await fetchData(rolUsuario, usuarioId, nuevaPagina, registrosPorPagina, busqueda);
+  }
+
+  async function cambiarCantidadPorPagina(cantidad: number) {
+    if (!usuarioId) return;
+    setRegistrosPorPagina(cantidad);
+    setPaginaActual(1);
+    await fetchData(rolUsuario, usuarioId, 1, cantidad, busqueda);
   }
 
   const finalizarRendicion = async () => {
@@ -606,8 +679,11 @@ export default function DashboardPage() {
 
     const { error } = await supabase.from('allanamientos').delete().eq('id', id);
     if (!error) {
-      setAllanamientos(prev => prev.filter(item => item.id !== id));
       if (itemSeleccionado?.id === id) setItemSeleccionado(null);
+      const paginaDestino = allanamientos.length === 1 && paginaActual > 1 ? paginaActual - 1 : paginaActual;
+      setPaginaActual(paginaDestino);
+      await fetchData(rolUsuario, usuarioId, paginaDestino, registrosPorPagina, busqueda);
+      setSemaforoVersion((version) => version + 1);
     } else {
       alert('Error al intentar eliminar el registro.');
     }
@@ -618,24 +694,12 @@ export default function DashboardPage() {
     router.push(`/allanamientos/editar/${id}`);
   };
 
-  const filtrados = allanamientos.filter(item =>
-    item.numero_ipp?.toLowerCase().includes(busqueda.toLowerCase()) ||
-    item.caratula?.toLowerCase().includes(busqueda.toLowerCase()) ||
-    item.partido?.toLowerCase().includes(busqueda.toLowerCase()) ||
-    item.superintendencias?.nombre?.toLowerCase().includes(busqueda.toLowerCase())
-  );
-
   const esOperador = rolUsuario === 'operador';
   const rangoSemanaRendida = obtenerRangoSemanaRendida();
   const rendicionCerrada = ['finalizado', 'bloqueado'].includes(rendicionActual?.estado);
 
-  const totalPaginas = Math.ceil(filtrados.length / registrosPorPagina);
+  const totalPaginas = Math.ceil(totalRegistros / registrosPorPagina);
   const indiceInicio = (paginaActual - 1) * registrosPorPagina;
-  const registrosPaginados = filtrados.slice(indiceInicio, indiceInicio + registrosPorPagina);
-
-  useEffect(() => {
-    setPaginaActual(1);
-  }, [busqueda, registrosPorPagina]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 space-y-6">
@@ -647,9 +711,8 @@ export default function DashboardPage() {
             {esOperador ? 'Rendición semanal de Allanamientos' : 'Control de Allanamientos'}
           </h1>
           <p className="text-xs text-slate-400">
-            {esOperador
-              ? `Período informado: ${rangoSemanaRendida.inicio} al ${rangoSemanaRendida.fin}`
-              : 'Haz clic en cualquier registro para ver su detalle rápido'}
+            Período informado: {rangoSemanaRendida.inicio} al {rangoSemanaRendida.fin}
+            {!esOperador && ' · El historial se consulta desde Buscar'}
           </p>
         </div>
 
@@ -690,15 +753,28 @@ export default function DashboardPage() {
 
       {/* 2. BUSCADOR Y TABLA */}
       <div className="space-y-4">
-        {!esOperador && <div className="relative">
-          <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-500" />
-          <input
-            type="text"
-            placeholder="Buscar por IPP, Carátula, Partido o Superintendencia..."
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-          />
+        {!esOperador && <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-500" />
+            <input
+              type="text"
+              placeholder="Buscar en la semana por IPP, carátula, partido o dependencia..."
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') ejecutarBusqueda();
+              }}
+              className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={ejecutarBusqueda}
+            disabled={loading}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl text-xs font-semibold transition"
+          >
+            Buscar
+          </button>
         </div>}
 
         {!rendicionCerrada && <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow-xl backdrop-blur-md">
@@ -721,14 +797,14 @@ export default function DashboardPage() {
                       Cargando registros...
                     </td>
                   </tr>
-                ) : registrosPaginados.length === 0 ? (
+                ) : allanamientos.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-8 text-center text-slate-500">
                       No se encontraron allanamientos.
                     </td>
                   </tr>
                 ) : (
-                  registrosPaginados.map((item) => (
+                  allanamientos.map((item) => (
                     <tr 
                       key={item.id} 
                       onClick={() => setItemSeleccionado(item)}
@@ -796,20 +872,20 @@ export default function DashboardPage() {
             </table>
           </div>
 
-          {!loading && filtrados.length > 0 && (
+          {!loading && totalRegistros > 0 && (
             <div className="px-4 py-3 bg-slate-950/80 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
               <div className="flex items-center gap-3">
                 <div>
                   Mostrando <span className="font-semibold text-white">{indiceInicio + 1}</span> a{' '}
                   <span className="font-semibold text-white">
-                    {Math.min(indiceInicio + registrosPorPagina, filtrados.length)}
+                    {Math.min(indiceInicio + allanamientos.length, totalRegistros)}
                   </span>{' '}
-                  de <span className="font-semibold text-white">{filtrados.length}</span> registros
+                  de <span className="font-semibold text-white">{totalRegistros}</span> registros
                 </div>
 
                 <select
                   value={registrosPorPagina}
-                  onChange={(e) => setRegistrosPorPagina(Number(e.target.value))}
+                  onChange={(e) => cambiarCantidadPorPagina(Number(e.target.value))}
                   className="bg-slate-900 border border-slate-800 text-slate-300 text-[11px] rounded-lg px-2 py-1 focus:outline-none focus:border-blue-500"
                 >
                   <option value={10}>10 por pág.</option>
@@ -821,7 +897,7 @@ export default function DashboardPage() {
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setPaginaActual((prev) => Math.max(prev - 1, 1))}
+                  onClick={() => cambiarPagina(paginaActual - 1)}
                   disabled={paginaActual === 1}
                   className="px-3 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition"
                 >
@@ -831,7 +907,7 @@ export default function DashboardPage() {
                   Página {paginaActual} de {totalPaginas || 1}
                 </span>
                 <button
-                  onClick={() => setPaginaActual((prev) => Math.min(prev + 1, totalPaginas))}
+                  onClick={() => cambiarPagina(paginaActual + 1)}
                   disabled={paginaActual === totalPaginas || totalPaginas === 0}
                   className="px-3 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition"
                 >
@@ -856,7 +932,7 @@ export default function DashboardPage() {
       {/* 3. CONTROL SEMÁFORO GENERAL */}
       {!esOperador && (
         <SemaforoSuperintendencias
-          allanamientos={allanamientos}
+          key={semaforoVersion}
           puedeReabrir={esAdministradorOSupervisor}
         />
       )}
