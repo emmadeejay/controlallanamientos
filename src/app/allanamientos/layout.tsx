@@ -37,9 +37,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         const { data: profile } = await supabase
           .from('profiles')
-          .select('rol, activo, estado_cuenta, vigencia_institucional_hasta, modulos_permitidos, superintendencias(nombre)')
+          .select('rol, activo, estado_cuenta, vigencia_institucional_hasta, modulos_permitidos, superintendencia_id')
           .eq('id', user.id)
           .single();
+
+        let superintendenciaNombre: string | null = null;
+        if (profile?.superintendencia_id) {
+          const { data: dependencia } = await supabase
+            .from('superintendencias')
+            .select('nombre')
+            .eq('id', profile.superintendencia_id)
+            .maybeSingle();
+          superintendenciaNombre = dependencia?.nombre || null;
+        }
 
         if (profile && profile.rol) {
           rolFinal = String(profile.rol).trim().toLowerCase();
@@ -59,8 +69,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         if (isMounted) {
           setUserEmail(email);
           setUserRole(rolFinal);
-          const destino = profile.superintendencias?.[0]?.nombre;
-          setUserSuperintendencia(destino || null);
+          setUserSuperintendencia(superintendenciaNombre);
           setDiasVigencia(diasHastaFecha(profile.vigencia_institucional_hasta));
         }
       } catch (err) {
@@ -128,7 +137,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     SISTEMA DE ALLANAMIENTOS
                   </span>
                   <span className="cop-kicker mt-1.5 block">
-                    Centro de Operaciones Policiales
+                    Dirección Centro de Operaciones Policiales
                   </span>
                 </div>
               </div>
@@ -151,7 +160,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     data-active={pathname === '/allanamientos'}
                   >
                     <FileText className="w-3.5 h-3.5" />
-                    <span className="hidden md:inline">Allanamientos</span>
+                    <span className="hidden lg:inline">Allanamientos</span>
                   </Link>
                 )}
 
@@ -162,7 +171,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     data-active={pathname === '/allanamientos/buscar'}
                   >
                     <Search className="w-3.5 h-3.5" />
-                    <span>Buscar</span>
+                    <span className="hidden lg:inline">Buscar</span>
                   </Link>
                 )}
 
@@ -173,7 +182,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     data-active={pathname.includes('/metricas')}
                   >
                     <BarChart3 className="w-3.5 h-3.5" />
-                    <span>Estadísticas</span>
+                    <span className="hidden lg:inline">Estadísticas</span>
                   </Link>
                 )}
               </nav>
@@ -187,7 +196,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <span className="block max-w-[190px] truncate font-semibold">{userEmail}</span>
                     {esOperador && userSuperintendencia && (
                       <span
-                        className="mt-0.5 flex max-w-[260px] items-center gap-1 truncate text-[9px] font-bold uppercase tracking-wide text-slate-500"
+                        className="mt-0.5 flex max-w-[300px] items-center gap-1 truncate text-[9px] font-bold uppercase tracking-wide text-slate-500"
                         title={userSuperintendencia}
                       >
                         <Building2 className="h-2.5 w-2.5 shrink-0" />

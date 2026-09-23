@@ -45,17 +45,26 @@ export default function SelectAppPage() {
 
         const { data: profile } = await supabase
           .from('profiles')
-          .select('rol, activo, estado_cuenta, vigencia_institucional_hasta, requiere_cambio_clave, modulos_permitidos, superintendencias(nombre)')
+          .select('rol, activo, estado_cuenta, vigencia_institucional_hasta, requiere_cambio_clave, modulos_permitidos, superintendencia_id')
           .eq('id', user.id)
           .single();
+
+        let superintendenciaNombre: string | null = null;
+        if (profile?.superintendencia_id) {
+          const { data: dependencia } = await supabase
+            .from('superintendencias')
+            .select('nombre')
+            .eq('id', profile.superintendencia_id)
+            .maybeSingle();
+          superintendenciaNombre = dependencia?.nombre || null;
+        }
 
         if (isMounted) {
           setUserEmail(email);
 
           const rolDetectado = profile?.rol ? String(profile.rol).trim().toLowerCase() : 'operador';
           setUserRole(rolDetectado);
-          const destino = profile?.superintendencias?.[0]?.nombre;
-          setUserSuperintendencia(destino || null);
+          setUserSuperintendencia(superintendenciaNombre);
           const estadoDetectado = profile
             ? evaluarEstadoAcceso(profile)
             : 'deshabilitado';
@@ -204,11 +213,14 @@ export default function SelectAppPage() {
               <img src={LOGO_URL} alt="Logo" className="max-h-full max-w-full object-contain" />
             </div>
             <div>
-              <span className="block text-[15px] font-extrabold leading-none tracking-[0.04em] text-white">
-                SISTEMA OPERATIVO COP
+              <span className="hidden text-[14px] font-extrabold leading-none tracking-[0.035em] text-white sm:block lg:text-[15px]">
+                PLATAFORMA INTEGRAL DE GESTIÓN COP
               </span>
-              <span className="cop-kicker mt-1.5 block">
-                Centro de Operaciones Policiales
+              <span className="block text-sm font-extrabold tracking-[0.08em] text-white sm:hidden">
+                GESTIÓN COP
+              </span>
+              <span className="cop-kicker mt-1.5 hidden sm:block">
+                Dirección Centro de Operaciones Policiales
               </span>
             </div>
           </div>
@@ -270,13 +282,21 @@ export default function SelectAppPage() {
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="cop-module-section">
+            <span className="cop-module-section-code">ÁREA 01</span>
+            <div>
+              <h2 className="text-xs font-extrabold uppercase tracking-[0.12em] text-white">Operaciones</h2>
+              <p className="mt-0.5 text-[11px] text-slate-500">Carga y seguimiento de información operativa.</p>
+            </div>
+          </div>
+
           {tieneAcceso('allanamientos') && (
             <div
               onClick={() => router.push('/allanamientos')}
               className="cop-module-tile group"
             >
               <div className="space-y-4">
-                <span className="cop-module-index">01 · OPERACIONES</span>
+                <span className="cop-module-index">OP-01</span>
                 <div className="cop-module-icon">
                   <FileText className="w-6 h-6" />
                 </div>
@@ -302,7 +322,7 @@ export default function SelectAppPage() {
               className="cop-module-tile group"
             >
               <div className="space-y-4">
-                <span className="cop-module-index">02 · OPERACIONES</span>
+                <span className="cop-module-index">OP-02</span>
                 <div className="cop-module-icon">
                   <Trophy className="w-6 h-6" />
                 </div>
@@ -328,7 +348,7 @@ export default function SelectAppPage() {
               className="cop-module-tile group"
             >
               <div className="space-y-4">
-                <span className="cop-module-index">03 · OPERACIONES</span>
+                <span className="cop-module-index">OP-03</span>
                 <div className="cop-module-icon">
                   <ShieldAlert className="w-6 h-6" />
                 </div>
@@ -354,7 +374,7 @@ export default function SelectAppPage() {
               className="cop-module-tile group"
             >
               <div className="space-y-4">
-                <span className="cop-module-index">04 · OPERACIONES</span>
+                <span className="cop-module-index">OP-04</span>
                 <div className="cop-module-icon">
                   <Bike className="w-6 h-6" />
                 </div>
@@ -375,56 +395,75 @@ export default function SelectAppPage() {
           )}
 
           {esAdminOSupervisor && (
-            <div
-              onClick={() => router.push('/admin/usuarios')}
-              className="cop-module-tile group"
-            >
-              <div className="space-y-4">
-                <span className="cop-module-index">05 · ADMINISTRACIÓN</span>
-                <div className="cop-module-icon">
-                  <Users className="w-6 h-6" />
-                </div>
+            <>
+              <div className="cop-module-section">
+                <span className="cop-module-section-code">ÁREA 02</span>
                 <div>
-                  <h3 className="text-lg font-extrabold uppercase tracking-[0.025em] text-white">
-                    Gestión de Usuarios
-                  </h3>
-                  <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                    Administración centralizada de accesos, creación de cuentas y roles del personal.
-                  </p>
+                  <h2 className="text-xs font-extrabold uppercase tracking-[0.12em] text-white">Administración</h2>
+                  <p className="mt-0.5 text-[11px] text-slate-500">Gestión de identidades, destinos y permisos.</p>
                 </div>
               </div>
-              <div className="cop-module-action mt-6">
-                <span>Acceder a administración</span>
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              <div
+                onClick={() => router.push('/admin/usuarios')}
+                className="cop-module-tile group"
+              >
+                <div className="space-y-4">
+                  <span className="cop-module-index">AD-01</span>
+                  <div className="cop-module-icon">
+                    <Users className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-extrabold uppercase tracking-[0.025em] text-white">
+                      Gestión de Usuarios
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                      Administración centralizada de accesos, creación de cuentas y roles del personal.
+                    </p>
+                  </div>
+                </div>
+                <div className="cop-module-action mt-6">
+                  <span>Acceder a administración</span>
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </div>
               </div>
-            </div>
+            </>
           )}
 
           {esAdministrador && (
-            <div
-              onClick={() => router.push('/admin/auditoria')}
-              className="cop-module-tile group"
-            >
-              <div className="space-y-4">
-                <span className="cop-module-index">06 · CONTROL INTERNO</span>
-                <div className="cop-module-icon">
-                  <ClipboardCheck className="w-6 h-6" />
-                </div>
+            <>
+              <div className="cop-module-section">
+                <span className="cop-module-section-code">ÁREA 03</span>
                 <div>
-                  <h3 className="text-lg font-extrabold uppercase tracking-[0.025em] text-white">
-                    Centro de Auditoría
-                  </h3>
-                  <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                    Trazabilidad central de usuarios, allanamientos y decisiones sobre rendiciones.
-                  </p>
+                  <h2 className="text-xs font-extrabold uppercase tracking-[0.12em] text-white">Control interno</h2>
+                  <p className="mt-0.5 text-[11px] text-slate-500">Auditoría y trazabilidad reservada del sistema.</p>
                 </div>
               </div>
-              <div className="cop-module-action mt-6">
-                <span>Revisar actividad</span>
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              <div
+                onClick={() => router.push('/admin/auditoria')}
+                className="cop-module-tile group"
+              >
+                <div className="space-y-4">
+                  <span className="cop-module-index">CI-01</span>
+                  <div className="cop-module-icon">
+                    <ClipboardCheck className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-extrabold uppercase tracking-[0.025em] text-white">
+                      Centro de Auditoría
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                      Trazabilidad central de usuarios, allanamientos y decisiones sobre rendiciones.
+                    </p>
+                  </div>
+                </div>
+                <div className="cop-module-action mt-6">
+                  <span>Revisar actividad</span>
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </div>
               </div>
-            </div>
+            </>
           )}
+
         </div>
       </main>
 

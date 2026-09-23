@@ -179,3 +179,48 @@ body {
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+
+.cop-module-section {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.85rem;
+  margin-top: 1.25rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--cop-line);
+}
+
+.cop-module-section:first-child {
+  margin-top: 0;
+}
+
+.cop-module-section-code {
+  color: var(--cop-gold);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.cop-login-panel {
+  background:
+    linear-gradient(180deg, rgba(14, 29, 49, 0.92), rgba(7, 20, 38, 0.98)),
+    var(--cop-navy);
+  border-left: 1px solid var(--cop-line);
+}
+
+@media (max-width: 767px) {
+  .cop-shell {
+    background-size: 48px 100%;
+  }
+
+  .cop-module-tile {
+    min-height: 220px;
+    padding: 1.25rem;
+  }
+
+  .cop-login-panel {
+    border-left: 0;
+  }
+}

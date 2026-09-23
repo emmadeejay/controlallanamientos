@@ -88,133 +88,133 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#070b12] text-slate-100 flex flex-col justify-between items-center p-4">
-      <div />
-
-      {/* Tarjeta de Login */}
-      <div className="w-full max-w-md bg-[#0f172a]/70 border border-slate-800/80 rounded-2xl p-8 shadow-2xl backdrop-blur-xl">
-        
-        {/* Escudo y Títulos */}
-        <div className="flex flex-col items-center text-center mb-8">
-          <div className="w-20 h-20 relative mb-4">
-            <Image
-              src="/logo_cop.png"
-              alt="COP Escudo"
-              width={80}
-              height={80}
-              className="object-contain"
-              priority
-            />
+    <div className="cop-shell flex min-h-screen flex-col text-slate-100">
+      <header className="cop-command-header relative z-10">
+        <div className="mx-auto flex min-h-[76px] w-full max-w-[1500px] items-center gap-3 px-5 sm:px-8">
+          <div className="flex h-12 w-12 items-center justify-center border-r border-[#26364d] pr-3">
+            <Image src="/logo_cop.png" alt="Escudo COP" width={48} height={48} priority />
           </div>
-          <h1 className="text-xl font-bold text-white tracking-wide">
-            Plataforma de Estadísticas COP
-          </h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Sistema Integral de Gestión
-          </p>
-        </div>
-
-        {/* Mensaje de error */}
-        {error && (
-          <div className="mb-6 bg-red-950/60 border border-red-800/80 text-red-300 text-xs p-3 rounded-xl text-center">
-            {error}
-          </div>
-        )}
-
-        {/* Formulario */}
-        <form onSubmit={handleLogin} className="space-y-5">
-          
-          {/* Campo Correo */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 tracking-wider uppercase mb-2">
-              Correo
-            </label>
-            <div className="relative flex items-center">
-              <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 pointer-events-none" />
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="ejemplo@cop.gob.ar"
-                className="w-full bg-[#090d16] border border-slate-800 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition"
-              />
+            <p className="hidden text-[14px] font-extrabold tracking-[0.035em] text-white sm:block lg:text-[15px]">
+              PLATAFORMA INTEGRAL DE GESTIÓN COP
+            </p>
+            <p className="text-sm font-extrabold tracking-[0.08em] text-white sm:hidden">GESTIÓN COP</p>
+            <p className="cop-kicker mt-1 hidden sm:block">Dirección Centro de Operaciones Policiales</p>
+          </div>
+        </div>
+      </header>
+
+      <main className="grid flex-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(430px,0.85fr)]">
+        <section className="hidden border-r border-[#26364d] px-10 py-12 lg:flex lg:items-end xl:px-16">
+          <div className="max-w-2xl pb-12">
+            <p className="cop-kicker mb-4">Sistema institucional · Acceso restringido</p>
+            <h1 className="max-w-xl text-4xl font-black uppercase leading-[1.08] tracking-[0.02em] text-white xl:text-5xl">
+              Información operativa segura, consolidada y trazable.
+            </h1>
+            <div className="mt-8 grid max-w-xl grid-cols-3 border-y border-[#26364d] py-4 text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">
+              <span>Acceso por rol</span>
+              <span className="border-x border-[#26364d] px-4 text-center">Auditoría activa</span>
+              <span className="text-right">Datos protegidos</span>
             </div>
           </div>
+        </section>
 
-          {/* Campo Contraseña */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 tracking-wider uppercase mb-2">
-              Contraseña
-            </label>
-            <div className="relative flex items-center">
-              <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 pointer-events-none" />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-[#090d16] border border-slate-800 rounded-xl pl-10 pr-11 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition"
-              />
+        <section className="cop-login-panel flex items-center justify-center px-5 py-10 sm:px-10">
+          <div className="w-full max-w-md">
+            <div className="mb-8 border-b border-[#26364d] pb-5">
+              <p className="cop-kicker mb-2">Credenciales institucionales</p>
+              <h2 className="text-2xl font-black uppercase tracking-[0.04em] text-white">Iniciar sesión</h2>
+              <p className="mt-2 text-sm text-slate-400">Ingresá con la cuenta asignada por la oficina COP.</p>
+            </div>
+
+            {error && (
+              <div className="mb-6 border border-red-800/80 bg-red-950/50 p-3 text-xs text-red-300">
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={handleLogin} className="space-y-5">
+              <div>
+                <label className="mb-2 block text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-400">
+                  Correo electrónico
+                </label>
+                <div className="relative flex items-center">
+                  <Mail className="pointer-events-none absolute left-3.5 h-4 w-4 text-slate-500" />
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="usuario@correo.com"
+                    autoComplete="email"
+                    className="w-full rounded-[4px] border border-[#26364d] bg-[#050e1c] py-3 pl-10 pr-4 text-sm text-white outline-none transition placeholder:text-slate-700 focus:border-[#c4a35a]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-400">
+                  Contraseña
+                </label>
+                <div className="relative flex items-center">
+                  <Lock className="pointer-events-none absolute left-3.5 h-4 w-4 text-slate-500" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    autoComplete="current-password"
+                    className="w-full rounded-[4px] border border-[#26364d] bg-[#050e1c] py-3 pl-10 pr-11 text-sm text-white outline-none transition placeholder:text-slate-700 focus:border-[#c4a35a]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 cursor-pointer p-1 text-slate-500 transition hover:text-slate-300"
+                    title={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-[4px] border border-blue-400/30 bg-[#2f6fbe] px-4 py-3 text-xs font-extrabold uppercase tracking-[0.09em] text-white transition hover:bg-[#387dce] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {loading ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /><span>Verificando...</span></>
+                ) : (
+                  <><span>Ingresar al sistema</span><ArrowRight className="h-4 w-4" /></>
+                )}
+              </button>
+            </form>
+
+            <div className="mt-6 border-t border-[#26364d] pt-5 text-center">
               <button
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3.5 p-1 text-slate-500 hover:text-slate-300 transition cursor-pointer"
-                title={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                onClick={() => {
+                  setEmailReset(email)
+                  setMensajeReset(null)
+                  setModalReset(true)
+                }}
+                className="cursor-pointer text-xs font-semibold text-slate-400 underline decoration-slate-700 underline-offset-4 transition hover:text-[#c4a35a]"
               >
-                {showPassword ? (
-                  <EyeOff className="w-4 h-4" />
-                ) : (
-                  <Eye className="w-4 h-4" />
-                )}
+                ¿Olvidaste tu contraseña?
               </button>
             </div>
           </div>
-
-          {/* Botón de Ingreso */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 px-4 rounded-xl text-sm transition duration-200 flex items-center justify-center gap-2 shadow-lg shadow-blue-600/25 disabled:opacity-50 cursor-pointer"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Iniciando sesión...</span>
-              </>
-            ) : (
-              <>
-                <span>INGRESAR AL SISTEMA</span>
-                <ArrowRight className="w-4 h-4" />
-              </>
-            )}
-          </button>
-        </form>
-
-        {/* Link Olvidaste contraseña */}
-        <div className="mt-6 text-center">
-          <button
-            type="button"
-            onClick={() => {
-              setEmailReset(email)
-              setMensajeReset(null)
-              setModalReset(true)
-            }}
-            className="text-xs text-slate-400 hover:text-blue-400 underline transition cursor-pointer"
-          >
-            ¿Olvidaste tu contraseña?
-          </button>
-        </div>
-      </div>
+        </section>
+      </main>
 
       {/* Modal para Recuperar Contraseña */}
       {modalReset && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#0f172a] border border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+          <div className="w-full max-w-sm space-y-4 rounded-[6px] border border-[#26364d] bg-[#071426] p-6 shadow-2xl">
             <div className="flex justify-between items-center">
               <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-                Recuperar Contraseña
+                Recuperar contraseña
               </h2>
               <button
                 type="button"
@@ -255,7 +255,7 @@ export default function LoginPage() {
                     value={emailReset}
                     onChange={(e) => setEmailReset(e.target.value)}
                     placeholder="ejemplo@cop.gob.ar"
-                    className="w-full bg-[#090d16] border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition"
+                className="w-full rounded-[4px] border border-[#26364d] bg-[#050e1c] py-2.5 pl-10 pr-4 text-xs text-white outline-none transition placeholder:text-slate-700 focus:border-[#c4a35a]"
                   />
                 </div>
               </div>
@@ -264,14 +264,14 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setModalReset(false)}
-                  className="flex-1 px-4 py-2 text-xs font-semibold uppercase text-slate-400 hover:text-white bg-slate-800 rounded-xl transition cursor-pointer"
+                  className="flex-1 cursor-pointer rounded-[4px] border border-[#26364d] bg-transparent px-4 py-2 text-xs font-semibold uppercase text-slate-400 transition hover:text-white"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={loadingReset}
-                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs uppercase transition shadow-lg shadow-blue-600/25 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+                  className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-[4px] bg-[#2f6fbe] px-4 py-2 text-xs font-semibold uppercase text-white transition hover:bg-[#387dce] disabled:opacity-50"
                 >
                   {loadingReset ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -286,8 +286,11 @@ export default function LoginPage() {
       )}
 
       {/* Footer */}
-      <footer className="py-4 text-center text-xs text-slate-500">
-        Diseñado por <span className="text-blue-400 font-semibold">EMMANUEL MACHADO</span>
+      <footer className="border-t border-[#26364d] bg-[#071426] py-4 text-[10px] text-slate-500">
+        <div className="mx-auto flex max-w-[1500px] flex-col justify-between gap-1 px-5 sm:flex-row sm:items-center sm:px-8">
+          <span className="font-bold uppercase tracking-[0.12em] text-slate-400">Dirección Centro de Operaciones Policiales</span>
+          <span>Plataforma Integral de Gestión · Desarrollo: Emmanuel Machado</span>
+        </div>
       </footer>
     </div>
   )
