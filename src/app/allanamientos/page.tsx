@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Plus, Search, Edit3, Trash2, Lock, Upload, Eye, X, Shield, Calendar, MapPin, FileText, UserCheck, Crosshair, Car, CheckCircle2, Send } from 'lucide-react';
 import { obtenerRangoSemanaRendida, obtenerValoresSecuestros } from '@/lib/allanamientos';
+import InformeSemanalControls from '@/components/InformeSemanalControls';
 import * as XLSX from 'xlsx';
 
 // Sincronización precisa con la hora oficial de Argentina (UTC-3)
@@ -126,7 +127,7 @@ function SemaforoSuperintendencias({
     <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow-xl backdrop-blur-md transition-all">
       <div 
         onClick={() => setDesplegado(!desplegado)}
-        className="px-5 py-4 bg-slate-950/80 border-b border-slate-800/80 flex items-center justify-between cursor-pointer hover:bg-slate-900/90 transition"
+        className="px-5 py-4 bg-slate-950/80 border-b border-slate-800/80 flex flex-col xl:flex-row xl:items-center justify-between gap-4 cursor-pointer hover:bg-slate-900/90 transition"
       >
         <div className="flex items-center gap-3">
           <div className="w-3 h-3 rounded-full bg-blue-500 animate-pulse" />
@@ -140,8 +141,8 @@ function SemaforoSuperintendencias({
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
+        <div className="w-full xl:w-auto flex flex-wrap items-center justify-end gap-3 xl:gap-4">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
               ✓ {finalizadas} Finalizadas
             </span>
@@ -152,6 +153,12 @@ function SemaforoSuperintendencias({
               ✕ {pendientes} Pendientes
             </span>
           </div>
+
+          <InformeSemanalControls
+            semanaInicio={rangoSemana.inicio}
+            resumen={resumen}
+            puedeConsolidar={puedeGestionar}
+          />
 
           <button className="text-slate-400 hover:text-white transition text-xs font-bold px-2">
             {desplegado ? '▲' : '▼'}

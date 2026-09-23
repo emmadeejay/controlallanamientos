@@ -29,6 +29,25 @@ export async function registrarEventoAuditoria(
   supabaseAdmin: SupabaseClient,
   evento: EventoAuditoria,
 ) {
+  let superintendenciaNombre = evento.superintendenciaNombre || null;
+
+  if (!superintendenciaNombre && evento.superintendenciaId) {
+    const { data, error: superintendenciaError } = await supabaseAdmin
+      .from('superintendencias')
+      .select('nombre')
+      .eq('id', evento.superintendenciaId)
+      .maybeSingle();
+
+    if (superintendenciaError) {
+      console.error('No se pudo resolver la superintendencia del evento de auditoria.', {
+        superintendenciaId: evento.superintendenciaId,
+        error: superintendenciaError.message,
+      });
+    } else {
+      superintendenciaNombre = data?.nombre || null;
+    }
+  }
+
   const { error } = await supabaseAdmin.from('auditoria_eventos').insert({
     actor_id: evento.actor.id,
     actor_email: evento.actor.email || 'sin-email',
@@ -38,7 +57,7 @@ export async function registrarEventoAuditoria(
     entidad_tipo: evento.entidadTipo,
     entidad_id: evento.entidadId || null,
     superintendencia_id: evento.superintendenciaId || null,
-    superintendencia_nombre: evento.superintendenciaNombre || null,
+    superintendencia_nombre: superintendenciaNombre,
     resultado: 'exitoso',
     motivo: evento.motivo || null,
     referencia_documental: evento.referenciaDocumental || null,
