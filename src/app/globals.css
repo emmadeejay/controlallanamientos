@@ -1,8 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #050b14;
+  --foreground: #e8edf5;
+  --cop-ink: #050b14;
+  --cop-navy: #071426;
+  --cop-panel: #0b182a;
+  --cop-panel-strong: #0e1d31;
+  --cop-line: #26364d;
+  --cop-line-soft: #17263a;
+  --cop-gold: #c4a35a;
+  --cop-gold-soft: #806c3f;
+  --cop-blue: #3578c9;
+  --cop-muted: #8c9bb0;
 }
 
 @theme inline {
@@ -12,15 +22,160 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+}
+
+/* Identidad institucional COP: superficies planas, estructura documental y
+   acentos reservados. Estas clases no alteran permisos ni lógica de negocio. */
+.cop-shell {
+  background:
+    linear-gradient(90deg, rgba(196, 163, 90, 0.025) 1px, transparent 1px),
+    var(--cop-ink);
+  background-size: 72px 100%;
+}
+
+.cop-command-header {
+  border-top: 3px solid var(--cop-gold);
+  border-bottom: 1px solid var(--cop-line);
+  background: rgba(7, 20, 38, 0.98);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+}
+
+.cop-kicker {
+  color: var(--cop-gold);
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.cop-nav-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 3.75rem;
+  padding: 0 0.8rem;
+  color: #8c9bb0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+  transition: color 160ms ease, background-color 160ms ease;
+}
+
+.cop-nav-link::after {
+  position: absolute;
+  right: 0.8rem;
+  bottom: 0;
+  left: 0.8rem;
+  height: 2px;
+  background: transparent;
+  content: "";
+}
+
+.cop-nav-link:hover {
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.cop-nav-link[data-active="true"] {
+  color: #ffffff;
+}
+
+.cop-nav-link[data-active="true"]::after {
+  background: var(--cop-gold);
+}
+
+.cop-session-block {
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid var(--cop-line);
+  border-radius: 0.375rem;
+  background: #050e1c;
+}
+
+.cop-session-role {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-left: 1px solid var(--cop-line);
+  padding: 0.45rem 0.65rem;
+  color: var(--cop-gold);
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.cop-module-tile {
+  position: relative;
+  display: flex;
+  min-height: 250px;
+  cursor: pointer;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  border: 1px solid var(--cop-line);
+  border-radius: 0.375rem;
+  background: var(--cop-panel);
+  padding: 1.5rem;
+  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.cop-module-tile::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: var(--cop-gold-soft);
+  content: "";
+  transition: background-color 160ms ease;
+}
+
+.cop-module-tile:hover {
+  transform: translateY(-2px);
+  border-color: var(--cop-gold-soft);
+  background: var(--cop-panel-strong);
+}
+
+.cop-module-tile:hover::before {
+  background: var(--cop-gold);
+}
+
+.cop-module-index {
+  color: var(--cop-gold);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.cop-module-icon {
+  display: flex;
+  width: 2.75rem;
+  height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--cop-line);
+  border-radius: 0.25rem;
+  background: #071221;
+  color: #b8c7da;
+}
+
+.cop-module-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--cop-line-soft);
+  padding-top: 1rem;
+  color: #b8c7da;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
