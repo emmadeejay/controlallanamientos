@@ -28,6 +28,220 @@ body {
   font-family: "Segoe UI", Arial, Helvetica, sans-serif;
 }
 
+/* Lenguaje visual común para todos los módulos. Se reducen radios, sombras y
+   transparencias decorativas sin tocar la estructura ni el comportamiento. */
+.cop-institutional-ui .rounded-3xl,
+.cop-institutional-ui .rounded-2xl {
+  border-radius: 0.375rem;
+}
+
+.cop-institutional-ui .rounded-xl {
+  border-radius: 0.25rem;
+}
+
+.cop-institutional-ui .shadow-2xl,
+.cop-institutional-ui .shadow-xl,
+.cop-institutional-ui .shadow-lg {
+  box-shadow: none;
+}
+
+.cop-institutional-ui .backdrop-blur-xl,
+.cop-institutional-ui .backdrop-blur-md {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.cop-data-panel {
+  overflow: hidden;
+  border: 1px solid var(--cop-line);
+  border-radius: 0.375rem;
+  background: rgba(7, 20, 38, 0.76);
+}
+
+.cop-section-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--cop-line);
+  background: #071426;
+  padding: 1rem 1.25rem;
+}
+
+.cop-action-primary,
+.cop-action-secondary,
+.cop-action-success,
+.cop-action-warning {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.25rem;
+  padding: 0.625rem 1rem;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+.cop-action-primary {
+  border: 1px solid #4b89d4;
+  background: #2f6fbe;
+  color: white;
+}
+
+.cop-action-primary:hover {
+  background: #397dce;
+}
+
+.cop-action-secondary {
+  border: 1px solid var(--cop-line);
+  background: #0b182a;
+  color: #cbd5e1;
+}
+
+.cop-action-secondary:hover {
+  border-color: var(--cop-gold-soft);
+  color: white;
+}
+
+.cop-action-success {
+  border: 1px solid #16896c;
+  background: #08755c;
+  color: white;
+}
+
+.cop-action-success:hover {
+  background: #0a876a;
+}
+
+.cop-action-warning {
+  border: 1px solid #a86a18;
+  background: #8b5514;
+  color: white;
+}
+
+.cop-action-warning:hover {
+  background: #a56519;
+}
+
+.cop-status-summary {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--cop-line);
+  border-radius: 0.25rem;
+  background: #050e1c;
+}
+
+.cop-status-summary > span {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.cop-status-summary > span + span {
+  border-left: 1px solid var(--cop-line);
+}
+
+.cop-presentation-head,
+.cop-presentation-row {
+  display: grid;
+  grid-template-columns: minmax(18rem, 1.8fr) minmax(11rem, 1fr) 7rem minmax(10rem, auto);
+  align-items: center;
+  column-gap: 1rem;
+}
+
+.cop-presentation-head {
+  border-bottom: 1px solid var(--cop-line);
+  background: rgba(5, 14, 28, 0.9);
+  padding: 0.65rem 1.25rem;
+  color: #718198;
+  font-size: 0.5625rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.cop-presentation-row {
+  min-height: 4rem;
+  border-bottom: 1px solid var(--cop-line-soft);
+  padding: 0.7rem 1.25rem;
+  transition: background-color 140ms ease;
+}
+
+.cop-presentation-row:last-child {
+  border-bottom: 0;
+}
+
+.cop-presentation-row:hover {
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.cop-status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+}
+
+@media (max-width: 899px) {
+  .cop-presentation-head {
+    display: none;
+  }
+
+  .cop-presentation-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 0.55rem;
+  }
+
+  .cop-presentation-row > :nth-child(2),
+  .cop-presentation-row > :nth-child(3) {
+    grid-column: 1;
+  }
+
+  .cop-presentation-row > :nth-child(4) {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+  }
+}
+
+@media (max-width: 639px) {
+  .cop-section-bar {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 0.9rem 1rem;
+  }
+
+  .cop-status-summary {
+    width: 100%;
+  }
+
+  .cop-status-summary > span {
+    flex: 1;
+    justify-content: center;
+    padding-inline: 0.35rem;
+    letter-spacing: 0;
+  }
+
+  .cop-presentation-row {
+    grid-template-columns: minmax(0, 1fr);
+    padding-inline: 1rem;
+  }
+
+  .cop-presentation-row > :nth-child(4) {
+    grid-column: 1;
+    grid-row: auto;
+    justify-self: start;
+  }
+}
+
 /* Identidad institucional COP: superficies planas, estructura documental y
    acentos reservados. Estas clases no alteran permisos ni lógica de negocio. */
 .cop-shell {

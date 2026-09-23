@@ -123,103 +123,121 @@ function SemaforoSuperintendencias({
   if (cargandoSupers) return null;
 
   return (
-    <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow-xl backdrop-blur-md transition-all">
-      <div 
-        onClick={() => setDesplegado(!desplegado)}
-        className="px-5 py-4 bg-slate-950/80 border-b border-slate-800/80 flex flex-col xl:flex-row xl:items-center justify-between gap-4 cursor-pointer hover:bg-slate-900/90 transition"
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-3 h-3 rounded-full bg-blue-500 animate-pulse" />
-          <div>
-            <h3 className="text-sm font-bold text-white tracking-tight">
-              Control de Presentación Semanal por Superintendencia
-            </h3>
-            <p className="text-[11px] text-slate-400">
-              Allanamientos ejecutados del {rangoSemana.inicio} al {rangoSemana.fin}
-            </p>
-          </div>
-        </div>
+    <section className="cop-data-panel">
+      <div className="cop-section-bar">
+        <button
+          type="button"
+          onClick={() => setDesplegado(!desplegado)}
+          className="flex min-w-0 items-center gap-3 text-left"
+          aria-expanded={desplegado}
+        >
+          <span className="cop-module-index shrink-0">02 / CONTROL INTERNO</span>
+          <span className="hidden h-8 w-px bg-[#26364d] sm:block" />
+          <span className="min-w-0">
+            <span className="block text-xs font-extrabold uppercase tracking-[0.05em] text-white sm:text-sm">
+              Presentación semanal por superintendencia
+            </span>
+            <span className="mt-1 block text-[10px] text-slate-500 sm:text-[11px]">
+              Período ejecutado: {rangoSemana.inicio} al {rangoSemana.fin}
+            </span>
+          </span>
+        </button>
 
-        <div className="w-full xl:w-auto flex flex-wrap items-center justify-end gap-3 xl:gap-4">
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              ✓ {finalizadas} Finalizadas
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-              ◷ {enCarga} En carga
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20">
-              ✕ {pendientes} Pendientes
-            </span>
+        <div className="flex w-full flex-col gap-3 xl:w-auto xl:flex-row xl:items-center xl:justify-end">
+          <div className="cop-status-summary" aria-label="Resumen de presentaciones">
+            <span className="text-emerald-400"><b className="text-sm">{finalizadas}</b> Finalizadas</span>
+            <span className="text-amber-400"><b className="text-sm">{enCarga}</b> En carga</span>
+            <span className="text-red-400"><b className="text-sm">{pendientes}</b> Pendientes</span>
           </div>
 
-          <InformeSemanalControls
-            semanaInicio={rangoSemana.inicio}
-            resumen={resumen}
-            puedeConsolidar={puedeGestionar}
-          />
-
-          <button className="text-slate-400 hover:text-white transition text-xs font-bold px-2">
-            {desplegado ? '▲' : '▼'}
-          </button>
+          <div className="flex items-center justify-between gap-2 sm:justify-end">
+            <InformeSemanalControls
+              semanaInicio={rangoSemana.inicio}
+              resumen={resumen}
+              puedeConsolidar={puedeGestionar}
+            />
+            <button
+              type="button"
+              onClick={() => setDesplegado(!desplegado)}
+              className="h-10 border border-[#26364d] px-3 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 transition hover:border-[#806c3f] hover:text-white"
+              aria-label={desplegado ? 'Contraer control interno' : 'Desplegar control interno'}
+            >
+              {desplegado ? 'Contraer' : 'Desplegar'}
+            </button>
+          </div>
         </div>
       </div>
 
       {desplegado && (
-        <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[32rem] overflow-y-auto custom-scrollbar">
-          {resumen.map((sup) => {
-            const cantidad = Number(sup.cantidad_allanamientos) || 0;
-            const finalizada = ['finalizado', 'bloqueado'].includes(sup.estado);
-            const tieneRegistros = cantidad > 0;
-            const estadoClase = finalizada
-              ? 'bg-slate-950/40 border-slate-800/80 hover:border-emerald-500/30'
-              : tieneRegistros
-                ? 'bg-amber-950/10 border-amber-900/30 hover:border-amber-500/40'
-                : 'bg-red-950/10 border-red-900/30 hover:border-red-500/40';
-            const estadoTexto = finalizada
-              ? cantidad === 0
-                ? 'Finalizada · Sin novedades (0)'
-                : `Finalizada · ${cantidad} informados`
-              : tieneRegistros
-                ? `${cantidad} ${cantidad === 1 ? 'registro cargado' : 'registros cargados'} · Sin finalizar`
-                : 'Pendiente de rendición';
-            const puntoClase = finalizada
-              ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50'
-              : tieneRegistros
-                ? 'bg-amber-500 shadow-sm shadow-amber-500/50'
-                : 'bg-red-500 animate-pulse shadow-sm shadow-red-500/50';
+        <div>
+          <div className="cop-presentation-head">
+            <span>Superintendencia</span>
+            <span>Estado de presentación</span>
+            <span>Registros</span>
+            <span className="text-right">Gestión</span>
+          </div>
 
-            return (
-              <div 
-                key={sup.superintendencia_id}
-                className={`p-3 rounded-xl border flex items-start justify-between gap-3 min-h-24 transition-all ${estadoClase}`}
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-semibold text-slate-200 whitespace-normal break-words leading-snug" title={sup.nombre}>
-                    {sup.nombre}
-                  </p>
-                  <p className="text-[10px] text-slate-500 mt-0.5">
+          <div className="max-h-[34rem] overflow-y-auto custom-scrollbar">
+            {resumen.map((sup) => {
+              const cantidad = Number(sup.cantidad_allanamientos) || 0;
+              const finalizada = ['finalizado', 'bloqueado'].includes(sup.estado);
+              const tieneRegistros = cantidad > 0;
+              const estadoTexto = finalizada
+                ? cantidad === 0
+                  ? 'Finalizada · Sin novedades'
+                  : 'Finalizada'
+                : tieneRegistros
+                  ? 'Carga iniciada · Sin finalizar'
+                  : 'Pendiente de rendición';
+              const puntoClase = finalizada
+                ? 'bg-emerald-500'
+                : tieneRegistros
+                  ? 'bg-amber-500'
+                  : 'bg-red-500';
+              const estadoColor = finalizada
+                ? 'text-emerald-400'
+                : tieneRegistros
+                  ? 'text-amber-400'
+                  : 'text-red-400';
+
+              return (
+                <div key={sup.superintendencia_id} className="cop-presentation-row">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span className={`cop-status-dot mt-1 ${puntoClase}`} />
+                    <p className="text-[11px] font-bold uppercase leading-snug tracking-[0.025em] text-slate-200">
+                      {sup.nombre}
+                    </p>
+                  </div>
+
+                  <p className={`text-[10px] font-bold uppercase tracking-[0.055em] ${estadoColor}`}>
                     {estadoTexto}
                   </p>
-                  {puedeGestionar && (
-                    <button
-                      type="button"
-                      onClick={() => abrirGestion(finalizada ? 'reabrir' : 'finalizar', sup)}
-                      className={`mt-2 text-[10px] font-semibold disabled:opacity-50 ${
-                        finalizada
-                          ? 'text-amber-400 hover:text-amber-300'
-                          : 'text-blue-400 hover:text-blue-300'
-                      }`}
-                    >
-                      {finalizada ? 'Reabrir con respaldo' : 'Finalizar por gestión'}
-                    </button>
-                  )}
-                </div>
 
-                <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${puntoClase}`} />
-              </div>
-            );
-          })}
+                  <p className="font-mono text-xs font-bold text-white">
+                    {String(cantidad).padStart(2, '0')}
+                  </p>
+
+                  <div className="flex justify-end">
+                    {puedeGestionar ? (
+                      <button
+                        type="button"
+                        onClick={() => abrirGestion(finalizada ? 'reabrir' : 'finalizar', sup)}
+                        className={`border-b pb-0.5 text-[10px] font-extrabold uppercase tracking-[0.055em] transition disabled:opacity-50 ${
+                          finalizada
+                            ? 'border-amber-700 text-amber-400 hover:text-amber-300'
+                            : 'border-blue-800 text-blue-400 hover:text-blue-300'
+                        }`}
+                      >
+                        {finalizada ? 'Reabrir con respaldo' : 'Finalizar por gestión'}
+                      </button>
+                    ) : (
+                      <span className="text-[10px] uppercase tracking-wider text-slate-600">Consulta</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -330,7 +348,7 @@ function SemaforoSuperintendencias({
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -721,25 +739,32 @@ export default function DashboardPage() {
   const indiceInicio = (paginaActual - 1) * registrosPorPagina;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 space-y-6">
+    <div className="mx-auto max-w-[1500px] space-y-6 px-4 pb-12 sm:px-6 lg:px-8">
       
       {/* 1. ENCABEZADO */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-white tracking-tight">
+      <section className="border-b border-[#26364d] pb-5">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+          <div className="flex items-start gap-4">
+            <span className="cop-module-index mt-1 hidden sm:block">01 / OPERACIONES</span>
+            <span className="hidden h-12 w-px bg-[#26364d] sm:block" />
+            <div>
+              <p className="cop-kicker mb-2">Semana operativa</p>
+              <h1 className="text-xl font-black uppercase tracking-[0.035em] text-white sm:text-2xl">
             {esOperador ? 'Rendición semanal de Allanamientos' : 'Control de Allanamientos'}
-          </h1>
-          <p className="text-xs text-slate-400">
-            Período informado: {rangoSemanaRendida.inicio} al {rangoSemanaRendida.fin}
-            {!esOperador && ' · El historial se consulta desde Buscar'}
-          </p>
-        </div>
+              </h1>
+              <p className="mt-2 text-xs text-slate-400">
+                Período informado: <span className="font-mono text-slate-200">{rangoSemanaRendida.inicio}</span> al{' '}
+                <span className="font-mono text-slate-200">{rangoSemanaRendida.fin}</span>
+                {!esOperador && ' · El historial se consulta desde Buscar'}
+              </p>
+            </div>
+          </div>
 
-        <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center xl:justify-end">
           {(rolUsuario === 'administrador' || rolUsuario === 'admin') && (
             <button
               onClick={() => router.push('/admin/importar-allanamientos')}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-emerald-600/20 transition cursor-pointer"
+              className="cop-action-secondary cursor-pointer"
             >
               <Upload className="w-4 h-4" /> Carga histórica
             </button>
@@ -748,12 +773,12 @@ export default function DashboardPage() {
           {puedeEditar ? (
             <button
               onClick={() => router.push('/allanamientos/nuevo')}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-blue-600/20 transition cursor-pointer"
+              className="cop-action-primary cursor-pointer"
             >
               <Plus className="w-4 h-4" /> Nuevo Allanamiento
             </button>
           ) : !rendicionCerrada ? (
-            <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-2 rounded-xl">
+            <div className="flex min-h-10 items-center gap-2 border border-amber-800/60 bg-amber-950/20 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-amber-400">
               <Lock className="w-4 h-4" /> Fuera de período de carga (Lun 00hs a Mié 08hs)
             </div>
           ) : null}
@@ -762,7 +787,7 @@ export default function DashboardPage() {
             <button
               onClick={finalizarRendicion}
               disabled={finalizando}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-semibold shadow-lg shadow-emerald-600/20 transition"
+              className="cop-action-success disabled:opacity-50"
             >
               <Send className="w-4 h-4" />
               {finalizando ? 'Finalizando...' : 'Finalizar carga'}
@@ -770,18 +795,19 @@ export default function DashboardPage() {
           )}
 
           {esOperador && rendicionCerrada && (
-            <div className="flex items-center gap-2 text-xs text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 rounded-xl">
+            <div className="flex min-h-10 items-center gap-2 border border-emerald-800/60 bg-emerald-950/20 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-emerald-300">
               <CheckCircle2 className="w-4 h-4" /> Rendición finalizada
             </div>
           )}
+          </div>
         </div>
-      </div>
+      </section>
 
       {/* 2. BUSCADOR Y TABLA */}
-      <div className="space-y-4">
-        {!esOperador && <div className="flex gap-2">
+      <section className="space-y-3">
+        {!esOperador && <div className="flex flex-col gap-2 sm:flex-row">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-500" />
+            <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
             <input
               type="text"
               placeholder="Buscar en la semana por IPP, carátula, partido o dependencia..."
@@ -790,23 +816,23 @@ export default function DashboardPage() {
               onKeyDown={(e) => {
                 if (e.key === 'Enter') ejecutarBusqueda();
               }}
-              className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+              className="h-10 w-full rounded-[4px] border border-[#26364d] bg-[#071426] py-2 pl-10 pr-4 text-xs text-white outline-none placeholder:text-slate-600 focus:border-[#c4a35a]"
             />
           </div>
           <button
             type="button"
             onClick={ejecutarBusqueda}
             disabled={loading}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl text-xs font-semibold transition"
+            className="cop-action-primary disabled:opacity-50"
           >
             Buscar
           </button>
         </div>}
 
-        {!rendicionCerrada && <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow-xl backdrop-blur-md">
+        {!rendicionCerrada && <div className="cop-data-panel">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-950/80 text-slate-400 font-semibold border-b border-slate-800 uppercase tracking-wider text-[10px]">
+            <table className="w-full min-w-[880px] text-left text-xs text-slate-300">
+              <thead className="border-b border-[#26364d] bg-[#050e1c] text-[9px] font-extrabold uppercase tracking-[0.1em] text-slate-500">
                 <tr>
                   <th className="px-4 py-3">IPP / Carátula</th>
                   <th className="px-4 py-3">Superintendencia</th>
@@ -816,7 +842,7 @@ export default function DashboardPage() {
                   <th className="px-4 py-3 text-right">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody className="divide-y divide-[#17263a]">
                 {loading ? (
                   <tr>
                     <td colSpan={6} className="py-8 text-center text-slate-500">
@@ -834,7 +860,7 @@ export default function DashboardPage() {
                     <tr 
                       key={item.id} 
                       onClick={() => setItemSeleccionado(item)}
-                      className="hover:bg-slate-800/50 cursor-pointer transition-all active:scale-[0.99]"
+                      className="cursor-pointer transition-colors hover:bg-white/[0.025]"
                     >
                       <td className="px-4 py-3">
                         <div className="font-semibold text-white flex items-center gap-1.5">
@@ -844,7 +870,7 @@ export default function DashboardPage() {
                         <div className="text-[11px] text-slate-400 truncate max-w-xs">{item.caratula}</div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="inline-block px-2 py-0.5 rounded bg-slate-800 text-slate-200 text-[10px] font-medium border border-slate-700/60">
+                        <span className="inline-block border-l-2 border-[#806c3f] pl-2 text-[10px] font-semibold uppercase leading-snug text-slate-300">
                           {item.superintendencias?.nombre || item.superintendencia || 'N/A'}
                         </span>
                       </td>
@@ -857,10 +883,10 @@ export default function DashboardPage() {
                         <div className="text-[10px] text-slate-500">{item.horario_ejecucion || '--:--'} hs</div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                        <span className={`inline-flex items-center gap-1 border-l-2 pl-2 text-[10px] font-bold uppercase tracking-wide ${
                           item.resultado_medida === 'Positivo' 
-                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                            : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                            ? 'border-emerald-500 text-emerald-400'
+                            : 'border-red-500 text-red-400'
                         }`}>
                           {item.resultado_medida}
                         </span>
@@ -870,7 +896,7 @@ export default function DashboardPage() {
                           <>
                             <button
                               onClick={(e) => handleEditClick(e, item.id)}
-                              className="p-1.5 text-amber-400 hover:bg-amber-500/10 rounded-lg transition"
+                              className="border border-transparent p-1.5 text-amber-400 transition hover:border-amber-800/60 hover:bg-amber-500/10"
                               title="Editar"
                             >
                               <Edit3 className="w-4 h-4" />
@@ -878,7 +904,7 @@ export default function DashboardPage() {
                             {esAdministradorOSupervisor && (
                               <button
                                 onClick={(e) => handleDelete(e, item.id)}
-                                className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg transition"
+                                className="border border-transparent p-1.5 text-red-400 transition hover:border-red-800/60 hover:bg-red-500/10"
                                 title="Eliminar"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -899,7 +925,7 @@ export default function DashboardPage() {
           </div>
 
           {!loading && totalRegistros > 0 && (
-            <div className="px-4 py-3 bg-slate-950/80 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
+            <div className="flex flex-col items-center justify-between gap-3 border-t border-[#26364d] bg-[#050e1c] px-4 py-3 text-xs text-slate-400 sm:flex-row">
               <div className="flex items-center gap-3">
                 <div>
                   Mostrando <span className="font-semibold text-white">{indiceInicio + 1}</span> a{' '}
@@ -912,7 +938,7 @@ export default function DashboardPage() {
                 <select
                   value={registrosPorPagina}
                   onChange={(e) => cambiarCantidadPorPagina(Number(e.target.value))}
-                  className="bg-slate-900 border border-slate-800 text-slate-300 text-[11px] rounded-lg px-2 py-1 focus:outline-none focus:border-blue-500"
+                  className="border border-[#26364d] bg-[#071426] px-2 py-1 text-[11px] text-slate-300 outline-none focus:border-[#c4a35a]"
                 >
                   <option value={10}>10 por pág.</option>
                   <option value={25}>25 por pág.</option>
@@ -925,7 +951,7 @@ export default function DashboardPage() {
                 <button
                   onClick={() => cambiarPagina(paginaActual - 1)}
                   disabled={paginaActual === 1}
-                  className="px-3 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition"
+                  className="border border-[#26364d] bg-[#0b182a] px-3 py-1 text-white transition hover:border-[#806c3f] disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Anterior
                 </button>
@@ -935,7 +961,7 @@ export default function DashboardPage() {
                 <button
                   onClick={() => cambiarPagina(paginaActual + 1)}
                   disabled={paginaActual === totalPaginas || totalPaginas === 0}
-                  className="px-3 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition"
+                  className="border border-[#26364d] bg-[#0b182a] px-3 py-1 text-white transition hover:border-[#806c3f] disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Siguiente
                 </button>
@@ -945,15 +971,20 @@ export default function DashboardPage() {
         </div>}
 
         {esOperador && rendicionCerrada && (
-          <div className="bg-emerald-950/20 border border-emerald-500/20 rounded-2xl p-6 text-center">
-            <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto mb-3" />
-            <h2 className="text-base font-bold text-white">Rendición enviada correctamente</h2>
-            <p className="text-xs text-slate-400 mt-1">
-              Semana {rendicionActual?.semana_inicio} al {rendicionActual?.semana_fin}. Registros informados: {rendicionActual?.cantidad_allanamientos ?? 0}.
-            </p>
+          <div className="cop-data-panel border-l-4 border-l-emerald-500 p-5">
+            <div className="flex items-start gap-4">
+              <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-emerald-400" />
+              <div>
+                <p className="cop-kicker mb-1 text-emerald-400">Presentación confirmada</p>
+                <h2 className="text-sm font-extrabold uppercase tracking-wide text-white">Rendición enviada correctamente</h2>
+                <p className="mt-1 text-xs text-slate-400">
+                  Semana {rendicionActual?.semana_inicio} al {rendicionActual?.semana_fin}. Registros informados: {rendicionActual?.cantidad_allanamientos ?? 0}.
+                </p>
+              </div>
+            </div>
           </div>
         )}
-      </div>
+      </section>
 
       {/* 3. CONTROL SEMÁFORO GENERAL */}
       {esAdministradorOSupervisor && (

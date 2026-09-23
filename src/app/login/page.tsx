@@ -107,15 +107,13 @@ export default function LoginPage() {
       <main className="grid flex-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(430px,0.85fr)]">
         <section className="hidden border-r border-[#26364d] px-10 py-12 lg:flex lg:items-end xl:px-16">
           <div className="max-w-2xl pb-12">
-            <p className="cop-kicker mb-4">Sistema institucional · Acceso restringido</p>
+            <p className="cop-kicker mb-4">Sistema institucional</p>
             <h1 className="max-w-xl text-4xl font-black uppercase leading-[1.08] tracking-[0.02em] text-white xl:text-5xl">
-              Información operativa segura, consolidada y trazable.
+              Información operativa, consolidada y trazable.
             </h1>
-            <div className="mt-8 grid max-w-xl grid-cols-3 border-y border-[#26364d] py-4 text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">
-              <span>Acceso por rol</span>
-              <span className="border-x border-[#26364d] px-4 text-center">Auditoría activa</span>
-              <span className="text-right">Datos protegidos</span>
-            </div>
+            <p className="mt-7 max-w-xl border-l-2 border-[#c4a35a] pl-4 text-sm leading-6 text-slate-400">
+              Registro, seguimiento y consulta para la Dirección Centro de Operaciones Policiales.
+            </p>
           </div>
         </section>
 

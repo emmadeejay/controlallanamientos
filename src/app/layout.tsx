@@ -7,7 +7,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
-      <body className="bg-[#07090e] antialiased">
+      <body className="cop-institutional-ui bg-[#07090e] antialiased">
         {children}
       </body>
     </html>
