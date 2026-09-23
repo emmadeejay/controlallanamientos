@@ -9,6 +9,7 @@ import {
   Download,
   FileSpreadsheet,
   LoaderCircle,
+  RotateCcw,
   SearchCheck,
   ShieldCheck,
   Upload,
@@ -67,6 +68,10 @@ export default function ImportacionHistoricaPage() {
   const [confirmarAdvertencias, setConfirmarAdvertencias] = useState(false);
   const [motivoAdvertencias, setMotivoAdvertencias] = useState('');
   const [pagina, setPagina] = useState(1);
+  const [loteAnular, setLoteAnular] = useState<LoteReciente | null>(null);
+  const [motivoAnulacion, setMotivoAnulacion] = useState('');
+  const [anulando, setAnulando] = useState(false);
+  const [mensajeGestion, setMensajeGestion] = useState<string | null>(null);
 
   useEffect(() => {
     async function cargarCatalogos() {
@@ -139,6 +144,7 @@ export default function ImportacionHistoricaPage() {
 
   async function prevalidar() {
     setError(null);
+    setMensajeGestion(null);
     setLoteCreado(null);
 
     if (!archivo) {
@@ -244,6 +250,53 @@ export default function ImportacionHistoricaPage() {
     }
   }
 
+  function abrirAnulacion(lote: LoteReciente) {
+    setError(null);
+    setMensajeGestion(null);
+    setMotivoAnulacion('');
+    setLoteAnular(lote);
+  }
+
+  async function anularLote() {
+    if (!loteAnular || motivoAnulacion.trim().length < 12) {
+      setError('La anulación requiere un motivo de al menos 12 caracteres.');
+      return;
+    }
+
+    setAnulando(true);
+    setError(null);
+    try {
+      const { error: rpcError } = await supabase.rpc(
+        'anular_importacion_historica_allanamientos',
+        {
+          p_lote_id: loteAnular.id,
+          p_motivo: motivoAnulacion.trim(),
+        },
+      );
+      if (rpcError) throw rpcError;
+
+      setLotes((actuales) =>
+        actuales.map((lote) =>
+          lote.id === loteAnular.id ? { ...lote, estado: 'anulado' } : lote,
+        ),
+      );
+      setMensajeGestion(
+        `Lote ${loteAnular.id} anulado. Sus ${loteAnular.filas_importadas} registros fueron retirados de las métricas.`,
+      );
+      setLoteAnular(null);
+      setMotivoAnulacion('');
+    } catch (err) {
+      console.error('No se pudo anular el lote histórico.', err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'No se pudo anular el lote. No se modificaron sus registros.',
+      );
+    } finally {
+      setAnulando(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-6 text-slate-200 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
@@ -344,6 +397,13 @@ export default function ImportacionHistoricaPage() {
           <div className="flex items-start gap-3 rounded-2xl border border-red-800/60 bg-red-950/30 p-4 text-sm text-red-300">
             <XCircle className="mt-0.5 h-5 w-5 shrink-0" />
             <span>{error}</span>
+          </div>
+        )}
+
+        {mensajeGestion && (
+          <div className="flex items-start gap-3 rounded-2xl border border-emerald-700/50 bg-emerald-950/30 p-4 text-sm text-emerald-300">
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
+            <span>{mensajeGestion}</span>
           </div>
         )}
 
@@ -514,7 +574,7 @@ export default function ImportacionHistoricaPage() {
             <p className="mt-4 text-xs text-slate-500">Todavía no hay importaciones históricas.</p>
           ) : (
             <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[760px] text-left text-xs">
+              <table className="w-full min-w-[900px] text-left text-xs">
                 <thead className="text-slate-500">
                   <tr>
                     <th className="pb-2">Semana</th>
@@ -523,6 +583,7 @@ export default function ImportacionHistoricaPage() {
                     <th className="pb-2">Advertencias</th>
                     <th className="pb-2">Estado</th>
                     <th className="pb-2">Lote</th>
+                    <th className="pb-2 text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800 text-slate-300">
@@ -534,6 +595,19 @@ export default function ImportacionHistoricaPage() {
                       <td className="py-2.5">{lote.filas_con_advertencia}</td>
                       <td className="py-2.5 capitalize">{lote.estado}</td>
                       <td className="max-w-[150px] truncate py-2.5 text-slate-500">{lote.id}</td>
+                      <td className="py-2.5 text-right">
+                        {lote.estado === 'completado' ? (
+                          <button
+                            type="button"
+                            onClick={() => abrirAnulacion(lote)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-red-800/60 bg-red-950/20 px-2.5 py-1.5 font-semibold text-red-300 transition hover:bg-red-950/50"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" /> Anular lote
+                          </button>
+                        ) : (
+                          <span className="text-slate-600">Sin acciones</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -542,6 +616,71 @@ export default function ImportacionHistoricaPage() {
           )}
         </section>
       </div>
+
+      {loteAnular && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-red-900/60 bg-slate-950 shadow-2xl">
+            <div className="border-b border-red-900/40 bg-red-950/20 p-5">
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl border border-red-800/50 bg-red-500/10 p-2.5 text-red-300">
+                  <RotateCcw className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="font-bold text-white">Anular importación histórica</h2>
+                  <p className="mt-1 text-xs text-red-300/80">
+                    Esta acción retira el lote completo de las métricas y queda auditada.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 p-5">
+              <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-xs text-slate-300">
+                <p className="font-bold text-white">{loteAnular.archivo_nombre}</p>
+                <p className="mt-1">
+                  Semana {loteAnular.semana_inicio} al {loteAnular.semana_fin} · {loteAnular.filas_importadas} registros
+                </p>
+                <p className="mt-1 break-all text-slate-500">Lote: {loteAnular.id}</p>
+              </div>
+
+              <label className="block space-y-1.5 text-xs font-semibold text-slate-400">
+                Motivo obligatorio
+                <textarea
+                  autoFocus
+                  value={motivoAnulacion}
+                  onChange={(evento) => setMotivoAnulacion(evento.target.value)}
+                  placeholder="Ejemplo: el archivo contenía una fecha incorrecta y será reemplazado por una versión verificada."
+                  className="min-h-24 w-full rounded-xl border border-slate-700 bg-slate-900 p-3 text-xs font-normal text-white outline-none focus:border-red-500"
+                />
+              </label>
+
+              <div className="rounded-xl border border-amber-900/50 bg-amber-950/20 p-3 text-xs leading-relaxed text-amber-200">
+                Si existe un informe consolidado de esta semana, quedará invalidado y deberá generarse nuevamente.
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-800 p-5 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setLoteAnular(null)}
+                disabled={anulando}
+                className="rounded-xl border border-slate-700 px-4 py-2.5 text-xs font-bold text-slate-300 transition hover:bg-slate-900 disabled:opacity-40"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={anularLote}
+                disabled={anulando || motivoAnulacion.trim().length < 12}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-700 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {anulando ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                {anulando ? 'Anulando...' : 'Anular lote y retirar datos'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
