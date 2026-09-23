@@ -207,7 +207,7 @@ export default function SelectAppPage() {
   return (
     <div className="cop-shell flex min-h-screen flex-col justify-between text-slate-100 selection:bg-[#806c3f] selection:text-white">
       <header className="cop-command-header sticky top-0 z-40">
-        <div className="mx-auto flex min-h-[76px] max-w-[1500px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex min-h-[76px] max-w-[1800px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center border-r border-[#26364d] pr-3">
               <img src={LOGO_URL} alt="Logo" className="max-h-full max-w-full object-contain" />
@@ -225,19 +225,19 @@ export default function SelectAppPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="cop-session-block hidden md:flex">
-              <div className="flex min-w-0 items-center gap-2 px-3 py-1.5 text-xs text-slate-300">
+          <div className="flex shrink-0 items-center gap-4">
+            <div className="cop-session-block hidden w-[510px] shrink-0 xl:flex">
+              <div className="flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-xs text-slate-300">
                 <User className="w-3.5 h-3.5 text-blue-400" />
-                <div className="min-w-0">
-                  <span className="block max-w-[190px] truncate font-semibold">{userEmail}</span>
+                <div className="min-w-0 flex-1">
+                  <span className="block max-w-[240px] truncate font-semibold">{userEmail}</span>
                   {userRole === 'operador' && userSuperintendencia && (
                     <span
-                      className="mt-0.5 flex max-w-[260px] items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-slate-500"
+                      className="mt-0.5 flex items-start gap-1 text-[9px] font-bold uppercase leading-tight tracking-wide text-slate-500"
                       title={userSuperintendencia}
                     >
                       <Building2 className="h-2.5 w-2.5 shrink-0" />
-                      <span className="truncate">{userSuperintendencia}</span>
+                      <span>{userSuperintendencia}</span>
                     </span>
                   )}
                 </div>
@@ -258,6 +258,15 @@ export default function SelectAppPage() {
           </div>
         </div>
       </header>
+
+      {userRole === 'operador' && userSuperintendencia && (
+        <div className="border-b border-[#26364d] bg-[#050e1c] px-4 py-2 xl:hidden sm:px-6 lg:px-8">
+          <div className="mx-auto flex max-w-[1800px] items-start gap-2 text-[9px] font-extrabold uppercase leading-snug tracking-[0.045em] text-slate-400">
+            <Building2 className="mt-0.5 h-3 w-3 shrink-0 text-[#c4a35a]" />
+            <span>{userSuperintendencia}</span>
+          </div>
+        </div>
+      )}
 
       <main className="mx-auto flex w-full max-w-[1320px] flex-1 flex-col justify-center px-4 py-12 sm:px-6 lg:px-8">
         {estadoAcceso === 'por_vencer' && diasVigencia !== null && (

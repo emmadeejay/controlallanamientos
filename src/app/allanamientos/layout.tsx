@@ -121,7 +121,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="cop-shell flex min-h-screen flex-col justify-between text-slate-100">
       <div>
         <header className="cop-command-header sticky top-0 z-50">
-          <div className="mx-auto flex min-h-[76px] max-w-[1500px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto flex min-h-[76px] max-w-[1800px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
             
             <div className="flex items-center gap-3 sm:gap-6">
               <div 
@@ -188,19 +188,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </nav>
             </div>
 
-            <div className="flex items-center gap-2 sm:gap-4">
-              <div className="cop-session-block hidden lg:flex">
-                <div className="flex min-w-0 items-center gap-2 px-3 py-1.5 text-xs text-slate-300">
+            <div className="flex shrink-0 items-center gap-2 sm:gap-4">
+              <div className="cop-session-block hidden w-[510px] shrink-0 2xl:flex">
+                <div className="flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-xs text-slate-300">
                   <User className="w-3.5 h-3.5 text-blue-400" />
-                  <div className="min-w-0">
-                    <span className="block max-w-[190px] truncate font-semibold">{userEmail}</span>
+                  <div className="min-w-0 flex-1">
+                    <span className="block max-w-[240px] truncate font-semibold">{userEmail}</span>
                     {esOperador && userSuperintendencia && (
                       <span
-                        className="mt-0.5 flex max-w-[300px] items-center gap-1 truncate text-[9px] font-bold uppercase tracking-wide text-slate-500"
+                        className="mt-0.5 flex items-start gap-1 text-[9px] font-bold uppercase leading-tight tracking-wide text-slate-500"
                         title={userSuperintendencia}
                       >
                         <Building2 className="h-2.5 w-2.5 shrink-0" />
-                        <span className="truncate">{userSuperintendencia}</span>
+                        <span>{userSuperintendencia}</span>
                       </span>
                     )}
                   </div>
@@ -221,6 +221,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           </div>
         </header>
+
+        {esOperador && userSuperintendencia && (
+          <div className="border-b border-[#26364d] bg-[#050e1c] px-4 py-2 2xl:hidden sm:px-6 lg:px-8">
+            <div className="mx-auto flex max-w-[1800px] items-start gap-2 text-[9px] font-extrabold uppercase leading-snug tracking-[0.045em] text-slate-400">
+              <Building2 className="mt-0.5 h-3 w-3 shrink-0 text-[#c4a35a]" />
+              <span>{userSuperintendencia}</span>
+            </div>
+          </div>
+        )}
 
         {diasVigencia !== null && diasVigencia >= 0 && diasVigencia <= 10 && (
           <div className="border-b border-amber-800/50 bg-amber-950/40 px-4 py-2 text-center text-xs text-amber-300">
