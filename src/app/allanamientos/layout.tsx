@@ -45,7 +45,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         }
 
         const esGestion = ['admin', 'administrador', 'supervisor'].includes(rolFinal);
-        const tieneModulo = esGestion || profile?.modulos_permitidos?.includes('allanamientos');
+        const esConsultaEjecutiva = ['auditor', 'consulta'].includes(rolFinal);
+        const tieneModulo =
+          esGestion ||
+          esConsultaEjecutiva ||
+          profile?.modulos_permitidos?.includes('allanamientos');
         if (!profile || !perfilTieneAcceso(profile) || !tieneModulo) {
           window.location.replace('/select-app');
           return;
@@ -97,7 +101,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
-  const esOperador = userRole.toLowerCase() === 'operador';
+  const rolNormalizado = userRole.toLowerCase();
+  const esOperador = rolNormalizado === 'operador';
+  const esConsultaEjecutiva = ['auditor', 'consulta'].includes(rolNormalizado);
 
   return (
     <div className="flex flex-col justify-between min-h-screen bg-slate-950 text-slate-100">
@@ -107,9 +113,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             
             <div className="flex items-center gap-3 sm:gap-6">
               <div 
-                onClick={() => router.push('/select-app')} 
+                onClick={() => router.push(esConsultaEjecutiva ? '/allanamientos/metricas' : '/select-app')} 
                 className="flex items-center gap-3 cursor-pointer hover:opacity-90 transition-opacity"
-                title="Volver al Menú Principal"
+                title={esConsultaEjecutiva ? 'Volver a Estadísticas' : 'Volver al Menú Principal'}
               >
                 <div className="w-10 h-10 flex items-center justify-center shrink-0">
                   <img src={LOGO_URL} alt="Logo" className="max-h-full max-w-full object-contain" />
@@ -124,26 +130,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </div>
               </div>
 
-              <button
-                onClick={() => router.push('/select-app')}
-                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition"
-                title="Menú Principal de Apps"
-              >
-                <Grid className="w-4 h-4" />
-              </button>
+              {!esConsultaEjecutiva && (
+                <button
+                  onClick={() => router.push('/select-app')}
+                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition"
+                  title="Menú Principal de Apps"
+                >
+                  <Grid className="w-4 h-4" />
+                </button>
+              )}
 
               <nav className="flex items-center gap-1 border-l border-slate-800 pl-3 sm:pl-6">
-                <Link
-                  href="/allanamientos"
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition ${
-                    pathname === '/allanamientos'
-                      ? 'bg-blue-600 text-white'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                  }`}
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span className="hidden md:inline">Allanamientos</span>
-                </Link>
+                {!esConsultaEjecutiva && (
+                  <Link
+                    href="/allanamientos"
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition ${
+                      pathname === '/allanamientos'
+                        ? 'bg-blue-600 text-white'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span className="hidden md:inline">Allanamientos</span>
+                  </Link>
+                )}
 
                 {!esOperador && (
                   <Link

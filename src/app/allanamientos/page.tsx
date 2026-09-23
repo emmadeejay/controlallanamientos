@@ -691,6 +691,13 @@ export default function DashboardPage() {
       const rolNormalizado = String(rawRole).toLowerCase().trim();
       const rolNormalizadoCompatible = rolNormalizado === 'admin' ? 'administrador' : rolNormalizado;
 
+      // Defensa adicional al Proxy: Auditor y Consulta solo acceden a
+      // Estadísticas y Buscar, nunca al tablero operativo ni al semáforo interno.
+      if (['auditor', 'consulta'].includes(rolNormalizadoCompatible)) {
+        router.replace('/allanamientos/metricas');
+        return;
+      }
+
       const esElevado = 
         rolNormalizado === 'supervisor' || 
         rolNormalizado === 'administrador' || 
@@ -1082,7 +1089,7 @@ export default function DashboardPage() {
       </div>
 
       {/* 3. CONTROL SEMÁFORO GENERAL */}
-      {!esOperador && (
+      {esAdministradorOSupervisor && (
         <SemaforoSuperintendencias
           key={semaforoVersion}
           puedeGestionar={esAdministradorOSupervisor}

@@ -72,6 +72,24 @@ export async function proxy(request: NextRequest) {
       url.search = '';
       return NextResponse.redirect(url);
     }
+
+    const rolNormalizado = String(perfil.rol ?? '').trim().toLowerCase();
+    const esConsultaEjecutiva = ['auditor', 'consulta'].includes(rolNormalizado);
+    const estaEnInicioOperativo = request.nextUrl.pathname === '/allanamientos';
+    const estaEnSelectorEjecutivo = request.nextUrl.pathname.startsWith('/select-app');
+
+    // Auditor y Consulta consumen resultados: no ingresan al tablero operativo
+    // ni al control interno de presentaciones por superintendencia.
+    if (
+      !debeQuedarEnSelector &&
+      esConsultaEjecutiva &&
+      (estaEnInicioOperativo || estaEnSelectorEjecutivo)
+    ) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/allanamientos/metricas';
+      url.search = '';
+      return NextResponse.redirect(url);
+    }
   }
 
   // Si ya tiene sesión y entra al login, se redirige al selector
