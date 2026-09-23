@@ -8,7 +8,6 @@ import { supabase } from '@/lib/supabase';
 import { Plus, Search, Edit3, Trash2, Lock, Upload, Eye, X, Shield, Calendar, MapPin, FileText, UserCheck, Crosshair, Car, CheckCircle2, Send } from 'lucide-react';
 import { obtenerRangoSemanaRendida, obtenerValoresSecuestros } from '@/lib/allanamientos';
 import InformeSemanalControls from '@/components/InformeSemanalControls';
-import * as XLSX from 'xlsx';
 
 // Sincronización precisa con la hora oficial de Argentina (UTC-3)
 function esVentanaHorariaValida(): boolean {
@@ -509,145 +508,6 @@ function DetalleGrupo({ titulo, items }: { titulo: string; items: Array<[string,
   );
 }
 
-function BotonImportarExcel({ onImportSuccess }: { onImportSuccess?: () => void }) {
-  const [permitido, setPermitido] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [subiendo, setSubiendo] = useState(false);
-
-  useEffect(() => {
-    verificarPermisosImportacion();
-  }, []);
-
-  async function verificarPermisosImportacion() {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      const rawRole = profile?.rol || profile?.role || '';
-      const rol = String(rawRole).toLowerCase().trim();
-
-      const esAdminOSupervisor = ['administrador', 'supervisor', 'admin', 'superadmin'].includes(rol);
-      setPermitido(esAdminOSupervisor);
-    } catch (err) {
-      console.error('Error al verificar permisos de importación:', err);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setSubiendo(true);
-    const reader = new FileReader();
-
-    reader.onload = async (evt) => {
-      try {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const data: any[] = XLSX.utils.sheet_to_json(ws);
-
-        if (data.length === 0) {
-          alert('El archivo Excel está vacío.');
-          setSubiendo(false);
-          return;
-        }
-
-        // Carga eficiente única de superintendencias para mapeo instantáneo
-        const { data: supers } = await supabase.from('superintendencias').select('id, nombre');
-        const mapSupers = new Map(supers?.map(s => [s.nombre.toLowerCase().trim(), s.id]));
-
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('La sesión ya no es válida. Volvé a iniciar sesión.');
-
-        const registrosParaInsertar = data.map(row => {
-          const nombreSupExcel = String(row.superintendencia || row.Superintendencia || '').toLowerCase().trim();
-          const superintendenciaId = mapSupers.get(nombreSupExcel) || null;
-          const cantidadArmas = Math.max(0, Number(row.armas || row.armas_secuestradas || 0));
-          const cantidadVehiculos = Math.max(0, Number(row.vehiculos || row.vehiculos_secuestrados || 0));
-          const cantidadPersonas = Math.max(0, Number(row.personas || row.detenidos_aprehendidos_cant || 0));
-
-          if (!superintendenciaId) {
-            throw new Error(`Superintendencia inexistente en el archivo: ${nombreSupExcel || '(vacía)'}`);
-          }
-
-          return {
-            operador_id: user.id,
-            numero_ipp: row.numero_ipp || row.IPP || null,
-            caratula: row.caratula || row.Caratula || null,
-            ufi_juzgado: row.ufi_juzgado || row.UFI || 'Sin especificar',
-            fecha_solicitud: row.fecha_solicitud || null,
-            numero_parte_urgente: row.numero_parte_urgente || row.numero_pu || null,
-            orden_servicio_propia: row.orden_servicio_propia || row.nro_orden_serv_propia || 'S/N',
-            orden_servicio_cop: row.orden_servicio_cop || row.nro_orden_serv_cop || null,
-            superintendencia_id: superintendenciaId, 
-            partido: row.partido || null,
-            departamental: row.departamental || 'Sin especificar',
-            dependencia: row.dependencia || 'Sin especificar',
-            lugar_presentacion: row.lugar_presentacion || row.dependencia || row.partido || 'Sin especificar',
-            fecha_ejecucion: row.fecha_ejecucion || null,
-            horario_ejecucion: row.horario_ejecucion || '00:00',
-            personal_propio: Number(row.personal_propio || 1),
-            resultado_medida: row.resultado_medida || 'Positivo',
-            es_positivo: (row.resultado_medida || 'Positivo') === 'Positivo',
-            objetivos: Number(row.objetivos || row.cantidad_objetivos || 1),
-            resultado_secuestros: row.resultado_secuestros || 'Positivo',
-            secuestro_armas: cantidadArmas > 0 ? [{ subtipo: 'Sin especificar', cantidad: cantidadArmas }] : [],
-            secuestro_vehiculos: cantidadVehiculos > 0 ? [{ subtipo: 'Sin especificar', cantidad: cantidadVehiculos }] : [],
-            detenidos_aprehendidos: cantidadPersonas > 0 ? [{ subtipo: 'Sin especificar', cantidad: cantidadPersonas }] : [],
-            armas_secuestradas: cantidadArmas,
-            vehiculos_secuestrados: cantidadVehiculos,
-            detenidos_aprehendidos_cant: cantidadPersonas,
-            observaciones: row.observaciones || 'Carga masiva Excel'
-          };
-        });
-
-        const { error } = await supabase
-          .from('allanamientos')
-          .insert(registrosParaInsertar);
-
-        if (error) throw error;
-
-        alert(`¡Importación exitosa! Se cargaron ${registrosParaInsertar.length} registros.`);
-        if (onImportSuccess) onImportSuccess();
-
-      } catch (err: any) {
-        console.error('Error al importar:', err);
-        alert(`Error al procesar el archivo: ${err.message}`);
-      } finally {
-        setSubiendo(false);
-        e.target.value = '';
-      }
-    };
-    reader.readAsBinaryString(file);
-  };
-
-  if (loading || !permitido) return null;
-
-  return (
-    <label className={`cursor-pointer px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/20 ${subiendo ? 'opacity-50 cursor-not-allowed' : ''}`}>
-      <Upload className="w-4 h-4" />
-      <span>{subiendo ? 'Procesando...' : 'Importar Excel'}</span>
-      <input 
-        type="file" 
-        accept=".xlsx, .xls, .csv" 
-        onChange={handleFileUpload} 
-        disabled={subiendo} 
-        className="hidden" 
-      />
-    </label>
-  );
-}
-
 export default function DashboardPage() {
   const router = useRouter();
   const [allanamientos, setAllanamientos] = useState<any[]>([]);
@@ -876,7 +736,14 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* La importación histórica volverá como flujo separado, validado y auditado. */}
+          {(rolUsuario === 'administrador' || rolUsuario === 'admin') && (
+            <button
+              onClick={() => router.push('/admin/importar-allanamientos')}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-emerald-600/20 transition cursor-pointer"
+            >
+              <Upload className="w-4 h-4" /> Carga histórica
+            </button>
+          )}
 
           {puedeEditar ? (
             <button
