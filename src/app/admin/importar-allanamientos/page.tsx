@@ -49,10 +49,30 @@ function esLunes(fechaIso: string): boolean {
   return new Date(`${fechaIso}T12:00:00Z`).getUTCDay() === 1;
 }
 
+function formatearFechaCorta(fechaIso: string): string {
+  return new Intl.DateTimeFormat('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(`${fechaIso}T12:00:00Z`));
+}
+
 export default function ImportacionHistoricaPage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const semanaMaxima = obtenerRangoSemanaRendida().inicio;
+  const semanasDisponibles = useMemo(() => {
+    const semanas: string[] = [];
+    let lunes = '2026-06-01';
+
+    while (lunes <= semanaMaxima) {
+      semanas.push(lunes);
+      lunes = sumarDias(lunes, 7);
+    }
+
+    return semanas;
+  }, [semanaMaxima]);
 
   const [superintendencias, setSuperintendencias] = useState<SuperintendenciaImportacion[]>([]);
   const [lotes, setLotes] = useState<LoteReciente[]>([]);
@@ -340,17 +360,20 @@ export default function ImportacionHistoricaPage() {
             <div className="grid gap-4 md:grid-cols-[220px_1fr_auto] md:items-end">
               <label className="space-y-1.5 text-xs font-semibold text-slate-400">
                 Lunes de la semana
-                <input
-                  type="date"
-                  min="2026-06-01"
-                  max={semanaMaxima}
+                <select
                   value={semanaInicio}
                   onChange={(evento) => {
                     setSemanaInicio(evento.target.value);
                     limpiarRevision();
                   }}
                   className="block w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none focus:border-blue-500"
-                />
+                >
+                  {semanasDisponibles.map((lunes) => (
+                    <option key={lunes} value={lunes}>
+                      {formatearFechaCorta(lunes)} al {formatearFechaCorta(sumarDias(lunes, 6))}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="space-y-1.5 text-xs font-semibold text-slate-400">
                 Archivo normalizado
