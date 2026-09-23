@@ -29,10 +29,14 @@ export default async function MetricasLayout({ children }: { children: ReactNode
   const rolOriginal = String(perfil?.rol ?? '').trim().toLowerCase();
   const rol = rolOriginal === 'admin' ? 'administrador' : rolOriginal;
   const esGestion = rol === 'administrador' || rol === 'supervisor';
-  const tieneModulo = esGestion || perfil?.modulos_permitidos?.includes('allanamientos');
+  const esConsultaEjecutiva = rol === 'auditor' || rol === 'consulta';
+  const tieneModulo =
+    esGestion ||
+    esConsultaEjecutiva ||
+    perfil?.modulos_permitidos?.includes('allanamientos');
 
   if (!perfil || !perfilTieneAcceso(perfil) || !ROLES_METRICAS.has(rol) || !tieneModulo) {
-    redirect('/allanamientos');
+    redirect('/select-app');
   }
 
   return children;

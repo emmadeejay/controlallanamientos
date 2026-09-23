@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { autorizarExportacionAllanamientosAction } from '@/app/actions/allanamientos'
 import { obtenerRangoSemanaRendida, obtenerValoresSecuestros } from '@/lib/allanamientos'
 import * as XLSX from 'xlsx'
 import {
@@ -43,6 +44,7 @@ export default function BuscarAllanamientosPage() {
   const [paginaActual, setPaginaActual] = useState(1)
   const [registrosPorPagina, setRegistrosPorPagina] = useState(25)
   const [mensajeError, setMensajeError] = useState('')
+  const [puedeExportar, setPuedeExportar] = useState(false)
 
   const [partidosList, setPartidosList] = useState<string[]>([])
   const [superintendenciasList, setSuperintendenciasList] = useState<Superintendencia[]>([])
@@ -63,12 +65,27 @@ export default function BuscarAllanamientosPage() {
   })
 
   useEffect(() => {
+    void cargarPermisoExportacion()
     void cargarListasMaestras()
     void ejecutarBusqueda(1, registrosPorPagina, {
       desde: inicioMesActual(),
       hasta: fechaArgentina(),
     })
   }, [])
+
+  async function cargarPermisoExportacion() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { data: perfil } = await supabase
+      .from('profiles')
+      .select('rol')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    const rol = String(perfil?.rol ?? '').trim().toLowerCase()
+    setPuedeExportar(['admin', 'administrador', 'supervisor'].includes(rol))
+  }
 
   async function cargarListasMaestras() {
     const [partidos, superintendencias] = await Promise.all([
@@ -209,6 +226,14 @@ export default function BuscarAllanamientosPage() {
     setMensajeError('')
 
     try {
+      const autorizacion = await autorizarExportacionAllanamientosAction({
+        ...filtrosAplicados,
+        cantidad: totalRegistros,
+      })
+      if (!autorizacion.success) {
+        throw new Error(autorizacion.error)
+      }
+
       const todos = await obtenerTodosParaExportar()
       const datos = todos.map((item) => {
         const v = obtenerValoresSecuestros(item)
@@ -295,14 +320,16 @@ export default function BuscarAllanamientosPage() {
             </div>
           </div>
 
-          <button
-            onClick={exportarExcel}
-            disabled={totalRegistros === 0 || exportando}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold transition flex items-center gap-2 disabled:opacity-50 shadow-lg shadow-emerald-950/20"
-          >
-            {exportando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            {exportando ? 'Generando Excel completo...' : `Exportar (${totalRegistros})`}
-          </button>
+          {puedeExportar && (
+            <button
+              onClick={exportarExcel}
+              disabled={totalRegistros === 0 || exportando}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold transition flex items-center gap-2 disabled:opacity-50 shadow-lg shadow-emerald-950/20"
+            >
+              {exportando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {exportando ? 'Generando Excel completo...' : `Exportar (${totalRegistros})`}
+            </button>
+          )}
         </div>
 
         <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 space-y-4 backdrop-blur-md">

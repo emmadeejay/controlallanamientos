@@ -75,7 +75,11 @@ export async function proxy(request: NextRequest) {
 
     const rolNormalizado = String(perfil.rol ?? '').trim().toLowerCase();
     const esConsultaEjecutiva = ['auditor', 'consulta'].includes(rolNormalizado);
-    const estaEnInicioOperativo = request.nextUrl.pathname === '/allanamientos';
+    const pathname = request.nextUrl.pathname;
+    const estaEnRutaOperativa =
+      pathname === '/allanamientos' ||
+      pathname.startsWith('/allanamientos/nuevo') ||
+      pathname.startsWith('/allanamientos/editar');
     const estaEnSelectorEjecutivo = request.nextUrl.pathname.startsWith('/select-app');
 
     // Auditor y Consulta consumen resultados: no ingresan al tablero operativo
@@ -83,7 +87,7 @@ export async function proxy(request: NextRequest) {
     if (
       !debeQuedarEnSelector &&
       esConsultaEjecutiva &&
-      (estaEnInicioOperativo || estaEnSelectorEjecutivo)
+      (estaEnRutaOperativa || estaEnSelectorEjecutivo)
     ) {
       const url = request.nextUrl.clone();
       url.pathname = '/allanamientos/metricas';

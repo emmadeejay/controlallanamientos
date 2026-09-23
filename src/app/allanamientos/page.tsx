@@ -876,7 +876,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {!esOperador && <BotonImportarExcel onImportSuccess={() => checkPeriodoYUsuario()} />}
+          {/* La importación histórica volverá como flujo separado, validado y auditado. */}
 
           {puedeEditar ? (
             <button
