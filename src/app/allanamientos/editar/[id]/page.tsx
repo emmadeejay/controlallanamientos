@@ -3,7 +3,7 @@
 import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Trash2, Save, ShieldAlert, Loader2, Building2 } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Save, Loader2, Building2 } from 'lucide-react'
 import {
   obtenerRangoSemanaRendida,
   sanitizarDetalles,
@@ -373,48 +373,49 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center gap-3">
-        <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-        <span className="text-sm font-medium text-slate-400">Cargando datos del allanamiento...</span>
+      <div className="flex min-h-[60vh] items-center justify-center gap-3 text-slate-100">
+        <Loader2 className="h-5 w-5 animate-spin text-[#c4a35a]" />
+        <span className="text-xs font-extrabold uppercase tracking-[0.08em] text-slate-400">Cargando registro...</span>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-10">
-      <div className="max-w-5xl mx-auto space-y-6">
+    <div className="cop-form-page text-slate-100">
+      <div className="space-y-6">
         
-        <div className="flex items-center justify-between border-b border-slate-800 pb-5">
-          <div className="flex items-center space-x-4">
+        <header className="cop-form-header">
             <button 
               type="button"
               onClick={() => router.back()}
-              className="p-2 bg-slate-900 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition cursor-pointer"
+              className="cop-form-back cursor-pointer"
+              aria-label="Volver"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-                <ShieldAlert className="w-6 h-6 text-amber-500" /> Editar Allanamiento
-              </h1>
-              <p className="text-sm text-slate-400">Modifique la información cargada para la causa IPP: {formData.numero_ipp}</p>
+            <div className="min-w-0">
+              <p className="cop-kicker mb-2">OP-03 · Rectificación controlada</p>
+              <h1 className="text-xl font-black uppercase tracking-[0.035em] text-white sm:text-2xl">Editar allanamiento</h1>
+              <p className="mt-2 text-xs leading-relaxed text-slate-400 sm:text-sm">Registro asociado a la causa IPP: <span className="font-mono text-slate-200">{formData.numero_ipp}</span></p>
             </div>
-          </div>
-        </div>
+        </header>
 
         {error && (
-          <div className="bg-red-950/50 border border-red-800 text-red-200 px-4 py-3 rounded-xl text-sm">
+          <div className="border border-red-800/70 border-l-4 border-l-red-600 bg-red-950/30 px-4 py-3 text-sm text-red-200">
             {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="cop-operational-form space-y-6">
 
           {/* TARJETA 1 */}
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-6 shadow-xl backdrop-blur-md">
-            <h2 className="text-base font-semibold text-blue-400 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
-              ⚖️ 1. Datos Judiciales y de Causa
-            </h2>
+          <section className="cop-form-section">
+            <div className="cop-form-section-heading">
+              <div className="cop-form-section-identity">
+                <span className="cop-form-section-index">01</span>
+                <div><h2 className="cop-form-section-title">Datos judiciales y de causa</h2><p className="cop-form-section-caption">Identificación del expediente y órdenes de servicio</p></div>
+              </div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-400 mb-1">Número IPP *</label>
@@ -498,13 +499,16 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
                 />
               </div>
             </div>
-          </div>
+          </section>
 
           {/* TARJETA 2 */}
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-6 shadow-xl backdrop-blur-md">
-            <h2 className="text-base font-semibold text-blue-400 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
-              📍 2. Ubicación y Jurisdicción
-            </h2>
+          <section className="cop-form-section">
+            <div className="cop-form-section-heading">
+              <div className="cop-form-section-identity">
+                <span className="cop-form-section-index">02</span>
+                <div><h2 className="cop-form-section-title">Ubicación y jurisdicción</h2><p className="cop-form-section-caption">Destino institucional, dependencia, fecha y horario</p></div>
+              </div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 
               {esElevado && (
@@ -616,13 +620,16 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
                 </div>
               </div>
             </div>
-          </div>
+          </section>
 
           {/* TARJETA 3 */}
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-6 shadow-xl backdrop-blur-md">
-            <h2 className="text-base font-semibold text-blue-400 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
-              👥 3. Personal y Resultados Principales
-            </h2>
+          <section className="cop-form-section">
+            <div className="cop-form-section-heading">
+              <div className="cop-form-section-identity">
+                <span className="cop-form-section-index">03</span>
+                <div><h2 className="cop-form-section-title">Personal y resultado principal</h2><p className="cop-form-section-caption">Dotación propia, objetivos y resultado de la medida</p></div>
+              </div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-400 mb-1">Personal Propio</label>
@@ -670,18 +677,19 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
                 </select>
               </div>
             </div>
-          </div>
+          </section>
 
           {/* TARJETA 4 */}
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-6 shadow-xl backdrop-blur-md">
-            <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-2">
-              <h2 className="text-base font-semibold text-blue-400 flex items-center gap-2">
-                🤝 4. Personal en Colaboración
-              </h2>
+          <section className="cop-form-section">
+            <div className="cop-form-section-heading">
+              <div className="cop-form-section-identity">
+                <span className="cop-form-section-index">04</span>
+                <div><h2 className="cop-form-section-title">Personal en colaboración</h2><p className="cop-form-section-caption">Especialidades solicitadas y personal efectivamente afectado</p></div>
+              </div>
               <button 
                 type="button" 
                 onClick={addColaboracion}
-                className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-xl text-xs font-medium flex items-center gap-1.5 transition border border-blue-500/30 cursor-pointer"
+                className="cop-action-secondary w-full cursor-pointer sm:w-auto"
               >
                 <Plus className="w-4 h-4" /> Agregar otra especialidad
               </button>
@@ -741,13 +749,16 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
                 </div>
               ))}
             </div>
-          </div>
+          </section>
 
           {/* TARJETA 5 */}
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-6 shadow-xl backdrop-blur-md space-y-4">
-            <h2 className="text-base font-semibold text-blue-400 border-b border-slate-800 pb-2 flex items-center gap-2">
-              📦 5. Secuestros y Observaciones
-            </h2>
+          <section className="cop-form-section space-y-4">
+            <div className="cop-form-section-heading">
+              <div className="cop-form-section-identity">
+                <span className="cop-form-section-index">05</span>
+                <div><h2 className="cop-form-section-title">Secuestros y observaciones</h2><p className="cop-form-section-caption">Detalle de armas, vehículos, personas y notas complementarias</p></div>
+              </div>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -896,20 +907,20 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
               />
             </div>
-          </div>
+          </section>
 
-          <div className="flex items-center justify-end gap-4 pt-4">
+          <div className="cop-form-actions">
             <button 
               type="button" 
               onClick={() => router.back()}
-              className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-xl text-sm font-medium transition border border-slate-800 cursor-pointer"
+              className="cop-action-secondary w-full cursor-pointer sm:w-auto"
             >
               Cancelar
             </button>
             <button 
               type="submit" 
               disabled={saving}
-              className="px-6 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-sm font-semibold transition flex items-center gap-2 shadow-lg shadow-amber-600/20 disabled:opacity-50 cursor-pointer"
+              className="cop-action-warning w-full cursor-pointer disabled:opacity-50 sm:w-auto"
             >
               {saving ? (
                 <>

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Trash2, Save, ShieldAlert, Building2, Loader2, Lock } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Save, Building2, Loader2, Lock } from 'lucide-react'
 import {
   obtenerRangoSemanaRendida,
   sanitizarDetalles,
@@ -337,59 +337,60 @@ export default function NuevoAllanamientosPage() {
 
   if (fueraDeVentana && !esElevado) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-center mb-4 text-amber-400">
-          <Lock className="w-8 h-8" />
-        </div>
-        <h1 className="text-xl font-bold text-white mb-2">Fuera de Período de Carga</h1>
-        <p className="text-sm text-slate-400 max-w-md mb-6">
-          El sistema solo habilita el registro de allanamientos desde los <span className="text-amber-400 font-semibold">Lunes a las 00:00 hs</span> hasta los <span className="text-amber-400 font-semibold">Miércoles a las 08:00 hs</span>.
-        </p>
-        <button
-          onClick={() => router.push('/allanamientos')}
-          className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 rounded-xl text-sm font-semibold transition cursor-pointer"
-        >
-          Volver a Allanamientos
-        </button>
+      <div className="cop-form-page flex min-h-[62vh] items-center justify-center py-10 text-center">
+        <section className="w-full max-w-xl border border-[#26364d] border-l-4 border-l-amber-600 bg-[#071426] px-5 py-8 sm:px-8">
+          <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center border border-amber-800/70 bg-amber-950/30 text-amber-400">
+            <Lock className="h-6 w-6" />
+          </div>
+          <p className="cop-kicker mb-2">Ventana operativa cerrada</p>
+          <h1 className="text-lg font-extrabold uppercase tracking-[0.04em] text-white">Fuera de período de carga</h1>
+          <p className="mx-auto mb-6 mt-3 max-w-md text-sm leading-relaxed text-slate-400">
+            El registro se habilita desde el <span className="font-semibold text-amber-400">lunes a las 00:00 hs</span> hasta el <span className="font-semibold text-amber-400">miércoles a las 08:00 hs</span>.
+          </p>
+          <button type="button" onClick={() => router.push('/allanamientos')} className="cop-action-secondary">
+            Volver a allanamientos
+          </button>
+        </section>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-10">
-      <div className="max-w-5xl mx-auto space-y-6">
+    <div className="cop-form-page text-slate-100">
+      <div className="space-y-6">
         
-        <div className="flex items-center justify-between border-b border-slate-800 pb-5">
-          <div className="flex items-center space-x-4">
+        <header className="cop-form-header">
             <button 
               type="button"
               onClick={() => router.back()}
-              className="p-2 bg-slate-900 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition cursor-pointer"
+              className="cop-form-back cursor-pointer"
+              aria-label="Volver"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-                <ShieldAlert className="w-6 h-6 text-blue-500" /> Registrar Nuevo Allanamiento
-              </h1>
-              <p className="text-sm text-slate-400">Complete los datos correspondientes al operativo realizado bajo su jurisdicción.</p>
+            <div className="min-w-0">
+              <p className="cop-kicker mb-2">OP-02 · Alta operativa</p>
+              <h1 className="text-xl font-black uppercase tracking-[0.035em] text-white sm:text-2xl">Registrar nuevo allanamiento</h1>
+              <p className="mt-2 text-xs leading-relaxed text-slate-400 sm:text-sm">Completá los datos del procedimiento ejecutado bajo la jurisdicción correspondiente.</p>
             </div>
-          </div>
-        </div>
+        </header>
 
         {error && (
-          <div className="bg-red-950/50 border border-red-800 text-red-200 px-4 py-3 rounded-xl text-sm">
+          <div className="border border-red-800/70 border-l-4 border-l-red-600 bg-red-950/30 px-4 py-3 text-sm text-red-200">
             {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="cop-operational-form space-y-6">
 
           {/* TARJETA 1 */}
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-6 shadow-xl backdrop-blur-md">
-            <h2 className="text-base font-semibold text-blue-400 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
-              ⚖️ 1. Datos Judiciales y de Causa
-            </h2>
+          <section className="cop-form-section">
+            <div className="cop-form-section-heading">
+              <div className="cop-form-section-identity">
+                <span className="cop-form-section-index">01</span>
+                <div><h2 className="cop-form-section-title">Datos judiciales y de causa</h2><p className="cop-form-section-caption">Identificación del expediente y órdenes de servicio</p></div>
+              </div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-400 mb-1">Número IPP *</label>
@@ -479,13 +480,16 @@ export default function NuevoAllanamientosPage() {
                 />
               </div>
             </div>
-          </div>
+          </section>
 
           {/* TARJETA 2 */}
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-6 shadow-xl backdrop-blur-md">
-            <h2 className="text-base font-semibold text-blue-400 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
-              📍 2. Ubicación y Jurisdicción
-            </h2>
+          <section className="cop-form-section">
+            <div className="cop-form-section-heading">
+              <div className="cop-form-section-identity">
+                <span className="cop-form-section-index">02</span>
+                <div><h2 className="cop-form-section-title">Ubicación y jurisdicción</h2><p className="cop-form-section-caption">Destino institucional, dependencia, fecha y horario</p></div>
+              </div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 
               {esElevado && (
@@ -601,13 +605,16 @@ export default function NuevoAllanamientosPage() {
                 </div>
               </div>
             </div>
-          </div>
+          </section>
 
           {/* TARJETA 3 */}
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-6 shadow-xl backdrop-blur-md">
-            <h2 className="text-base font-semibold text-blue-400 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
-              👥 3. Personal y Resultados Principales
-            </h2>
+          <section className="cop-form-section">
+            <div className="cop-form-section-heading">
+              <div className="cop-form-section-identity">
+                <span className="cop-form-section-index">03</span>
+                <div><h2 className="cop-form-section-title">Personal y resultado principal</h2><p className="cop-form-section-caption">Dotación propia, objetivos y resultado de la medida</p></div>
+              </div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-400 mb-1">Personal Propio</label>
@@ -655,18 +662,19 @@ export default function NuevoAllanamientosPage() {
                 </select>
               </div>
             </div>
-          </div>
+          </section>
 
           {/* TARJETA 4 */}
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-6 shadow-xl backdrop-blur-md">
-            <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-2">
-              <h2 className="text-base font-semibold text-blue-400 flex items-center gap-2">
-                🤝 4. Personal en Colaboración
-              </h2>
+          <section className="cop-form-section">
+            <div className="cop-form-section-heading">
+              <div className="cop-form-section-identity">
+                <span className="cop-form-section-index">04</span>
+                <div><h2 className="cop-form-section-title">Personal en colaboración</h2><p className="cop-form-section-caption">Especialidades solicitadas y personal efectivamente afectado</p></div>
+              </div>
               <button 
                 type="button" 
                 onClick={addColaboracion}
-                className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-xl text-xs font-medium flex items-center gap-1.5 transition border border-blue-500/30 cursor-pointer"
+                className="cop-action-secondary w-full cursor-pointer sm:w-auto"
               >
                 <Plus className="w-4 h-4" /> Agregar otra especialidad
               </button>
@@ -730,13 +738,16 @@ export default function NuevoAllanamientosPage() {
                 </div>
               ))}
             </div>
-          </div>
+          </section>
 
           {/* TARJETA 5 */}
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-6 shadow-xl backdrop-blur-md space-y-4">
-            <h2 className="text-base font-semibold text-blue-400 border-b border-slate-800 pb-2 flex items-center gap-2">
-              📦 5. Secuestros y Observaciones
-            </h2>
+          <section className="cop-form-section space-y-4">
+            <div className="cop-form-section-heading">
+              <div className="cop-form-section-identity">
+                <span className="cop-form-section-index">05</span>
+                <div><h2 className="cop-form-section-title">Secuestros y observaciones</h2><p className="cop-form-section-caption">Detalle de armas, vehículos, personas y notas complementarias</p></div>
+              </div>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -909,20 +920,20 @@ export default function NuevoAllanamientosPage() {
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
               />
             </div>
-          </div>
+          </section>
 
-          <div className="flex items-center justify-end gap-4 pt-4">
+          <div className="cop-form-actions">
             <button 
               type="button" 
               onClick={() => router.back()}
-              className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-xl text-sm font-medium transition border border-slate-800 cursor-pointer"
+              className="cop-action-secondary w-full cursor-pointer sm:w-auto"
             >
               Cancelar
             </button>
             <button 
               type="submit" 
               disabled={loading}
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold transition flex items-center gap-2 shadow-lg shadow-blue-600/20 disabled:opacity-50 cursor-pointer"
+              className="cop-action-primary w-full cursor-pointer disabled:opacity-50 sm:w-auto"
             >
               {loading ? (
                 <>
