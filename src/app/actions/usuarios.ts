@@ -212,9 +212,6 @@ function exigirPuedeGestionarObjetivo(
     if (actor.id === objetivo.id && nuevoRol && nuevoRol !== rolObjetivo) {
       throw new ErrorDeAccion('No podés cambiar tu propio rol administrativo.');
     }
-    if (nuevoRol === 'administrador' && rolObjetivo !== 'administrador') {
-      throw new ErrorDeAccion('La plataforma admite un único administrador.');
-    }
     return;
   }
 
@@ -299,7 +296,9 @@ export async function crearUsuarioAction(
       throw new ErrorDeAccion('Todos los campos y la referencia documental son obligatorios.');
     }
     if (!/^\S+@\S+\.\S+$/.test(email)) throw new ErrorDeAccion('El correo electrónico no es válido.');
-    if (rol === 'administrador') throw new ErrorDeAccion('La plataforma admite un único administrador.');
+    if (rol === 'administrador') {
+      throw new ErrorDeAccion('Los administradores se designan mediante la edición de una identidad existente.');
+    }
     if (actor.rol === 'supervisor' && !ROLES_GESTIONABLES_POR_SUPERVISOR.has(rol)) {
       throw new ErrorDeAccion('Un supervisor sólo puede crear Auditor, Operador o Consulta.');
     }
