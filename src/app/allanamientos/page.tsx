@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { Plus, Search, Edit3, Trash2, Lock, Upload, Eye, X, Shield, Calendar, MapPin, FileText, UserCheck, Crosshair, Car, CheckCircle2, Send } from 'lucide-react';
 import { obtenerRangoSemanaRendida, obtenerValoresSecuestros } from '@/lib/allanamientos';
 import InformeSemanalControls from '@/components/InformeSemanalControls';
+import InstitutionalDialog, { type InstitutionalDialogTone } from '@/components/InstitutionalDialog';
 
 // Sincronización precisa con la hora oficial de Argentina (UTC-3)
 function esVentanaHorariaValida(): boolean {
@@ -543,6 +544,14 @@ export default function DashboardPage() {
   const [registrosPorPagina, setRegistrosPorPagina] = useState(10);
   const [totalRegistros, setTotalRegistros] = useState(0);
   const [semaforoVersion, setSemaforoVersion] = useState(0);
+  const [confirmarFinalizacion, setConfirmarFinalizacion] = useState(false);
+  const [registroAEliminar, setRegistroAEliminar] = useState<string | null>(null);
+  const [eliminando, setEliminando] = useState(false);
+  const [aviso, setAviso] = useState<{
+    titulo: string;
+    detalle: string;
+    tono: InstitutionalDialogTone;
+  } | null>(null);
 
   useEffect(() => {
     checkPeriodoYUsuario();
@@ -685,35 +694,47 @@ export default function DashboardPage() {
   }
 
   const finalizarRendicion = async () => {
-    const mensajeConfirmacion = totalRegistros === 0
-      ? 'No hay allanamientos cargados. ¿Confirmás la presentación formal SIN NOVEDADES (0 registros)? Después no podrás agregar ni modificar registros.'
-      : `¿Confirmás que la superintendencia terminó de cargar la semana con ${totalRegistros} ${totalRegistros === 1 ? 'registro' : 'registros'}? Después no podrás agregar ni modificar registros.`;
-
-    if (!confirm(mensajeConfirmacion)) {
-      return;
-    }
-
     setFinalizando(true);
     const { error } = await supabase.rpc('finalizar_rendicion_allanamientos');
 
     if (error) {
-      alert(error.message || 'No se pudo finalizar la rendición.');
+      setConfirmarFinalizacion(false);
+      setAviso({
+        titulo: 'No se pudo finalizar la rendición',
+        detalle: error.message || 'La operación no pudo completarse. Revisá el estado del período e intentá nuevamente.',
+        tono: 'danger',
+      });
       setFinalizando(false);
       return;
     }
 
     await checkPeriodoYUsuario();
+    setConfirmarFinalizacion(false);
+    setAviso({
+      titulo: 'Rendición finalizada',
+      detalle: 'La presentación semanal quedó cerrada y registrada correctamente.',
+      tono: 'success',
+    });
     setFinalizando(false);
   };
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if (!esAdministradorOSupervisor) {
-      alert('Sólo los Administradores o Supervisores pueden eliminar registros.');
+      setAviso({
+        titulo: 'Operación no autorizada',
+        detalle: 'Sólo los administradores o supervisores pueden eliminar registros.',
+        tono: 'danger',
+      });
       return;
     }
-    if (!confirm('¿Está seguro de eliminar este registro de manera permanente?')) return;
+    setRegistroAEliminar(id);
+  };
 
+  const eliminarRegistro = async () => {
+    if (!registroAEliminar || eliminando) return;
+    const id = registroAEliminar;
+    setEliminando(true);
     const { error } = await supabase.from('allanamientos').delete().eq('id', id);
     if (!error) {
       if (itemSeleccionado?.id === id) setItemSeleccionado(null);
@@ -721,9 +742,21 @@ export default function DashboardPage() {
       setPaginaActual(paginaDestino);
       await fetchData(rolUsuario, usuarioId, paginaDestino, registrosPorPagina, busqueda);
       setSemaforoVersion((version) => version + 1);
+      setRegistroAEliminar(null);
+      setAviso({
+        titulo: 'Registro eliminado',
+        detalle: 'El allanamiento fue eliminado y la operación quedó sujeta a la trazabilidad del sistema.',
+        tono: 'success',
+      });
     } else {
-      alert('Error al intentar eliminar el registro.');
+      setRegistroAEliminar(null);
+      setAviso({
+        titulo: 'No se pudo eliminar el registro',
+        detalle: error.message || 'La operación fue rechazada. Verificá los permisos y volvé a intentarlo.',
+        tono: 'danger',
+      });
     }
+    setEliminando(false);
   };
 
   const handleEditClick = (e: React.MouseEvent, id: string) => {
@@ -785,7 +818,7 @@ export default function DashboardPage() {
 
           {esOperador && puedeEditar && (
             <button
-              onClick={finalizarRendicion}
+              onClick={() => setConfirmarFinalizacion(true)}
               disabled={finalizando}
               className="cop-action-success disabled:opacity-50"
             >
@@ -1002,6 +1035,41 @@ export default function DashboardPage() {
         onEdit={() => {
           if (itemSeleccionado) router.push(`/allanamientos/editar/${itemSeleccionado.id}`);
         }}
+      />
+
+      <InstitutionalDialog
+        open={confirmarFinalizacion}
+        title={totalRegistros === 0 ? 'Presentar semana sin novedades' : 'Finalizar rendición semanal'}
+        description={totalRegistros === 0
+          ? 'No hay allanamientos cargados. Se registrará una presentación formal sin novedades y luego no podrán agregarse ni modificarse registros.'
+          : `Se cerrará la presentación con ${totalRegistros} ${totalRegistros === 1 ? 'registro informado' : 'registros informados'}. Luego no podrán agregarse ni modificarse datos.`}
+        tone="warning"
+        confirmLabel={totalRegistros === 0 ? 'Presentar sin novedades' : 'Finalizar rendición'}
+        loading={finalizando}
+        onCancel={() => setConfirmarFinalizacion(false)}
+        onConfirm={finalizarRendicion}
+      />
+
+      <InstitutionalDialog
+        open={Boolean(registroAEliminar)}
+        title="Eliminar registro de allanamiento"
+        description="Esta operación elimina el registro seleccionado de manera permanente. Utilizala únicamente cuando corresponda corregir una carga inválida."
+        tone="danger"
+        confirmLabel="Eliminar registro"
+        loading={eliminando}
+        onCancel={() => setRegistroAEliminar(null)}
+        onConfirm={eliminarRegistro}
+      />
+
+      <InstitutionalDialog
+        open={Boolean(aviso)}
+        title={aviso?.titulo || 'Información del sistema'}
+        description={aviso?.detalle}
+        tone={aviso?.tono || 'info'}
+        confirmLabel="Aceptar"
+        showCancel={false}
+        onCancel={() => setAviso(null)}
+        onConfirm={() => setAviso(null)}
       />
 
     </div>

@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { cambiarPasswordObligatorioAction } from '@/app/actions/usuarios';
 import { diasHastaFecha, evaluarEstadoAcceso, type EstadoAcceso } from '@/lib/usuarios';
 import { Shield, Users, FileText, ArrowRight, LogOut, User, Trophy, ShieldAlert, Bike, KeyRound, AlertTriangle, ClipboardCheck, Clock3, Building2 } from 'lucide-react';
+import InstitutionalDialog from '@/components/InstitutionalDialog';
 
 const LOGO_URL = '/logo_cop.png';
 
@@ -26,6 +27,7 @@ export default function SelectAppPage() {
   const [confirmarClave, setConfirmarClave] = useState('');
   const [errorClave, setErrorClave] = useState<string | null>(null);
   const [guardandoClave, setGuardandoClave] = useState(false);
+  const [claveActualizada, setClaveActualizada] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -141,7 +143,9 @@ export default function SelectAppPage() {
 
     if (res.success) {
       setRequiereCambioClave(false);
-      alert('¡Contraseña actualizada con éxito!');
+      setNuevaClave('');
+      setConfirmarClave('');
+      setClaveActualizada(true);
     } else {
       setErrorClave(res.error || 'Ocurrió un error al actualizar la contraseña.');
     }
@@ -537,6 +541,17 @@ export default function SelectAppPage() {
           </div>
         </div>
       )}
+
+      <InstitutionalDialog
+        open={claveActualizada}
+        title="Contraseña actualizada"
+        description="La nueva credencial quedó registrada correctamente. Ya podés continuar utilizando los módulos habilitados."
+        tone="success"
+        confirmLabel="Continuar"
+        showCancel={false}
+        onCancel={() => setClaveActualizada(false)}
+        onConfirm={() => setClaveActualizada(false)}
+      />
 
       <footer className="border-t border-[#26364d] bg-[#071426] py-5 text-xs text-slate-500">
         <div className="mx-auto flex max-w-[1320px] flex-col justify-between gap-1 px-6 sm:flex-row sm:items-center">

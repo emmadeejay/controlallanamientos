@@ -7,6 +7,7 @@ import {
   descargarInformeSemanalPdf,
   type ConsolidacionInformeSemanal,
 } from '@/lib/informe-semanal-pdf';
+import InstitutionalDialog from '@/components/InstitutionalDialog';
 
 type ResumenSuperintendencia = {
   estado?: string;
@@ -33,6 +34,7 @@ export default function InformeSemanalControls({
   const [cargando, setCargando] = useState(true);
   const [procesando, setProcesando] = useState(false);
   const [error, setError] = useState('');
+  const [confirmandoConsolidacion, setConfirmandoConsolidacion] = useState(false);
 
   const faltantes = useMemo(
     () => resumen.filter((item) => !['finalizado', 'bloqueado'].includes(String(item.estado))).length,
@@ -62,9 +64,6 @@ export default function InformeSemanalControls({
 
   async function consolidar() {
     if (faltantes > 0 || procesando) return;
-    if (!confirm('¿Confirmás la consolidación oficial de esta semana? El informe quedará versionado y auditado.')) {
-      return;
-    }
 
     setProcesando(true);
     setError('');
@@ -80,6 +79,7 @@ export default function InformeSemanalControls({
       setError(consolidacionError.message || 'No se pudo consolidar la semana.');
     } else {
       setConsolidacion(normalizarConsolidacion(data));
+      setConfirmandoConsolidacion(false);
     }
     setProcesando(false);
   }
@@ -132,7 +132,7 @@ export default function InformeSemanalControls({
       ) : puedeConsolidar ? (
         <button
           type="button"
-          onClick={consolidar}
+          onClick={() => setConfirmandoConsolidacion(true)}
           disabled={procesando || faltantes > 0}
           title={faltantes > 0 ? `Faltan ${faltantes} rendiciones` : 'Consolidar informe semanal'}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-blue-600 text-white hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed"
@@ -147,6 +147,26 @@ export default function InformeSemanalControls({
       ) : null}
 
       {error && <span className="max-w-sm text-right text-[10px] text-amber-300">{error}</span>}
+
+      <InstitutionalDialog
+        open={confirmandoConsolidacion}
+        title="Consolidar informe semanal"
+        description="La semana quedará consolidada oficialmente, versionada y registrada en la auditoría. Verificá los datos antes de continuar."
+        tone="warning"
+        confirmLabel="Consolidar semana"
+        loading={procesando}
+        onCancel={() => setConfirmandoConsolidacion(false)}
+        onConfirm={consolidar}
+      >
+        <div className="border-l-2 border-[#c4a35a] bg-[#050e1c] px-3 py-2 text-xs text-slate-400">
+          Período iniciado el <span className="font-mono text-slate-200">{semanaInicio}</span> · Todas las rendiciones se encuentran finalizadas.
+        </div>
+        {error && (
+          <div className="border border-red-800/60 bg-red-950/30 px-3 py-2 text-xs text-red-300">
+            {error}
+          </div>
+        )}
+      </InstitutionalDialog>
     </div>
   );
 }

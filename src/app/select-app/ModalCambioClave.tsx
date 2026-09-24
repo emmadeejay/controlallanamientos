@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { cambiarPasswordObligatorioAction } from '@/app/actions/usuarios';
 import { KeyRound, AlertTriangle } from 'lucide-react';
+import InstitutionalDialog from '@/components/InstitutionalDialog';
 
 export default function ModalCambioClave() {
   const [open, setOpen] = useState(true);
@@ -10,8 +11,7 @@ export default function ModalCambioClave() {
   const [confirmarClave, setConfirmarClave] = useState('');
   const [errorClave, setErrorClave] = useState<string | null>(null);
   const [guardandoClave, setGuardandoClave] = useState(false);
-
-  if (!open) return null;
+  const [actualizada, setActualizada] = useState(false);
 
   const handleCambiarPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,11 +43,28 @@ export default function ModalCambioClave() {
 
     if (res.success) {
       setOpen(false);
-      alert('¡Contraseña actualizada con éxito!');
+      setActualizada(true);
     } else {
       setErrorClave(res.error || 'Ocurrió un error al actualizar la contraseña.');
     }
   };
+
+  if (actualizada) {
+    return (
+      <InstitutionalDialog
+        open
+        title="Contraseña actualizada"
+        description="La nueva credencial quedó registrada correctamente. Ya podés continuar utilizando el sistema."
+        tone="success"
+        confirmLabel="Continuar"
+        showCancel={false}
+        onCancel={() => setActualizada(false)}
+        onConfirm={() => setActualizada(false)}
+      />
+    );
+  }
+
+  if (!open) return null;
 
   return (
     <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4">

@@ -40,6 +40,7 @@ import {
   type EstadoAcceso,
   type EstadoCuenta,
 } from '@/lib/usuarios';
+import InstitutionalDialog from '@/components/InstitutionalDialog';
 
 interface Superintendencia {
   id: string;
@@ -123,6 +124,7 @@ export default function GestionUsuariosAdminPage() {
   const [usuarioEditando, setUsuarioEditando] = useState<UsuarioProfile | null>(null);
   const [usuarioRevalidando, setUsuarioRevalidando] = useState<UsuarioProfile | null>(null);
   const [usuarioTrasladando, setUsuarioTrasladando] = useState<UsuarioProfile | null>(null);
+  const [usuarioAEliminar, setUsuarioAEliminar] = useState<UsuarioProfile | null>(null);
   const [modalEstado, setModalEstado] = useState<ModalEstado>(null);
   const [modulosSeleccionados, setModulosSeleccionados] = useState<string[]>(['allanamientos']);
   const [miUsuarioId, setMiUsuarioId] = useState('');
@@ -294,13 +296,25 @@ export default function GestionUsuariosAdminPage() {
     }
   };
 
-  const handleEliminar = async (usuario: UsuarioProfile) => {
-    if (!confirm(`¿Eliminar definitivamente a ${nombreUsuario(usuario)}? Sólo será posible si no posee actividad histórica.`)) return;
-    const respuesta = await eliminarUsuarioAction(usuario.id);
-    if (respuesta.success) {
-      setMensaje({ tipo: 'ok', texto: 'Usuario sin actividad eliminado.' });
-      await recargarUsuarios();
-    } else setMensaje({ tipo: 'error', texto: respuesta.error });
+  const handleEliminar = async () => {
+    if (!usuarioAEliminar || cargando) return;
+    setCargando(true);
+    setMensaje(null);
+    try {
+      const respuesta = await eliminarUsuarioAction(usuarioAEliminar.id);
+      if (respuesta.success) {
+        setMensaje({ tipo: 'ok', texto: 'Usuario sin actividad eliminado.' });
+        await recargarUsuarios();
+      } else {
+        setMensaje({ tipo: 'error', texto: respuesta.error });
+      }
+      setUsuarioAEliminar(null);
+    } catch {
+      setMensaje({ tipo: 'error', texto: 'No se pudo completar la eliminación.' });
+      setUsuarioAEliminar(null);
+    } finally {
+      setCargando(false);
+    }
   };
 
   const toggleModulo = (modulo: string) => {
@@ -392,7 +406,7 @@ export default function GestionUsuariosAdminPage() {
                         {(estado === 'activo' || estado === 'por_vencer' || estado === 'validacion_vencida') && <button title="Pausa temporal" onClick={() => setModalEstado({ usuario, estado: 'pausado' })} className="p-2 text-slate-400 hover:text-amber-400"><PauseCircle className="w-4 h-4" /></button>}
                         {(estado === 'pausado' || estado === 'deshabilitado') && <button title="Reactivar identidad" onClick={() => setModalEstado({ usuario, estado: 'activo' })} className="p-2 text-emerald-500 hover:text-emerald-300"><PlayCircle className="w-4 h-4" /></button>}
                         {estado !== 'deshabilitado' && <button title="Baja operativa" onClick={() => setModalEstado({ usuario, estado: 'deshabilitado' })} className="p-2 text-slate-400 hover:text-red-400"><UserX className="w-4 h-4" /></button>}
-                        {rolNormalizado === 'administrador' && <button title="Eliminar sólo si no tiene actividad" onClick={() => void handleEliminar(usuario)} className="p-2 text-slate-400 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>}
+                        {rolNormalizado === 'administrador' && <button title="Eliminar sólo si no tiene actividad" onClick={() => setUsuarioAEliminar(usuario)} className="p-2 text-slate-400 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>}
                       </div>
                     )}
                   </article>
@@ -454,6 +468,23 @@ export default function GestionUsuariosAdminPage() {
           <form onSubmit={handleEstado} className="space-y-4"><input type="hidden" name="id" value={modalEstado.usuario.id} /><input type="hidden" name="estado" value={modalEstado.estado} /><p className="text-sm text-slate-300">Usuario: <strong>{nombreUsuario(modalEstado.usuario)}</strong></p><Campo label="Motivo"><textarea required name="motivo" rows={3} className="input resize-none" /></Campo><Campo label={`Referencia documental${modalEstado.estado === 'activo' ? '' : ' (opcional)'}`}><input required={modalEstado.estado === 'activo'} name="referencia_documental" placeholder="Nota o correo institucional" className="input" /></Campo><p className="text-xs text-slate-400">{modalEstado.estado === 'activo' ? 'Se generará una clave temporal, se renovará la vigencia por 60 días y se conservará todo el historial.' : modalEstado.estado === 'pausado' ? 'La pausa es reversible y bloquea el acceso de inmediato.' : 'La baja operativa conserva la identidad y su trazabilidad para una posible reactivación futura.'}</p><AccionesModal cargando={cargando} cancelar={() => setModalEstado(null)} confirmar={modalEstado.estado === 'activo' ? 'Reactivar' : modalEstado.estado === 'pausado' ? 'Pausar' : 'Dar de baja'} peligro={modalEstado.estado === 'deshabilitado'} /></form>
         </Modal>
       )}
+
+      <InstitutionalDialog
+        open={Boolean(usuarioAEliminar)}
+        title="Eliminar identidad sin actividad"
+        description={usuarioAEliminar
+          ? `Se intentará eliminar definitivamente a ${nombreUsuario(usuarioAEliminar)}. La operación sólo será autorizada si la identidad no posee actividad histórica asociada.`
+          : undefined}
+        tone="danger"
+        confirmLabel="Eliminar usuario"
+        loading={cargando}
+        onCancel={() => setUsuarioAEliminar(null)}
+        onConfirm={handleEliminar}
+      >
+        <div className="border-l-2 border-red-700 bg-[#050e1c] px-3 py-2 text-xs text-slate-400">
+          Si existe trazabilidad previa, el servidor rechazará la eliminación y deberá utilizarse la baja operativa.
+        </div>
+      </InstitutionalDialog>
 
       <footer className="w-full border-t border-slate-800/80 bg-[#0c0f17]/90 py-6 text-center"><p className="text-xs text-slate-400">Desarrollado por <span className="text-blue-400 font-semibold">Emmanuel Machado</span></p></footer>
       <style jsx global>{`.input { width: 100%; padding: .7rem .875rem; background: #090c13; border: 1px solid #1e293b; border-radius: .75rem; color: white; font-size: .75rem; outline: none; } .input:focus { border-color: #a855f7; }`}</style>
