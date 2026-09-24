@@ -356,137 +356,150 @@ function SemaforoSuperintendencias({
 function ModalVistaPrevia({ item, onClose, puedeEditar, onEdit }: { item: any; onClose: () => void; puedeEditar: boolean; onEdit: () => void }) {
   if (!item) return null;
   const valores = obtenerValoresSecuestros(item);
+  const resultadoPositivo = item.resultado_medida === 'Positivo';
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#02060d]/95 p-2 sm:p-6">
       <div className="absolute inset-0" onClick={onClose} />
 
-      <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-t-3xl sm:rounded-2xl max-h-[85vh] sm:max-h-[90vh] flex flex-col overflow-hidden shadow-2xl z-10 transition-all animate-in slide-in-from-bottom sm:zoom-in-95">
-        
-        <div className="px-6 py-4 bg-slate-950/90 border-b border-slate-800 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2">
-            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-              item.resultado_medida === 'Positivo' 
-                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                : 'bg-red-500/10 text-red-400 border border-red-500/20'
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="detalle-allanamiento-titulo"
+        className="relative z-10 flex max-h-[calc(100dvh-1rem)] w-full max-w-4xl flex-col overflow-hidden border border-[#33465f] bg-[#071426] sm:max-h-[92vh]"
+      >
+        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-[#26364d] bg-[#050e1c] px-4 py-4 sm:px-6">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="cop-form-section-index shrink-0">OP-01</span>
+            <div className="min-w-0">
+              <p className="cop-kicker">Consulta de registro</p>
+              <h3 id="detalle-allanamiento-titulo" className="mt-1 truncate text-sm font-extrabold uppercase tracking-[0.04em] text-white sm:text-base">
+                IPP {item.numero_ipp}
+              </h3>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <span className={`border-l-2 px-2 py-1 text-[9px] font-extrabold uppercase tracking-[0.08em] sm:text-[10px] ${
+              resultadoPositivo ? 'border-emerald-500 text-emerald-400' : 'border-red-500 text-red-400'
             }`}>
-              {item.resultado_medida || 'Sin Resultado'}
+              {item.resultado_medida || 'Sin resultado'}
             </span>
-            <h3 className="text-sm font-bold text-white truncate max-w-xs sm:max-w-md">
-              IPP: {item.numero_ipp}
-            </h3>
+            <button
+              onClick={onClose}
+              className="border border-transparent p-1.5 text-slate-500 transition hover:border-[#26364d] hover:text-white"
+              aria-label="Cerrar vista previa"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
+        </header>
 
-          <button 
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+        <div className="custom-scrollbar space-y-5 overflow-y-auto p-4 text-xs text-slate-300 sm:p-6">
+          <section className="border border-[#26364d] bg-[#050e1c]">
+            <div className="border-b border-[#26364d] px-4 py-2.5">
+              <p className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-[#c4a35a]">01 / Identificación de causa</p>
+            </div>
+            <div className="border-l-2 border-l-[#806c3f] px-4 py-4">
+              <p className="text-[9px] font-extrabold uppercase tracking-[0.08em] text-slate-500">Carátula</p>
+              <p className="mt-1 text-sm font-semibold leading-relaxed text-white">{item.caratula || 'Sin carátula registrada'}</p>
+            </div>
+          </section>
 
-        <div className="p-6 overflow-y-auto space-y-5 text-xs text-slate-300">
-          <div className="bg-slate-950/50 p-3.5 rounded-xl border border-slate-800/80">
-            <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">Carátula / Causa</p>
-            <p className="text-white font-medium text-sm leading-snug">{item.caratula || 'Sin Carátula Registrada'}</p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/60 flex items-start gap-3">
-              <Shield className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
-              <div>
-                <p className="text-[10px] font-bold text-slate-500 uppercase">Superintendencia</p>
-                <p className="text-slate-200 font-semibold mt-0.5">{item.superintendencias?.nombre || item.superintendencia || 'N/A'}</p>
+          <section className="border border-[#26364d] bg-[#050e1c]">
+            <div className="border-b border-[#26364d] px-4 py-2.5">
+              <p className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-[#c4a35a]">02 / Datos de actuación</p>
+            </div>
+            <div className="grid grid-cols-1 divide-y divide-[#17263a] sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+              <div className="divide-y divide-[#17263a]">
+                <DatoVistaPrevia
+                  icono={<Shield className="h-4 w-4 text-blue-400" />}
+                  etiqueta="Superintendencia"
+                  principal={item.superintendencias?.nombre || item.superintendencia || 'No informada'}
+                />
+                <DatoVistaPrevia
+                  icono={<Calendar className="h-4 w-4 text-amber-400" />}
+                  etiqueta="Fecha y hora de ejecución"
+                  principal={item.fecha_ejecucion || 'No informada'}
+                  secundario={item.horario_ejecucion ? `${item.horario_ejecucion} hs` : '--:-- hs'}
+                />
+              </div>
+              <div className="divide-y divide-[#17263a]">
+                <DatoVistaPrevia
+                  icono={<MapPin className="h-4 w-4 text-emerald-400" />}
+                  etiqueta="Ubicación y dependencia"
+                  principal={item.partido || 'Sin partido'}
+                  secundario={item.dependencia || 'Sin especificación'}
+                />
+                <DatoVistaPrevia
+                  icono={<FileText className="h-4 w-4 text-cyan-400" />}
+                  etiqueta="UFI / Juzgado"
+                  principal={item.ufi_juzgado || 'No informado'}
+                />
               </div>
             </div>
+          </section>
 
-            <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/60 flex items-start gap-3">
-              <MapPin className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <div>
-                <p className="text-[10px] font-bold text-slate-500 uppercase">Ubicación y Dependencia</p>
-                <p className="text-slate-200 font-semibold mt-0.5">{item.partido || 'Sin Partido'}</p>
-                <p className="text-[11px] text-slate-400">{item.dependencia || 'Sin especificación'}</p>
+          <section className="border border-[#26364d] bg-[#050e1c]">
+            <div className="border-b border-[#26364d] px-4 py-2.5">
+              <p className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-[#c4a35a]">03 / Resultados informados</p>
+            </div>
+            <div className="grid grid-cols-1 divide-y divide-[#26364d] md:grid-cols-3 md:divide-x md:divide-y-0">
+              <div className="p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2"><Crosshair className="h-4 w-4 text-rose-400" /><span className="text-[10px] font-extrabold uppercase tracking-[0.06em] text-slate-400">Armas</span></div>
+                  <span className="font-mono text-xl font-bold text-white">{valores.totalArmas}</span>
+                </div>
+                <DetalleGrupo
+                  items={[
+                    ['Arma corta', valores.corta],
+                    ['Arma larga', valores.larga],
+                    ['Arma blanca', valores.blanca],
+                    ['Réplica', valores.replica],
+                  ]}
+                />
+              </div>
+              <div className="p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2"><Car className="h-4 w-4 text-cyan-400" /><span className="text-[10px] font-extrabold uppercase tracking-[0.06em] text-slate-400">Vehículos</span></div>
+                  <span className="font-mono text-xl font-bold text-white">{valores.totalVehiculos}</span>
+                </div>
+                <DetalleGrupo
+                  items={[
+                    ['Auto', valores.autos],
+                    ['Moto', valores.motos],
+                    ['Camioneta', valores.camionetas],
+                    ['Otros', valores.otrosVeh],
+                  ]}
+                />
+              </div>
+              <div className="p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2"><UserCheck className="h-4 w-4 text-purple-400" /><span className="text-[10px] font-extrabold uppercase tracking-[0.06em] text-slate-400">Personas</span></div>
+                  <span className="font-mono text-xl font-bold text-white">{valores.totalPersonas}</span>
+                </div>
+                <DetalleGrupo
+                  items={[
+                    ['Detenidos', valores.detenidos],
+                    ['Aprehendidos', valores.aprehendidos],
+                  ]}
+                />
               </div>
             </div>
-
-            <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/60 flex items-start gap-3">
-              <Calendar className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-              <div>
-                <p className="text-[10px] font-bold text-slate-500 uppercase">Fecha y Hora Ejecución</p>
-                <p className="text-slate-200 font-semibold mt-0.5">{item.fecha_ejecucion || 'N/A'}</p>
-                <p className="text-[11px] text-slate-400">{item.horario_ejecucion ? `${item.horario_ejecucion} hs` : '--:-- hs'}</p>
-              </div>
-            </div>
-
-            <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/60 flex items-start gap-3">
-              <FileText className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
-              <div>
-                <p className="text-[10px] font-bold text-slate-500 uppercase">UFI / Juzgado</p>
-                <p className="text-slate-200 font-semibold mt-0.5">{item.ufi_juzgado || 'No informado'}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2">
-            <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/60 text-center">
-              <Crosshair className="w-4 h-4 text-rose-400 mx-auto mb-1" />
-              <p className="text-[9px] uppercase font-bold text-slate-500">Armas</p>
-              <p className="text-sm font-bold text-white mt-0.5">{valores.totalArmas}</p>
-            </div>
-
-            <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/60 text-center">
-              <Car className="w-4 h-4 text-cyan-400 mx-auto mb-1" />
-              <p className="text-[9px] uppercase font-bold text-slate-500">Vehículos</p>
-              <p className="text-sm font-bold text-white mt-0.5">{valores.totalVehiculos}</p>
-            </div>
-
-            <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/60 text-center">
-              <UserCheck className="w-4 h-4 text-purple-400 mx-auto mb-1" />
-              <p className="text-[9px] uppercase font-bold text-slate-500">Detenidos</p>
-              <p className="text-sm font-bold text-white mt-0.5">{valores.totalPersonas}</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <DetalleGrupo
-              titulo="Detalle de armas"
-              items={[
-                ['Arma corta', valores.corta],
-                ['Arma larga', valores.larga],
-                ['Arma blanca', valores.blanca],
-                ['Réplica', valores.replica],
-              ]}
-            />
-            <DetalleGrupo
-              titulo="Detalle de vehículos"
-              items={[
-                ['Auto', valores.autos],
-                ['Moto', valores.motos],
-                ['Camioneta', valores.camionetas],
-                ['Otros', valores.otrosVeh],
-              ]}
-            />
-            <DetalleGrupo
-              titulo="Detalle de personas"
-              items={[
-                ['Detenidos', valores.detenidos],
-                ['Aprehendidos', valores.aprehendidos],
-              ]}
-            />
-          </div>
+          </section>
 
           {item.observaciones && (
-            <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/60">
-              <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Observaciones / Notas</p>
-              <p className="text-slate-300 text-[11px] leading-relaxed">{item.observaciones}</p>
-            </div>
+            <section className="border border-[#26364d] border-l-2 border-l-[#806c3f] bg-[#050e1c] px-4 py-3">
+              <p className="text-[9px] font-extrabold uppercase tracking-[0.08em] text-slate-500">Observaciones / Notas</p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-300">{item.observaciones}</p>
+            </section>
           )}
         </div>
 
-        <div className="p-4 bg-slate-950/90 border-t border-slate-800 flex items-center justify-between gap-3 shrink-0">
+        <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-[#26364d] bg-[#050e1c] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <button
             onClick={onClose}
-            className="w-full sm:w-auto px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition"
+            className="cop-action-secondary w-full sm:w-auto"
           >
             Cerrar
           </button>
@@ -494,31 +507,53 @@ function ModalVistaPrevia({ item, onClose, puedeEditar, onEdit }: { item: any; o
           {puedeEditar && (
             <button
               onClick={onEdit}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold rounded-xl transition shadow-lg shadow-amber-600/20"
+              className="cop-action-warning w-full sm:w-auto"
             >
               <Edit3 className="w-4 h-4" /> Editar Allanamiento
             </button>
           )}
-        </div>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function DatoVistaPrevia({
+  icono,
+  etiqueta,
+  principal,
+  secundario,
+}: {
+  icono: React.ReactNode;
+  etiqueta: string;
+  principal: string;
+  secundario?: string;
+}) {
+  return (
+    <div className="flex min-h-24 items-start gap-3 p-4">
+      <span className="mt-0.5 shrink-0">{icono}</span>
+      <div className="min-w-0">
+        <p className="text-[9px] font-extrabold uppercase tracking-[0.07em] text-slate-500">{etiqueta}</p>
+        <p className="mt-1 font-semibold leading-relaxed text-slate-200">{principal}</p>
+        {secundario && <p className="mt-0.5 text-[11px] text-slate-400">{secundario}</p>}
       </div>
     </div>
   );
 }
 
-function DetalleGrupo({ titulo, items }: { titulo: string; items: Array<[string, number]> }) {
+function DetalleGrupo({ items }: { items: Array<[string, number]> }) {
   const visibles = items.filter(([, cantidad]) => cantidad > 0);
 
   return (
-    <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/60">
-      <p className="text-[10px] font-bold text-slate-500 uppercase mb-2">{titulo}</p>
+    <div className="mt-4 border-t border-[#17263a] pt-3">
       {visibles.length === 0 ? (
         <p className="text-[10px] text-slate-600">Sin elementos informados</p>
       ) : (
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           {visibles.map(([nombre, cantidad]) => (
             <div key={nombre} className="flex items-center justify-between gap-2 text-[11px]">
               <span className="text-slate-400">{nombre}</span>
-              <span className="font-bold text-white bg-slate-800 px-2 py-0.5 rounded-md">{cantidad}</span>
+              <span className="min-w-7 border border-[#26364d] bg-[#071426] px-2 py-0.5 text-center font-mono font-bold text-white">{cantidad}</span>
             </div>
           ))}
         </div>
