@@ -216,9 +216,6 @@ export default function SelectAppPage() {
               <span className="hidden text-[14px] font-extrabold leading-none tracking-[0.035em] text-white sm:block lg:text-[15px]">
                 PLATAFORMA INTEGRAL DE GESTIÓN COP
               </span>
-              <span className="block text-sm font-extrabold tracking-[0.08em] text-white sm:hidden">
-                GESTIÓN COP
-              </span>
               <span className="cop-kicker mt-1.5 hidden sm:block">
                 Dirección Centro de Operaciones Policiales
               </span>
@@ -226,7 +223,7 @@ export default function SelectAppPage() {
           </div>
 
           <div className="flex shrink-0 items-center gap-4">
-            <div className="cop-session-block hidden w-[510px] shrink-0 min-[1800px]:flex">
+            <div className="cop-session-block hidden w-[clamp(360px,30vw,510px)] shrink-0 min-[1500px]:flex">
               <div className="flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-xs text-slate-300">
                 <User className="w-3.5 h-3.5 text-blue-400" />
                 <div className="min-w-0 flex-1">
@@ -249,6 +246,19 @@ export default function SelectAppPage() {
           </div>
         </div>
       </header>
+
+      <div className="border-b border-[#26364d] bg-[#071426] px-4 py-2 min-[1500px]:hidden sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-[1800px] items-center justify-between gap-3 text-[10px]">
+          <div className="flex min-w-0 items-center gap-2 text-slate-300" title={userEmail || undefined}>
+            <User className="h-3.5 w-3.5 shrink-0 text-blue-400" />
+            <span className="truncate font-semibold">{userEmail}</span>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5 font-extrabold uppercase tracking-[0.07em] text-[#c4a35a]">
+            <Shield className="h-3 w-3" />
+            <span>{userRole}</span>
+          </div>
+        </div>
+      </div>
 
       {userRole === 'operador' && userSuperintendencia && (
         <div className="border-b border-[#26364d] bg-[#050e1c] px-4 py-2 sm:px-6 lg:px-8">
