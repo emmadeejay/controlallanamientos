@@ -98,7 +98,7 @@ export default function LoginPage() {
             <p className="hidden text-[14px] font-extrabold tracking-[0.035em] text-white sm:block lg:text-[15px]">
               PLATAFORMA INTEGRAL DE GESTIÓN COP
             </p>
-            <p className="text-sm font-extrabold tracking-[0.08em] text-white sm:hidden">GESTIÓN COP</p>
+            <p className="text-sm font-extrabold tracking-[0.08em] text-white sm:hidden">P.I.G. C.O.P.</p>
             <p className="cop-kicker mt-1 hidden sm:block">Dirección Centro de Operaciones Policiales</p>
           </div>
         </div>

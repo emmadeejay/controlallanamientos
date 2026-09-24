@@ -194,15 +194,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <User className="w-3.5 h-3.5 text-blue-400" />
                   <div className="min-w-0 flex-1">
                     <span className="block max-w-[240px] truncate font-semibold">{userEmail}</span>
-                    {esOperador && userSuperintendencia && (
-                      <span
-                        className="mt-0.5 flex items-start gap-1 text-[9px] font-bold uppercase leading-tight tracking-wide text-slate-500"
-                        title={userSuperintendencia}
-                      >
-                        <Building2 className="h-2.5 w-2.5 shrink-0" />
-                        <span>{userSuperintendencia}</span>
-                      </span>
-                    )}
                   </div>
                 </div>
                 <div className="cop-session-role">
@@ -223,7 +214,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </header>
 
         {esOperador && userSuperintendencia && (
-          <div className="border-b border-[#26364d] bg-[#050e1c] px-4 py-2 min-[1800px]:hidden sm:px-6 lg:px-8">
+          <div className="border-b border-[#26364d] bg-[#050e1c] px-4 py-2 sm:px-6 lg:px-8">
             <div className="mx-auto flex max-w-[1800px] items-start gap-2 text-[9px] font-extrabold uppercase leading-snug tracking-[0.045em] text-slate-400">
               <Building2 className="mt-0.5 h-3 w-3 shrink-0 text-[#c4a35a]" />
               <span>{userSuperintendencia}</span>
