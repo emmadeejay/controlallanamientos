@@ -226,7 +226,7 @@ export default function SelectAppPage() {
           </div>
 
           <div className="flex shrink-0 items-center gap-4">
-            <div className="cop-session-block hidden w-[510px] shrink-0 xl:flex">
+            <div className="cop-session-block hidden w-[510px] shrink-0 min-[1800px]:flex">
               <div className="flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-xs text-slate-300">
                 <User className="w-3.5 h-3.5 text-blue-400" />
                 <div className="min-w-0 flex-1">
@@ -260,7 +260,7 @@ export default function SelectAppPage() {
       </header>
 
       {userRole === 'operador' && userSuperintendencia && (
-        <div className="border-b border-[#26364d] bg-[#050e1c] px-4 py-2 xl:hidden sm:px-6 lg:px-8">
+        <div className="border-b border-[#26364d] bg-[#050e1c] px-4 py-2 min-[1800px]:hidden sm:px-6 lg:px-8">
           <div className="mx-auto flex max-w-[1800px] items-start gap-2 text-[9px] font-extrabold uppercase leading-snug tracking-[0.045em] text-slate-400">
             <Building2 className="mt-0.5 h-3 w-3 shrink-0 text-[#c4a35a]" />
             <span>{userSuperintendencia}</span>

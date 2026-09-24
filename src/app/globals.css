@@ -28,6 +28,13 @@ body {
   font-family: "Segoe UI", Arial, Helvetica, sans-serif;
 }
 
+html,
+body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 /* Lenguaje visual común para todos los módulos. Se reducen radios, sombras y
    transparencias decorativas sin tocar la estructura ni el comportamiento. */
 .cop-institutional-ui .rounded-3xl,
