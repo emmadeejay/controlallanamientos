@@ -124,7 +124,7 @@ export default function InformeSemanalControls({
           type="button"
           onClick={descargar}
           disabled={procesando}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/20 disabled:opacity-50"
+          className="cop-action-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] disabled:opacity-50"
         >
           {procesando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
           Descargar PDF oficial v{consolidacion.version}
@@ -135,7 +135,7 @@ export default function InformeSemanalControls({
           onClick={() => setConfirmandoConsolidacion(true)}
           disabled={procesando || faltantes > 0}
           title={faltantes > 0 ? `Faltan ${faltantes} rendiciones` : 'Consolidar informe semanal'}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-blue-600 text-white hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed"
+          className="cop-action-primary inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800 disabled:text-slate-500"
         >
           {procesando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileCheck2 className="w-3.5 h-3.5" />}
           {faltantes > 0 ? `Faltan ${faltantes} rendiciones` : 'Consolidar semana'}

@@ -318,21 +318,21 @@ export default function ImportacionHistoricaPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 px-4 py-6 text-slate-200 sm:px-6 lg:px-8">
+    <main className="cop-shell min-h-screen px-4 py-6 text-slate-200 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
         <header className="flex flex-col gap-4 border-b border-slate-800 pb-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <button
               type="button"
               onClick={() => router.push('/allanamientos')}
-              className="rounded-xl border border-slate-800 bg-slate-900 p-2.5 text-slate-400 transition hover:text-white"
+              className="border border-[#33465f] bg-[#050e1c] p-2.5 text-slate-400 transition hover:border-[#c4a35a] hover:text-white"
               aria-label="Volver a Allanamientos"
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
             <div>
               <div className="flex items-center gap-2">
-                <ShieldCheck className="h-6 w-6 text-blue-400" />
+                <ShieldCheck className="h-6 w-6 text-[#c4a35a]" />
                 <h1 className="text-xl font-extrabold text-white sm:text-2xl">
                   Importación histórica controlada
                 </h1>
@@ -345,16 +345,16 @@ export default function ImportacionHistoricaPage() {
           <button
             type="button"
             onClick={descargarPlantillaHistorica}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-emerald-500"
+            className="cop-action-secondary inline-flex items-center justify-center gap-2 px-4 py-2.5"
           >
             <Download className="h-4 w-4" /> Descargar plantilla oficial
           </button>
         </header>
 
         <section className="grid gap-4 lg:grid-cols-3">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 lg:col-span-2">
+          <div className="border border-[#33465f] bg-[#071426] p-5 lg:col-span-2">
             <div className="mb-5 flex items-center gap-2">
-              <FileSpreadsheet className="h-5 w-5 text-emerald-400" />
+              <FileSpreadsheet className="h-5 w-5 text-[#c4a35a]" />
               <h2 className="font-bold text-white">1. Seleccionar y comprobar la semana</h2>
             </div>
             <div className="grid gap-4 md:grid-cols-[220px_1fr_auto] md:items-end">
@@ -366,7 +366,7 @@ export default function ImportacionHistoricaPage() {
                     setSemanaInicio(evento.target.value);
                     limpiarRevision();
                   }}
-                  className="block w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none focus:border-blue-500"
+                  className="block w-full border border-[#33465f] bg-[#050e1c] px-3 py-2.5 text-sm text-white outline-none focus:border-[#c4a35a]"
                 >
                   {semanasDisponibles.map((lunes) => (
                     <option key={lunes} value={lunes}>
@@ -377,8 +377,8 @@ export default function ImportacionHistoricaPage() {
               </label>
               <label className="space-y-1.5 text-xs font-semibold text-slate-400">
                 Archivo normalizado
-                <div className="flex min-h-10 items-center rounded-xl border border-dashed border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-300">
-                  <Upload className="mr-2 h-4 w-4 text-blue-400" />
+                <div className="flex min-h-10 items-center border border-dashed border-[#33465f] bg-[#050e1c] px-3 py-2 text-xs text-slate-300">
+                  <Upload className="mr-2 h-4 w-4 text-[#c4a35a]" />
                   <span className="truncate">{archivo?.name || 'Elegir archivo .xlsx'}</span>
                 </div>
                 <input
@@ -392,7 +392,7 @@ export default function ImportacionHistoricaPage() {
                 type="button"
                 onClick={prevalidar}
                 disabled={procesando || !archivo}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-xs font-bold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
+                className="cop-action-primary inline-flex h-10 items-center justify-center gap-2 px-4 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {procesando ? (
                   <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -404,8 +404,8 @@ export default function ImportacionHistoricaPage() {
             </div>
           </div>
 
-          <aside className="rounded-2xl border border-blue-900/50 bg-blue-950/20 p-5 text-xs text-slate-300">
-            <h2 className="mb-3 font-bold text-blue-300">Reglas de integridad</h2>
+          <aside className="border border-[#33465f] border-l-4 border-l-[#c4a35a] bg-[#071426] p-5 text-xs text-slate-300">
+            <h2 className="mb-3 font-bold text-[#c4a35a]">Reglas de integridad</h2>
             <ul className="list-disc space-y-2 pl-4 leading-relaxed">
               <li>Una IPP puede aparecer en distintas fechas y allanamientos.</li>
               <li>Una fila idéntica se bloquea como duplicado exacto.</li>
@@ -443,7 +443,7 @@ export default function ImportacionHistoricaPage() {
         )}
 
         {revisiones.length > 0 && !loteCreado && (
-          <section className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60">
+          <section className="overflow-hidden border border-[#33465f] bg-[#071426]">
             <div className="flex flex-col gap-4 border-b border-slate-800 p-5 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <h2 className="font-bold text-white">2. Resultado de la prevalidación</h2>
@@ -557,7 +557,7 @@ export default function ImportacionHistoricaPage() {
                   value={motivoAdvertencias}
                   onChange={(evento) => setMotivoAdvertencias(evento.target.value)}
                   placeholder="Fundamento obligatorio (mínimo 8 caracteres), por ejemplo: verificado contra informe semanal firmado."
-                  className="min-h-20 w-full rounded-xl border border-amber-900/50 bg-slate-950 p-3 text-xs text-white outline-none focus:border-amber-500"
+                  className="min-h-20 w-full border border-amber-900/50 bg-[#050e1c] p-3 text-xs text-white outline-none focus:border-[#c4a35a]"
                 />
               </div>
             )}
@@ -579,7 +579,7 @@ export default function ImportacionHistoricaPage() {
                 type="button"
                 onClick={importar}
                 disabled={!puedeImportar || importando}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
+                className="cop-action-primary inline-flex items-center justify-center gap-2 px-5 py-2.5 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {importando ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                 {importando ? 'Importando semana...' : `Importar ${filas.length} registros`}
@@ -588,7 +588,7 @@ export default function ImportacionHistoricaPage() {
           </section>
         )}
 
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-5">
+        <section className="border border-[#33465f] bg-[#071426] p-5">
           <h2 className="font-bold text-white">Lotes recientes</h2>
           <p className="mt-1 text-xs text-slate-500">
             Cada lote conserva el archivo, la semana, la cantidad y su identificador de auditoría.
@@ -641,11 +641,11 @@ export default function ImportacionHistoricaPage() {
       </div>
 
       {loteAnular && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-red-900/60 bg-slate-950 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4">
+          <div className="w-full max-w-lg overflow-hidden border border-red-900/60 border-t-2 border-t-red-700 bg-[#071426]">
             <div className="border-b border-red-900/40 bg-red-950/20 p-5">
               <div className="flex items-center gap-3">
-                <div className="rounded-xl border border-red-800/50 bg-red-500/10 p-2.5 text-red-300">
+                <div className="border border-red-800/50 bg-red-500/10 p-2.5 text-red-300">
                   <RotateCcw className="h-5 w-5" />
                 </div>
                 <div>
@@ -658,7 +658,7 @@ export default function ImportacionHistoricaPage() {
             </div>
 
             <div className="space-y-4 p-5">
-              <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-xs text-slate-300">
+              <div className="border border-[#33465f] bg-[#050e1c] p-4 text-xs text-slate-300">
                 <p className="font-bold text-white">{loteAnular.archivo_nombre}</p>
                 <p className="mt-1">
                   Semana {loteAnular.semana_inicio} al {loteAnular.semana_fin} · {loteAnular.filas_importadas} registros
@@ -673,7 +673,7 @@ export default function ImportacionHistoricaPage() {
                   value={motivoAnulacion}
                   onChange={(evento) => setMotivoAnulacion(evento.target.value)}
                   placeholder="Ejemplo: el archivo contenía una fecha incorrecta y será reemplazado por una versión verificada."
-                  className="min-h-24 w-full rounded-xl border border-slate-700 bg-slate-900 p-3 text-xs font-normal text-white outline-none focus:border-red-500"
+                  className="min-h-24 w-full border border-[#33465f] bg-[#050e1c] p-3 text-xs font-normal text-white outline-none focus:border-red-500"
                 />
               </label>
 

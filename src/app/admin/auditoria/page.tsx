@@ -259,24 +259,24 @@ export default function AuditoriaPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <header className="border-b border-slate-800 bg-slate-900/90 sticky top-0 z-30">
+    <div className="cop-shell min-h-screen text-slate-100">
+      <header className="cop-command-header sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
               onClick={() => router.push('/select-app')}
-              className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300"
+              className="border border-[#33465f] bg-[#050e1c] p-2 text-slate-300 hover:border-[#c4a35a]"
               title="Volver a módulos"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
-            <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+            <div className="flex h-9 w-9 items-center justify-center border border-[#806c3f] bg-[#050e1c] text-[#c4a35a]">
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div className="min-w-0">
               <h1 className="font-bold text-white text-sm sm:text-base truncate">Centro de Auditoría COP</h1>
-              <p className="text-[10px] text-slate-400">Acceso exclusivo de Administrador · registros inmutables</p>
+              <p className="cop-kicker mt-1">Control interno · registros inmutables</p>
             </div>
           </div>
 
@@ -284,7 +284,7 @@ export default function AuditoriaPage() {
             type="button"
             onClick={exportarAuditoria}
             disabled={exportando || total === 0}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 rounded-xl text-xs font-semibold"
+            className="cop-action-secondary flex items-center gap-2 px-4 py-2 disabled:opacity-50"
           >
             <Download className="w-4 h-4" />
             <span className="hidden sm:inline">{exportando ? 'Exportando...' : 'Exportar auditoría'}</span>
@@ -295,7 +295,7 @@ export default function AuditoriaPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-5">
         <div>
           <div className="flex items-center gap-2">
-            <History className="w-5 h-5 text-cyan-400" />
+            <History className="w-5 h-5 text-[#c4a35a]" />
             <h2 className="text-xl font-bold text-white">Trazabilidad del sistema</h2>
           </div>
           <p className="text-xs text-slate-400 mt-1">
@@ -303,7 +303,7 @@ export default function AuditoriaPage() {
           </p>
         </div>
 
-        <section className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 space-y-4">
+        <section className="space-y-4 border border-[#33465f] bg-[#071426] p-4">
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <div className="relative md:col-span-2">
               <Search className="w-4 h-4 absolute left-3 top-3 text-slate-500" />
@@ -312,14 +312,14 @@ export default function AuditoriaPage() {
                 onChange={(event) => setBusqueda(event.target.value)}
                 onKeyDown={(event) => event.key === 'Enter' && aplicarFiltros()}
                 placeholder="Usuario, acción, ID o superintendencia..."
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500"
+                className="w-full border border-[#33465f] bg-[#050e1c] py-2.5 pl-10 pr-3 text-xs text-white placeholder-slate-600 focus:border-[#c4a35a] focus:outline-none"
               />
             </div>
 
             <select
               value={modulo}
               onChange={(event) => setModulo(event.target.value)}
-              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500"
+              className="border border-[#33465f] bg-[#050e1c] px-3 py-2.5 text-xs text-white focus:border-[#c4a35a] focus:outline-none"
             >
               <option value="todos">Todos los módulos</option>
               <option value="allanamientos">Allanamientos</option>
@@ -332,14 +332,14 @@ export default function AuditoriaPage() {
               value={desde}
               onChange={(event) => setDesde(event.target.value)}
               title="Fecha desde"
-              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500"
+              className="border border-[#33465f] bg-[#050e1c] px-3 py-2.5 text-xs text-white focus:border-[#c4a35a] focus:outline-none"
             />
             <input
               type="date"
               value={hasta}
               onChange={(event) => setHasta(event.target.value)}
               title="Fecha hasta"
-              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500"
+              className="border border-[#33465f] bg-[#050e1c] px-3 py-2.5 text-xs text-white focus:border-[#c4a35a] focus:outline-none"
             />
           </div>
 
@@ -347,14 +347,14 @@ export default function AuditoriaPage() {
             <button
               type="button"
               onClick={limpiarFiltros}
-              className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-xl"
+              className="cop-action-secondary flex items-center gap-2 px-3 py-2"
             >
               <RefreshCw className="w-3.5 h-3.5" /> Limpiar
             </button>
             <button
               type="button"
               onClick={aplicarFiltros}
-              className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-cyan-600 hover:bg-cyan-500 rounded-xl"
+              className="cop-action-primary flex items-center gap-2 px-4 py-2"
             >
               <Filter className="w-3.5 h-3.5" /> Aplicar filtros
             </button>
@@ -367,7 +367,7 @@ export default function AuditoriaPage() {
           </div>
         )}
 
-        <section className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden">
+        <section className="overflow-hidden border border-[#33465f] bg-[#071426]">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-950/80 text-slate-400 uppercase tracking-wider text-[10px] border-b border-slate-800">
@@ -389,7 +389,7 @@ export default function AuditoriaPage() {
                     <td className="px-4 py-3 min-w-52">
                       <div className="text-white font-medium">{fechaArgentina(evento.created_at)}</div>
                       <div className="text-[11px] text-slate-400 mt-1 break-all">{evento.actor_email || 'sistema'}</div>
-                      <div className="text-[10px] text-cyan-400 uppercase mt-0.5">{evento.actor_rol || '—'}</div>
+                      <div className="mt-0.5 text-[10px] uppercase text-[#c4a35a]">{evento.actor_rol || '—'}</div>
                     </td>
                     <td className="px-4 py-3 min-w-52">
                       <div className="font-semibold text-slate-200">{ETIQUETAS_ACCION[evento.accion] || evento.accion}</div>
@@ -424,7 +424,7 @@ export default function AuditoriaPage() {
                 type="button"
                 onClick={() => cargarEventos(pagina - 1)}
                 disabled={cargando || pagina <= 1}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 rounded-lg text-white"
+                className="cop-action-secondary px-3 py-1.5 disabled:opacity-40"
               >
                 Anterior
               </button>
@@ -433,7 +433,7 @@ export default function AuditoriaPage() {
                 type="button"
                 onClick={() => cargarEventos(pagina + 1)}
                 disabled={cargando || pagina >= totalPaginas}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 rounded-lg text-white"
+                className="cop-action-secondary px-3 py-1.5 disabled:opacity-40"
               >
                 Siguiente
               </button>

@@ -61,23 +61,28 @@ export default function ActualizarPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#070b12] text-slate-100 flex flex-col justify-between items-center p-4">
-      <div />
-
-      <div className="w-full max-w-md bg-[#0f172a]/70 border border-slate-800/80 rounded-2xl p-8 shadow-2xl backdrop-blur-xl">
-        <div className="flex flex-col items-center text-center mb-6">
-          <div className="w-16 h-16 relative mb-3">
-            <Image
-              src="/logo_cop.png"
-              alt="COP Escudo"
-              width={64}
-              height={64}
-              className="object-contain"
-              priority
-            />
+    <div className="cop-shell flex min-h-screen flex-col justify-between text-slate-100">
+      <header className="cop-command-header w-full">
+        <div className="mx-auto flex min-h-[76px] w-full max-w-[1320px] items-center gap-3 px-4 sm:px-6">
+          <div className="flex h-12 w-12 items-center justify-center border-r border-[#26364d] pr-3">
+            <Image src="/logo_cop.png" alt="Escudo COP" width={44} height={44} className="object-contain" priority />
           </div>
-          <h1 className="text-lg font-bold text-white tracking-wide">
-            Establecer Nueva Contraseña
+          <div>
+            <p className="text-sm font-extrabold uppercase tracking-[0.08em] text-white">P.I.G. C.O.P.</p>
+            <p className="cop-kicker mt-1">Dirección Centro de Operaciones Policiales</p>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex flex-1 items-center justify-center px-4 py-10">
+      <div className="w-full max-w-md border border-[#33465f] border-t-2 border-t-[#c4a35a] bg-[#071426] p-8">
+        <div className="flex flex-col items-center text-center mb-6">
+          <div className="mb-4 flex h-12 w-12 items-center justify-center border border-[#806c3f] bg-[#050e1c] text-[#c4a35a]">
+            <Lock className="h-5 w-5" />
+          </div>
+          <p className="cop-kicker mb-2">Gestión de credenciales</p>
+          <h1 className="text-lg font-extrabold uppercase tracking-[0.05em] text-white">
+            Establecer nueva contraseña
           </h1>
           <p className="text-xs text-slate-400 mt-1">
             Ingresá tu nueva clave para recuperar el acceso
@@ -86,7 +91,7 @@ export default function ActualizarPasswordPage() {
 
         {mensaje && (
           <div
-            className={`mb-6 p-3 rounded-xl text-xs border flex items-center gap-2 ${
+            className={`mb-6 flex items-center gap-2 border p-3 text-xs ${
               mensaje.tipo === 'ok'
                 ? 'bg-emerald-950/60 border-emerald-800/80 text-emerald-300'
                 : 'bg-red-950/60 border-red-800/80 text-red-300'
@@ -115,7 +120,7 @@ export default function ActualizarPasswordPage() {
                 value={nuevaPassword}
                 onChange={(e) => setNuevaPassword(e.target.value)}
                 placeholder="Mínimo 10 caracteres"
-                className="w-full bg-[#090d16] border border-slate-800 rounded-xl pl-10 pr-11 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition"
+                className="w-full border border-[#33465f] bg-[#050e1c] py-2.5 pl-10 pr-11 text-xs text-white placeholder-slate-600 transition focus:border-[#c4a35a] focus:outline-none"
               />
               <button
                 type="button"
@@ -140,7 +145,7 @@ export default function ActualizarPasswordPage() {
                 value={confirmarPassword}
                 onChange={(e) => setConfirmarPassword(e.target.value)}
                 placeholder="Repetir contraseña"
-                className="w-full bg-[#090d16] border border-slate-800 rounded-xl pl-10 pr-11 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition"
+                className="w-full border border-[#33465f] bg-[#050e1c] py-2.5 pl-10 pr-11 text-xs text-white placeholder-slate-600 transition focus:border-[#c4a35a] focus:outline-none"
               />
             </div>
           </div>
@@ -148,7 +153,7 @@ export default function ActualizarPasswordPage() {
           <button
             type="submit"
             disabled={cargando}
-            className="w-full mt-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2.5 px-4 rounded-xl text-xs transition duration-200 flex items-center justify-center gap-2 shadow-lg shadow-blue-600/25 disabled:opacity-50"
+            className="cop-action-primary mt-2 flex w-full items-center justify-center gap-2 py-2.5 disabled:opacity-50"
           >
             {cargando ? (
               <>
@@ -161,9 +166,13 @@ export default function ActualizarPasswordPage() {
           </button>
         </form>
       </div>
+      </main>
 
-      <footer className="py-4 text-center text-xs text-slate-500">
-        Diseñado por <span className="text-blue-400 font-semibold">EMMANUEL MACHADO</span>
+      <footer className="border-t border-[#26364d] bg-[#071426] py-5 text-xs text-slate-500">
+        <div className="mx-auto flex max-w-[1320px] flex-col justify-between gap-1 px-6 text-center sm:flex-row sm:text-left">
+          <p className="font-bold uppercase tracking-[0.12em] text-slate-400">Dirección Centro de Operaciones Policiales</p>
+          <p className="text-[10px]">Plataforma Integral de Gestión · Desarrollo: Emmanuel Machado</p>
+        </div>
       </footer>
     </div>
   );

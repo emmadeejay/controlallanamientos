@@ -5,10 +5,29 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { cambiarPasswordObligatorioAction } from '@/app/actions/usuarios';
 import { diasHastaFecha, evaluarEstadoAcceso, type EstadoAcceso } from '@/lib/usuarios';
-import { Shield, Users, FileText, ArrowRight, LogOut, User, Trophy, ShieldAlert, Bike, KeyRound, AlertTriangle, ClipboardCheck, Clock3, Building2 } from 'lucide-react';
+import { Shield, Users, FileText, ArrowRight, LogOut, User, ShieldAlert, Bike, KeyRound, AlertTriangle, ClipboardCheck, Clock3, Building2 } from 'lucide-react';
 import InstitutionalDialog from '@/components/InstitutionalDialog';
 
 const LOGO_URL = '/logo_cop.png';
+
+function PelotaFutbolIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="m12 7 3 2.2-1.1 3.5h-3.8L9 9.2 12 7Z" />
+      <path d="m9 9.2-3.2-.8M15 9.2l3.2-.8M10.1 12.7l-2 3.1M13.9 12.7l2 3.1M8.1 15.8l.3 3M15.9 15.8l-.3 3" />
+    </svg>
+  );
+}
 
 export default function SelectAppPage() {
   const router = useRouter();
@@ -157,10 +176,10 @@ export default function SelectAppPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center">
+      <div className="cop-shell min-h-screen text-slate-200 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-xs text-slate-400 font-medium">Verificando permisos...</p>
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#c4a35a] border-t-transparent" />
+          <p className="cop-kicker">Verificando permisos</p>
         </div>
       </div>
     );
@@ -187,9 +206,9 @@ export default function SelectAppPage() {
     }[estadoAcceso as 'pausado' | 'deshabilitado' | 'validacion_vencida'];
 
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
-        <div className="w-full max-w-xl rounded-2xl border border-amber-800/50 bg-slate-900 p-8 text-center shadow-2xl">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-400">
+      <div className="cop-shell min-h-screen text-slate-100 flex items-center justify-center p-4">
+        <div className="w-full max-w-xl border border-[#33465f] border-l-4 border-l-[#c4a35a] bg-[#071426] p-8 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center border border-[#806c3f] bg-[#050e1c] text-[#c4a35a]">
             <Clock3 className="h-7 w-7" />
           </div>
           <h1 className="text-xl font-bold text-white">{contenido.titulo}</h1>
@@ -198,7 +217,7 @@ export default function SelectAppPage() {
           <button
             type="button"
             onClick={handleLogout}
-            className="mt-6 inline-flex items-center gap-2 rounded-xl border border-red-800/50 bg-red-950/30 px-4 py-2.5 text-xs font-semibold text-red-300 hover:bg-red-900/40"
+            className="cop-action-secondary mt-6 inline-flex items-center gap-2 !border-red-900/70 !text-red-400 hover:!bg-red-950/40"
           >
             <LogOut className="h-4 w-4" />
             Cerrar sesión
@@ -229,7 +248,7 @@ export default function SelectAppPage() {
           <div className="flex shrink-0 items-center gap-4">
             <div className="cop-session-block hidden w-[clamp(360px,30vw,510px)] shrink-0 min-[1500px]:flex">
               <div className="flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-xs text-slate-300">
-                <User className="w-3.5 h-3.5 text-blue-400" />
+                <User className="w-3.5 h-3.5 text-[#c4a35a]" />
                 <div className="min-w-0 flex-1">
                   <span className="block max-w-[240px] truncate font-semibold">{userEmail}</span>
                 </div>
@@ -254,7 +273,7 @@ export default function SelectAppPage() {
       <div className="border-b border-[#26364d] bg-[#071426] px-4 py-2 min-[1500px]:hidden sm:px-6 lg:px-8">
         <div className="mx-auto flex max-w-[1800px] items-center justify-between gap-3 text-[10px]">
           <div className="flex min-w-0 items-center gap-2 text-slate-300" title={userEmail || undefined}>
-            <User className="h-3.5 w-3.5 shrink-0 text-blue-400" />
+            <User className="h-3.5 w-3.5 shrink-0 text-[#c4a35a]" />
             <span className="truncate font-semibold">{userEmail}</span>
           </div>
           <div className="flex shrink-0 items-center gap-1.5 font-extrabold uppercase tracking-[0.07em] text-[#c4a35a]">
@@ -275,7 +294,7 @@ export default function SelectAppPage() {
 
       <main className="mx-auto flex w-full max-w-[1320px] flex-1 flex-col justify-center px-4 py-12 sm:px-6 lg:px-8">
         {estadoAcceso === 'por_vencer' && diasVigencia !== null && (
-          <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-700/50 bg-amber-950/35 p-4 text-amber-200">
+          <div className="mb-6 flex items-start gap-3 border border-amber-800/60 border-l-4 border-l-amber-500 bg-amber-950/20 p-4 text-amber-200">
             <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0" />
             <div>
               <p className="text-sm font-bold">Validación institucional próxima a vencer</p>
@@ -316,7 +335,7 @@ export default function SelectAppPage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-extrabold uppercase tracking-[0.025em] text-white">
-                    Módulo de Allanamientos
+                    Allanamientos
                   </h3>
                   <p className="text-xs text-slate-400 mt-1 leading-relaxed">
                     Carga, control de actas, seguimiento semanal y métricas de operativos realizados.
@@ -338,14 +357,14 @@ export default function SelectAppPage() {
               <div className="space-y-4">
                 <span className="cop-module-index">OP-02</span>
                 <div className="cop-module-icon">
-                  <Trophy className="w-6 h-6" />
+                  <PelotaFutbolIcon className="w-6 h-6" />
                 </div>
                 <div>
                   <h3 className="text-lg font-extrabold uppercase tracking-[0.025em] text-white">
-                    Seguridad en el Deporte
+                    Eventos Futbolísticos por POLAD
                   </h3>
                   <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                    Control de eventos deportivos, operativos en estadios y actas de admisión.
+                    Registro y seguimiento de eventos futbolísticos, operativos y actas de admisión.
                   </p>
                 </div>
               </div>
@@ -368,7 +387,7 @@ export default function SelectAppPage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-extrabold uppercase tracking-[0.025em] text-white">
-                    Módulo Contravenciones
+                    Contraventores
                   </h3>
                   <p className="text-xs text-slate-400 mt-1 leading-relaxed">
                     Registro y seguimiento de actas de contravención y faltas jurisdiccionales.
@@ -394,7 +413,7 @@ export default function SelectAppPage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-extrabold uppercase tracking-[0.025em] text-white">
-                    Operación Motochorros
+                    Operativo Prevención Motochorros
                   </h3>
                   <p className="text-xs text-slate-400 mt-1 leading-relaxed">
                     Control de interceptaciones, secuestros vehiculares y operativos focalizados.
@@ -482,23 +501,23 @@ export default function SelectAppPage() {
       </main>
 
       {requiereCambioClave && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-[#0f1420] border border-amber-500/40 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="bg-amber-950/40 p-4 border-b border-amber-800/40 flex items-center gap-3 px-6">
-              <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
+          <div className="w-full max-w-md overflow-hidden border border-[#33465f] border-t-2 border-t-[#c4a35a] bg-[#071426]">
+            <div className="flex items-center gap-3 border-b border-[#26364d] bg-[#050e1c] p-4 px-6">
+              <div className="flex h-8 w-8 items-center justify-center border border-[#806c3f] bg-[#071426] text-[#c4a35a]">
                 <KeyRound className="w-4 h-4" />
               </div>
               <div>
                 <h2 className="font-bold text-xs text-amber-300 uppercase tracking-wider">
-                  Cambio de Contraseña Obligatorio
+                  Cambio de contraseña obligatorio
                 </h2>
-                <p className="text-[10px] text-amber-400/80">Por seguridad, debes definir una clave personal antes de continuar.</p>
+                <p className="text-[10px] text-slate-400">Definí una credencial personal para completar la activación.</p>
               </div>
             </div>
 
             <form onSubmit={handleCambiarPassword} className="p-6 space-y-4">
               {errorClave && (
-                <div className="p-3 bg-red-950/60 border border-red-800/80 rounded-xl text-xs text-red-400 flex items-center gap-2">
+                <div className="flex items-center gap-2 border border-red-800/80 bg-red-950/40 p-3 text-xs text-red-400">
                   <AlertTriangle className="w-4 h-4 flex-shrink-0" />
                   <span>{errorClave}</span>
                 </div>
@@ -512,7 +531,7 @@ export default function SelectAppPage() {
                   placeholder="Mínimo 10 caracteres"
                   value={nuevaClave}
                   onChange={(e) => setNuevaClave(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
+                  className="w-full border border-[#33465f] bg-[#050e1c] px-3.5 py-2.5 text-xs text-white focus:border-[#c4a35a] focus:outline-none"
                 />
               </div>
 
@@ -524,7 +543,7 @@ export default function SelectAppPage() {
                   placeholder="Repetí tu nueva contraseña"
                   value={confirmarClave}
                   onChange={(e) => setConfirmarClave(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
+                  className="w-full border border-[#33465f] bg-[#050e1c] px-3.5 py-2.5 text-xs text-white focus:border-[#c4a35a] focus:outline-none"
                 />
               </div>
 
@@ -532,7 +551,7 @@ export default function SelectAppPage() {
                 <button
                   disabled={guardandoClave}
                   type="submit"
-                  className="w-full py-2.5 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold rounded-xl text-xs uppercase tracking-wider transition-all shadow-lg shadow-amber-900/40"
+                  className="cop-action-primary w-full justify-center py-2.5"
                 >
                   {guardandoClave ? 'Guardando...' : 'Actualizar Contraseña e Ingresar'}
                 </button>

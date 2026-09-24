@@ -78,7 +78,7 @@ type FiltroEstado =
 type ModalEstado = { usuario: UsuarioProfile; estado: EstadoCuenta } | null;
 
 const MODULOS_DISPONIBLES = [
-  { id: 'allanamientos', label: 'Control de Allanamientos' },
+  { id: 'allanamientos', label: 'Allanamientos' },
 ];
 
 const normalizarRol = (valor?: string) => String(valor || '').trim().toLowerCase();
@@ -336,26 +336,26 @@ export default function GestionUsuariosAdminPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col selection:bg-purple-600 selection:text-white">
-      <header className="w-full border-b border-slate-800/80 bg-[#0c0f17]/90 px-6 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-4">
+    <div className="cop-shell min-h-screen text-slate-100 flex flex-col selection:bg-[#806c3f] selection:text-white">
+      <header className="cop-command-header w-full px-6 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Image src="/logo_cop.png" alt="Logo C.O.P" width={36} height={36} className="object-contain" priority />
-          <div><h1 className="text-sm font-bold text-white tracking-wide uppercase">Sistema de Estadísticas COP</h1><p className="text-[10px] text-slate-400 uppercase tracking-widest">Gestión segura de identidades</p></div>
+          <div><h1 className="text-sm font-bold text-white tracking-wide uppercase">Plataforma Integral de Gestión COP</h1><p className="cop-kicker mt-1">Administración de identidades</p></div>
         </div>
         <div className="flex items-center gap-3 text-xs">
-          <div className="flex items-center gap-2 bg-[#131824] px-3 py-1.5 rounded-lg border border-slate-800"><User className="w-3.5 h-3.5 text-slate-400" /><span className="text-slate-300 font-mono text-[11px]">{miEmail}</span><span className="text-emerald-400 text-[10px] font-bold uppercase">{miRolActual}</span></div>
-          <button onClick={cerrarSesion} className="flex items-center gap-1.5 bg-red-950/30 text-red-400 border border-red-900/40 px-3 py-1.5 rounded-lg"><LogOut className="w-3.5 h-3.5" /> Cerrar sesión</button>
+          <div className="flex items-center gap-2 border border-[#33465f] bg-[#050e1c] px-3 py-1.5"><User className="w-3.5 h-3.5 text-[#c4a35a]" /><span className="text-slate-300 font-mono text-[11px]">{miEmail}</span><span className="text-[#c4a35a] text-[10px] font-bold uppercase">{miRolActual}</span></div>
+          <button onClick={cerrarSesion} className="cop-action-secondary flex items-center gap-1.5 !border-red-900/70 !text-red-400"><LogOut className="w-3.5 h-3.5" /> Cerrar sesión</button>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-8 flex-1 space-y-6">
-        <section className="bg-[#0f1420]/90 border border-slate-800/90 rounded-2xl p-6 shadow-2xl flex flex-col sm:flex-row justify-between gap-4">
+        <section className="flex flex-col justify-between gap-4 border border-[#33465f] border-l-4 border-l-[#c4a35a] bg-[#071426] p-6 sm:flex-row">
           <div className="flex items-center gap-4">
-            <button onClick={() => router.push('/select-app')} className="p-2.5 bg-[#161c2e] rounded-xl border border-slate-700/60 text-slate-300"><ArrowLeft className="w-4 h-4" /></button>
-            <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center"><Users className="w-5 h-5 text-purple-400" /></div>
+            <button onClick={() => router.push('/select-app')} className="border border-[#33465f] bg-[#050e1c] p-2.5 text-slate-300"><ArrowLeft className="w-4 h-4" /></button>
+            <div className="flex h-10 w-10 items-center justify-center border border-[#806c3f] bg-[#050e1c]"><Users className="w-5 h-5 text-[#c4a35a]" /></div>
             <div><h2 className="text-lg font-bold">Gestión Centralizada de Usuarios</h2><p className="text-xs text-slate-400">Identidad única, destino, vigencia y trazabilidad institucional</p></div>
           </div>
-          {puedeCrearUsuarios && <button onClick={() => { setModulosSeleccionados(['allanamientos']); setModalAbierto(true); }} className="bg-purple-600 hover:bg-purple-500 px-4 py-2.5 rounded-xl text-xs font-bold uppercase flex items-center justify-center gap-2"><UserPlus className="w-4 h-4" /> Nuevo usuario</button>}
+          {puedeCrearUsuarios && <button onClick={() => { setModulosSeleccionados(['allanamientos']); setModalAbierto(true); }} className="cop-action-primary flex items-center justify-center gap-2 px-4 py-2.5"><UserPlus className="w-4 h-4" /> Nuevo usuario</button>}
         </section>
 
         {mensaje && (
@@ -364,12 +364,12 @@ export default function GestionUsuariosAdminPage() {
           </div>
         )}
 
-        <section className="bg-[#0f1420]/80 border border-slate-800/90 rounded-2xl p-6 shadow-2xl space-y-5">
+        <section className="space-y-5 border border-[#33465f] bg-[#071426] p-6">
           <div className="flex flex-col xl:flex-row justify-between gap-4 pb-4 border-b border-slate-800/80">
             <div className="flex flex-wrap gap-2">
-              {filtros.map((filtro) => <button key={filtro.id} onClick={() => setFiltroEstado(filtro.id)} className={`px-3 py-1.5 rounded-lg border text-[11px] font-semibold ${filtroEstado === filtro.id ? 'bg-purple-600 border-purple-500 text-white' : 'bg-[#080b12] border-slate-800 text-slate-400 hover:text-white'}`}>{filtro.texto} ({filtro.cantidad})</button>)}
+              {filtros.map((filtro) => <button key={filtro.id} onClick={() => setFiltroEstado(filtro.id)} className={`border px-3 py-1.5 text-[11px] font-semibold ${filtroEstado === filtro.id ? 'border-[#c4a35a] bg-[#806c3f]/30 text-white' : 'border-[#33465f] bg-[#050e1c] text-slate-400 hover:text-white'}`}>{filtro.texto} ({filtro.cantidad})</button>)}
             </div>
-            <div className="relative w-full xl:w-96"><Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" /><input value={busqueda} onChange={(evento) => setBusqueda(evento.target.value)} placeholder="Nombre, DNI, legajo, correo o destino..." className="w-full pl-10 pr-9 py-2.5 bg-[#090c13] border border-slate-800 rounded-xl text-xs focus:outline-none focus:border-purple-500" />{busqueda && <button onClick={() => setBusqueda('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500"><X className="w-4 h-4" /></button>}</div>
+            <div className="relative w-full xl:w-96"><Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" /><input value={busqueda} onChange={(evento) => setBusqueda(evento.target.value)} placeholder="Nombre, DNI, legajo, correo o destino..." className="w-full border border-[#33465f] bg-[#050e1c] py-2.5 pl-10 pr-9 text-xs focus:border-[#c4a35a] focus:outline-none" />{busqueda && <button onClick={() => setBusqueda('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500"><X className="w-4 h-4" /></button>}</div>
           </div>
 
           {usuariosFiltrados.length === 0 ? <p className="text-xs text-slate-500 py-12 text-center">No se encontraron usuarios para este filtro.</p> : (
@@ -388,21 +388,21 @@ export default function GestionUsuariosAdminPage() {
                         <h3 className="font-bold text-sm uppercase">{nombreUsuario(usuario)}</h3>
                         <span className={`px-2 py-0.5 border rounded text-[9px] font-extrabold ${estiloEstado(estado)}`}>{etiquetaEstado(estado)}</span>
                         {usuario.requiere_cambio_clave && <span className="px-2 py-0.5 bg-amber-950/80 text-amber-400 border border-amber-800/60 rounded text-[9px] font-extrabold">CLAVE TEMPORAL</span>}
-                        <span title={destino} className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-indigo-950/50 border border-indigo-800/50 text-indigo-300 rounded-md text-[10px] font-bold uppercase"><Building2 className="w-3 h-3 shrink-0" /> {destino}</span>
+                        <span title={destino} className="inline-flex items-center gap-1.5 border border-[#806c3f] bg-[#050e1c] px-2.5 py-0.5 text-[10px] font-bold uppercase text-[#c4a35a]"><Building2 className="w-3 h-3 shrink-0" /> {destino}</span>
                       </div>
                       <p className="text-xs text-slate-400 font-mono">{usuario.email} · DNI {usuario.dni || 'N/A'} · Legajo {usuario.legajo || 'N/A'}</p>
                       <div className="flex flex-wrap gap-2 text-[10px]">
                         <span className="px-2 py-1 rounded-md bg-[#090c13] border border-slate-800 text-slate-300 uppercase font-bold">{usuario.rol}</span>
                         {normalizarRol(usuario.rol) !== 'administrador' && <span className={`px-2 py-1 rounded-md border ${estado === 'validacion_vencida' ? 'border-orange-800/70 text-orange-400' : estado === 'por_vencer' ? 'border-amber-800/70 text-amber-400' : 'border-slate-800 text-slate-400'}`}>Vigencia: {usuario.vigencia_institucional_hasta || 'sin validar'}{dias !== null ? ` · ${dias >= 0 ? `${dias} días` : 'vencida'}` : ''}</span>}
-                        {(usuario.modulos_permitidos || []).map((modulo) => <span key={modulo} className="px-2 py-1 rounded-md border border-purple-900/50 text-purple-400 uppercase">{modulo}</span>)}
+                        {(usuario.modulos_permitidos || []).map((modulo) => <span key={modulo} className="border border-[#806c3f]/70 px-2 py-1 uppercase text-[#c4a35a]">{modulo}</span>)}
                       </div>
                     </div>
                     {gestionable && !esPropio && (
                       <div className="flex flex-wrap gap-1 bg-[#0b0e17] p-1 rounded-xl border border-slate-800 shrink-0">
-                        <button title="Editar perfil" onClick={() => { setUsuarioEditando(usuario); setModulosSeleccionados(usuario.modulos_permitidos || ['allanamientos']); }} className="p-2 text-slate-400 hover:text-purple-400"><Edit className="w-4 h-4" /></button>
+                        <button title="Editar perfil" onClick={() => { setUsuarioEditando(usuario); setModulosSeleccionados(usuario.modulos_permitidos || ['allanamientos']); }} className="p-2 text-slate-400 hover:text-[#c4a35a]"><Edit className="w-4 h-4" /></button>
                         {(estado === 'activo' || estado === 'por_vencer' || estado === 'validacion_vencida') && <button title="Restablecer clave" onClick={() => setUsuarioACambiarPass(usuario)} className="p-2 text-slate-400 hover:text-amber-400"><KeyRound className="w-4 h-4" /></button>}
-                        {normalizarRol(usuario.rol) !== 'administrador' && (estado === 'activo' || estado === 'por_vencer' || estado === 'validacion_vencida') && <button title="Revalidar por 60 días" onClick={() => setUsuarioRevalidando(usuario)} className="p-2 text-slate-400 hover:text-cyan-400"><RefreshCw className="w-4 h-4" /></button>}
-                        {(estado === 'activo' || estado === 'por_vencer' || estado === 'validacion_vencida') && <button title="Registrar traslado" onClick={() => setUsuarioTrasladando(usuario)} className="p-2 text-slate-400 hover:text-blue-400"><ArrowRightLeft className="w-4 h-4" /></button>}
+                        {normalizarRol(usuario.rol) !== 'administrador' && (estado === 'activo' || estado === 'por_vencer' || estado === 'validacion_vencida') && <button title="Revalidar por 60 días" onClick={() => setUsuarioRevalidando(usuario)} className="p-2 text-slate-400 hover:text-[#c4a35a]"><RefreshCw className="w-4 h-4" /></button>}
+                        {(estado === 'activo' || estado === 'por_vencer' || estado === 'validacion_vencida') && <button title="Registrar traslado" onClick={() => setUsuarioTrasladando(usuario)} className="p-2 text-slate-400 hover:text-[#c4a35a]"><ArrowRightLeft className="w-4 h-4" /></button>}
                         {(estado === 'activo' || estado === 'por_vencer' || estado === 'validacion_vencida') && <button title="Pausa temporal" onClick={() => setModalEstado({ usuario, estado: 'pausado' })} className="p-2 text-slate-400 hover:text-amber-400"><PauseCircle className="w-4 h-4" /></button>}
                         {(estado === 'pausado' || estado === 'deshabilitado') && <button title="Reactivar identidad" onClick={() => setModalEstado({ usuario, estado: 'activo' })} className="p-2 text-emerald-500 hover:text-emerald-300"><PlayCircle className="w-4 h-4" /></button>}
                         {estado !== 'deshabilitado' && <button title="Baja operativa" onClick={() => setModalEstado({ usuario, estado: 'deshabilitado' })} className="p-2 text-slate-400 hover:text-red-400"><UserX className="w-4 h-4" /></button>}
@@ -418,7 +418,7 @@ export default function GestionUsuariosAdminPage() {
       </main>
 
       {modalAbierto && (
-        <Modal titulo="Alta de nuevo usuario" icono={<UserPlus className="w-4 h-4 text-purple-400" />} cerrar={() => setModalAbierto(false)} ancho="max-w-2xl">
+        <Modal titulo="Alta de nuevo usuario" icono={<UserPlus className="w-4 h-4 text-[#c4a35a]" />} cerrar={() => setModalAbierto(false)} ancho="max-w-2xl">
           <form onSubmit={handleCrear} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Campo label="Nombre"><input required name="nombre" className="input" /></Campo><Campo label="Apellido"><input required name="apellido" className="input" /></Campo><Campo label="DNI"><input required name="dni" inputMode="numeric" className="input" /></Campo><Campo label="Legajo"><input required name="legajo" className="input" /></Campo>
@@ -434,7 +434,7 @@ export default function GestionUsuariosAdminPage() {
       )}
 
       {usuarioEditando && (
-        <Modal titulo="Editar perfil" icono={<Edit className="w-4 h-4 text-purple-400" />} cerrar={() => setUsuarioEditando(null)} ancho="max-w-2xl">
+        <Modal titulo="Editar perfil" icono={<Edit className="w-4 h-4 text-[#c4a35a]" />} cerrar={() => setUsuarioEditando(null)} ancho="max-w-2xl">
           <form onSubmit={handleEditar} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><Campo label="Nombre"><input required name="nombre" defaultValue={usuarioEditando.nombre || usuarioEditando.nombre_completo?.split(' ')[0]} className="input" /></Campo><Campo label="Apellido"><input required name="apellido" defaultValue={usuarioEditando.apellido || usuarioEditando.nombre_completo?.split(' ').slice(1).join(' ')} className="input" /></Campo><Campo label="DNI"><input required name="dni" defaultValue={usuarioEditando.dni} className="input" /></Campo><Campo label="Legajo"><input required name="legajo" defaultValue={usuarioEditando.legajo} className="input" /></Campo></div>
             <Campo label="Destino actual (usar Traslado para modificarlo)"><input type="hidden" name="superintendencia_id" value={usuarioEditando.superintendencia_id} /><input disabled value={usuarioEditando.superintendencias?.nombre || 'Superintendencia asignada'} className="input opacity-60" /></Campo>
@@ -452,13 +452,13 @@ export default function GestionUsuariosAdminPage() {
       )}
 
       {usuarioRevalidando && (
-        <Modal titulo="Revalidar identidad por 60 días" icono={<Clock3 className="w-4 h-4 text-cyan-400" />} cerrar={() => setUsuarioRevalidando(null)} ancho="max-w-md">
+        <Modal titulo="Revalidar identidad por 60 días" icono={<Clock3 className="w-4 h-4 text-[#c4a35a]" />} cerrar={() => setUsuarioRevalidando(null)} ancho="max-w-md">
           <form onSubmit={handleRevalidar} className="space-y-4"><input type="hidden" name="id" value={usuarioRevalidando.id} /><p className="text-sm text-slate-300">Usuario: <strong>{nombreUsuario(usuarioRevalidando)}</strong></p><Campo label="Motivo"><input required name="motivo" defaultValue="Revalidación institucional periódica" className="input" /></Campo><Campo label="Referencia documental"><input required name="referencia_documental" placeholder="Nota o correo institucional" className="input" /></Campo><AccionesModal cargando={cargando} cancelar={() => setUsuarioRevalidando(null)} confirmar="Revalidar" /></form>
         </Modal>
       )}
 
       {usuarioTrasladando && (
-        <Modal titulo="Registrar traslado" icono={<ArrowRightLeft className="w-4 h-4 text-blue-400" />} cerrar={() => setUsuarioTrasladando(null)} ancho="max-w-md">
+        <Modal titulo="Registrar traslado" icono={<ArrowRightLeft className="w-4 h-4 text-[#c4a35a]" />} cerrar={() => setUsuarioTrasladando(null)} ancho="max-w-md">
           <form onSubmit={handleTraslado} className="space-y-4"><input type="hidden" name="id" value={usuarioTrasladando.id} /><p className="text-sm text-slate-300">Se conserva el mismo usuario, UUID y actividad histórica de <strong>{nombreUsuario(usuarioTrasladando)}</strong>.</p><Campo label="Nuevo destino"><SelectorSuperintendencia superintendencias={superintendencias} excluir={usuarioTrasladando.superintendencia_id} /></Campo><Campo label="Motivo del traslado"><input required name="motivo" className="input" /></Campo><Campo label="Referencia documental"><input required name="referencia_documental" placeholder="Nota o correo institucional" className="input" /></Campo><p className="text-xs text-amber-400">El traslado renueva la vigencia por 60 días y obliga a cambiar la contraseña.</p><AccionesModal cargando={cargando} cancelar={() => setUsuarioTrasladando(null)} confirmar="Registrar traslado" /></form>
         </Modal>
       )}
@@ -486,14 +486,14 @@ export default function GestionUsuariosAdminPage() {
         </div>
       </InstitutionalDialog>
 
-      <footer className="w-full border-t border-slate-800/80 bg-[#0c0f17]/90 py-6 text-center"><p className="text-xs text-slate-400">Desarrollado por <span className="text-blue-400 font-semibold">Emmanuel Machado</span></p></footer>
-      <style jsx global>{`.input { width: 100%; padding: .7rem .875rem; background: #090c13; border: 1px solid #1e293b; border-radius: .75rem; color: white; font-size: .75rem; outline: none; } .input:focus { border-color: #a855f7; }`}</style>
+      <footer className="w-full border-t border-[#26364d] bg-[#071426] py-6 text-center"><p className="text-xs text-slate-400">Plataforma Integral de Gestión · Desarrollo: Emmanuel Machado</p></footer>
+      <style jsx global>{`.input { width: 100%; padding: .7rem .875rem; background: #050e1c; border: 1px solid #33465f; border-radius: .25rem; color: white; font-size: .75rem; outline: none; } .input:focus { border-color: #c4a35a; }`}</style>
     </div>
   );
 }
 
 function Modal({ titulo, icono, cerrar, ancho, children }: { titulo: string; icono: React.ReactNode; cerrar: () => void; ancho: string; children: React.ReactNode }) {
-  return <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto"><div className={`bg-[#0f1420] border border-slate-800 rounded-2xl shadow-2xl w-full ${ancho} max-h-[92vh] overflow-y-auto`}><div className="sticky top-0 z-10 bg-[#090c13] p-4 border-b border-slate-800 flex justify-between items-center px-6"><h2 className="font-bold text-xs text-white uppercase tracking-wider flex items-center gap-2">{icono}{titulo}</h2><button type="button" onClick={cerrar} className="text-slate-500 hover:text-white"><X className="w-5 h-5" /></button></div><div className="p-6 space-y-4">{children}</div></div></div>;
+  return <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4 overflow-y-auto"><div className={`bg-[#071426] border border-[#33465f] border-t-2 border-t-[#c4a35a] w-full ${ancho} max-h-[92vh] overflow-y-auto`}><div className="sticky top-0 z-10 bg-[#050e1c] p-4 border-b border-[#26364d] flex justify-between items-center px-6"><h2 className="font-bold text-xs text-white uppercase tracking-wider flex items-center gap-2">{icono}{titulo}</h2><button type="button" onClick={cerrar} className="text-slate-500 hover:text-white"><X className="w-5 h-5" /></button></div><div className="p-6 space-y-4">{children}</div></div></div>;
 }
 
 function Campo({ label, children }: { label: string; children: React.ReactNode }) {
@@ -505,9 +505,9 @@ function SelectorSuperintendencia({ superintendencias, excluir }: { superintende
 }
 
 function Modulos({ seleccionados, alternar }: { seleccionados: string[]; alternar: (id: string) => void }) {
-  return <div><p className="text-[10px] font-bold uppercase text-slate-400 mb-2">Módulos autorizados</p><div className="grid grid-cols-1 sm:grid-cols-2 gap-2">{MODULOS_DISPONIBLES.map((modulo) => { const seleccionado = seleccionados.includes(modulo.id); return <button type="button" key={modulo.id} onClick={() => alternar(modulo.id)} className={`p-3 rounded-xl border flex items-center justify-between text-xs font-semibold ${seleccionado ? 'bg-purple-950/60 border-purple-800/80 text-white' : 'bg-[#090c13] border-slate-800 text-slate-500'}`}><span>{modulo.label}</span><span>{seleccionado ? '✓' : '○'}</span></button>; })}</div></div>;
+  return <div><p className="text-[10px] font-bold uppercase text-slate-400 mb-2">Módulos autorizados</p><div className="grid grid-cols-1 sm:grid-cols-2 gap-2">{MODULOS_DISPONIBLES.map((modulo) => { const seleccionado = seleccionados.includes(modulo.id); return <button type="button" key={modulo.id} onClick={() => alternar(modulo.id)} className={`p-3 border flex items-center justify-between text-xs font-semibold ${seleccionado ? 'bg-[#806c3f]/25 border-[#c4a35a] text-white' : 'bg-[#050e1c] border-[#33465f] text-slate-500'}`}><span>{modulo.label}</span><span>{seleccionado ? '✓' : '○'}</span></button>; })}</div></div>;
 }
 
 function AccionesModal({ cargando, cancelar, confirmar, onConfirmar, peligro = false }: { cargando: boolean; cancelar: () => void; confirmar: string; onConfirmar?: () => void; peligro?: boolean }) {
-  return <div className="flex justify-end gap-3 pt-4 border-t border-slate-800"><button type="button" onClick={cancelar} className="px-4 py-2 text-xs font-semibold uppercase text-slate-400 hover:text-white">Cancelar</button><button type={onConfirmar ? 'button' : 'submit'} onClick={onConfirmar} disabled={cargando} className={`px-5 py-2.5 text-white font-bold rounded-xl text-xs uppercase disabled:opacity-50 ${peligro ? 'bg-red-700 hover:bg-red-600' : 'bg-purple-600 hover:bg-purple-500'}`}>{cargando ? 'Procesando...' : confirmar}</button></div>;
+  return <div className="flex justify-end gap-3 pt-4 border-t border-[#26364d]"><button type="button" onClick={cancelar} className="cop-action-secondary px-4 py-2">Cancelar</button><button type={onConfirmar ? 'button' : 'submit'} onClick={onConfirmar} disabled={cargando} className={`px-5 py-2.5 text-white font-bold text-xs uppercase disabled:opacity-50 ${peligro ? 'bg-red-700 hover:bg-red-600' : 'cop-action-primary'}`}>{cargando ? 'Procesando...' : confirmar}</button></div>;
 }
