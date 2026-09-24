@@ -305,18 +305,21 @@ export default function BuscarAllanamientosPage() {
   const indiceInicial = (paginaActual - 1) * registrosPorPagina
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-800 pb-4 gap-4">
-          <div className="flex items-center space-x-3">
-            <button onClick={() => router.push('/allanamientos')} className="p-2 bg-slate-900 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition">
-              <ArrowLeft className="w-5 h-5" />
+    <main className="min-h-screen px-4 py-6 text-slate-100 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <header className="flex flex-col gap-4 border-b border-[#26364d] pb-5 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex items-start gap-3">
+            <button
+              onClick={() => router.push('/allanamientos')}
+              className="flex h-10 w-10 shrink-0 items-center justify-center border border-[#26364d] bg-[#071426] text-slate-400 transition hover:border-[#806c3f] hover:text-white"
+              aria-label="Volver a Allanamientos"
+            >
+              <ArrowLeft className="h-5 w-5" />
             </button>
             <div>
-              <h1 className="text-xl font-bold text-white flex items-center gap-2">
-                <Filter className="w-5 h-5 text-blue-500" /> Consultas y Reportes Operativos
-              </h1>
-              <p className="text-xs text-slate-400">Consulta histórica paginada y exportación completa a Excel.</p>
+              <p className="cop-kicker">Archivo operativo · OP-02</p>
+              <h1 className="mt-1 text-xl font-extrabold uppercase tracking-[0.035em] text-white sm:text-2xl">Consultas y reportes</h1>
+              <p className="mt-1 text-xs text-slate-400">Consulta histórica paginada y exportación completa de registros.</p>
             </div>
           </div>
 
@@ -324,106 +327,120 @@ export default function BuscarAllanamientosPage() {
             <button
               onClick={exportarExcel}
               disabled={totalRegistros === 0 || exportando}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold transition flex items-center gap-2 disabled:opacity-50 shadow-lg shadow-emerald-950/20"
+              className="cop-action-secondary w-full border-[#806c3f]! text-[#d5bd82]! disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
             >
-              {exportando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              {exportando ? 'Generando Excel completo...' : `Exportar (${totalRegistros})`}
+              {exportando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {exportando ? 'Generando archivo...' : `Exportar Excel · ${totalRegistros}`}
             </button>
           )}
-        </div>
+        </header>
 
-        <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 space-y-4 backdrop-blur-md">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <section className="border border-[#26364d] bg-[#071426]/80">
+          <div className="flex items-center gap-3 border-b border-[#26364d] bg-[#050e1c] px-4 py-3 sm:px-5">
+            <span className="cop-form-section-index">01</span>
             <div>
-              <label className="block text-[11px] font-medium text-slate-400 mb-1">Período de análisis</label>
-              <div className="flex gap-1.5">
-                <button type="button" onClick={() => aplicarPresetFecha('semana')} className={`flex-1 py-2 text-xs font-semibold rounded-xl border transition ${periodoActivo === 'semana' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-400'}`}>
-                  Semana rendida
+              <h2 className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-white">Criterios de consulta</h2>
+              <p className="mt-0.5 text-[10px] text-slate-500">Definí el período, la jurisdicción y el contenido requerido.</p>
+            </div>
+          </div>
+
+          <div className="space-y-5 p-4 sm:p-5">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <CampoConsulta etiqueta="Período de análisis">
+                <div className="grid grid-cols-2 border border-[#26364d] bg-[#050e1c]">
+                  <BotonPeriodo activo={periodoActivo === 'semana'} onClick={() => aplicarPresetFecha('semana')}>Semana rendida</BotonPeriodo>
+                  <BotonPeriodo activo={periodoActivo === 'mes'} onClick={() => aplicarPresetFecha('mes')}>Mes actual</BotonPeriodo>
+                </div>
+              </CampoConsulta>
+
+              <CampoConsulta etiqueta="Partido">
+                <select value={partidoSel} onChange={(e) => setPartidoSel(e.target.value)} className="h-10 w-full border border-[#26364d] bg-[#050e1c] px-3 text-xs text-white outline-none transition focus:border-[#c4a35a]">
+                  <option value="">Todos los partidos</option>
+                  {partidosList.map((partido) => <option key={partido} value={partido}>{partido}</option>)}
+                </select>
+              </CampoConsulta>
+
+              <CampoConsulta etiqueta="Superintendencia">
+                <select value={superintendenciaSel} onChange={(e) => setSuperintendenciaSel(e.target.value)} className="h-10 w-full border border-[#26364d] bg-[#050e1c] px-3 text-xs text-white outline-none transition focus:border-[#c4a35a]">
+                  <option value="">Todas las superintendencias</option>
+                  {superintendenciasList.map((superintendencia) => <option key={superintendencia.id} value={superintendencia.id}>{superintendencia.nombre}</option>)}
+                </select>
+              </CampoConsulta>
+
+              <CampoConsulta etiqueta="Fecha desde / hasta">
+                <div className="grid grid-cols-2 gap-2">
+                  <input type="date" aria-label="Fecha desde" value={fechaDesde} onChange={(e) => { setFechaDesde(e.target.value); setPeriodoActivo('') }} className="h-10 min-w-0 w-full border border-[#26364d] bg-[#050e1c] px-2 text-[11px] text-white outline-none [color-scheme:dark] focus:border-[#c4a35a]" />
+                  <input type="date" aria-label="Fecha hasta" value={fechaHasta} onChange={(e) => { setFechaHasta(e.target.value); setPeriodoActivo('') }} className="h-10 min-w-0 w-full border border-[#26364d] bg-[#050e1c] px-2 text-[11px] text-white outline-none [color-scheme:dark] focus:border-[#c4a35a]" />
+                </div>
+              </CampoConsulta>
+            </div>
+
+            <div className="flex flex-col gap-4 border-t border-[#17263a] pt-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="mb-2 text-[9px] font-extrabold uppercase tracking-[0.1em] text-slate-500">Contenido del procedimiento</p>
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                  <Chip activo={soloArmas} onClick={() => setSoloArmas(!soloArmas)} icon={<ShieldAlert className="h-3.5 w-3.5" />}>Con armas</Chip>
+                  <Chip activo={soloVehiculos} onClick={() => setSoloVehiculos(!soloVehiculos)} icon={<Car className="h-3.5 w-3.5" />}>Con vehículos</Chip>
+                  <Chip activo={soloDetenidosAprehendidos} onClick={() => setSoloDetenidosAprehendidos(!soloDetenidosAprehendidos)} icon={<Users className="h-3.5 w-3.5" />}>Con personas</Chip>
+                  <Chip activo={soloPositivos} onClick={() => setSoloPositivos(!soloPositivos)} icon={<CheckCircle2 className="h-3.5 w-3.5" />}>Solo positivos</Chip>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 sm:flex">
+                <button onClick={resetearFiltros} className="cop-action-secondary">
+                  <RefreshCw className="h-3.5 w-3.5" /> Restablecer
                 </button>
-                <button type="button" onClick={() => aplicarPresetFecha('mes')} className={`flex-1 py-2 text-xs font-semibold rounded-xl border transition ${periodoActivo === 'mes' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-400'}`}>
-                  Mes actual
+                <button onClick={() => void ejecutarBusqueda(1)} disabled={loading} className="cop-action-primary disabled:opacity-50">
+                  {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Filter className="h-3.5 w-3.5" />} Aplicar filtros
                 </button>
               </div>
             </div>
+          </div>
+        </section>
 
-            <div>
-              <label className="block text-[11px] font-medium text-slate-400 mb-1">Partido</label>
-              <select value={partidoSel} onChange={(e) => setPartidoSel(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
-                <option value="">Todos los partidos</option>
-                {partidosList.map((partido) => <option key={partido} value={partido}>{partido}</option>)}
-              </select>
-            </div>
+        {mensajeError && <div className="border border-red-800 bg-red-950/30 px-4 py-3 text-xs text-red-300">{mensajeError}</div>}
 
-            <div>
-              <label className="block text-[11px] font-medium text-slate-400 mb-1">Superintendencia</label>
-              <select value={superintendenciaSel} onChange={(e) => setSuperintendenciaSel(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
-                <option value="">Todas las superintendencias</option>
-                {superintendenciasList.map((superintendencia) => <option key={superintendencia.id} value={superintendencia.id}>{superintendencia.nombre}</option>)}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-medium text-slate-400 mb-1">Fecha desde / hasta</label>
-              <div className="flex items-center gap-1">
-                <input type="date" value={fechaDesde} onChange={(e) => { setFechaDesde(e.target.value); setPeriodoActivo('') }} className="w-1/2 bg-slate-950 border border-slate-800 rounded-xl px-2 py-1.5 text-xs text-white [color-scheme:dark]" />
-                <input type="date" value={fechaHasta} onChange={(e) => { setFechaHasta(e.target.value); setPeriodoActivo('') }} className="w-1/2 bg-slate-950 border border-slate-800 rounded-xl px-2 py-1.5 text-xs text-white [color-scheme:dark]" />
+        <section className="overflow-hidden border border-[#26364d] bg-[#071426]/80">
+          <div className="flex items-center justify-between gap-3 border-b border-[#26364d] bg-[#050e1c] px-4 py-3 sm:px-5">
+            <div className="flex items-center gap-3">
+              <span className="cop-form-section-index">02</span>
+              <div>
+                <h2 className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-white">Resultado de la consulta</h2>
+                <p className="mt-0.5 text-[10px] text-slate-500">{totalRegistros} registros encontrados</p>
               </div>
             </div>
           </div>
 
-          <div className="pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[11px] font-medium text-slate-400 mr-1">Contenido:</span>
-              <Chip activo={soloArmas} onClick={() => setSoloArmas(!soloArmas)} color="red" icon={<ShieldAlert className="w-3.5 h-3.5" />}>Con armas</Chip>
-              <Chip activo={soloVehiculos} onClick={() => setSoloVehiculos(!soloVehiculos)} color="sky" icon={<Car className="w-3.5 h-3.5" />}>Con vehículos</Chip>
-              <Chip activo={soloDetenidosAprehendidos} onClick={() => setSoloDetenidosAprehendidos(!soloDetenidosAprehendidos)} color="purple" icon={<Users className="w-3.5 h-3.5" />}>Con personas</Chip>
-              <Chip activo={soloPositivos} onClick={() => setSoloPositivos(!soloPositivos)} color="emerald" icon={<CheckCircle2 className="w-3.5 h-3.5" />}>Solo positivos</Chip>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button onClick={resetearFiltros} className="px-3 py-2 bg-slate-950 text-slate-400 hover:text-white border border-slate-800 rounded-xl text-xs transition flex items-center gap-1">
-                <RefreshCw className="w-3.5 h-3.5" /> Restablecer
-              </button>
-              <button onClick={() => void ejecutarBusqueda(1)} disabled={loading} className="px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shadow-lg shadow-blue-950/30">
-                <Filter className="w-3.5 h-3.5" /> Aplicar filtros
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {mensajeError && <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-300">{mensajeError}</div>}
-
-        <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden backdrop-blur-md">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-950/90 uppercase text-[10px] text-slate-400 border-b border-slate-800 tracking-wider">
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[900px] text-left text-xs text-slate-300">
+              <thead className="border-b border-[#26364d] bg-[#071426] text-[9px] font-extrabold uppercase tracking-[0.1em] text-slate-500">
                 <tr>
-                  <th className="py-3 px-4">IPP / ubicación / fecha</th>
-                  <th className="py-3 px-4">Superintendencia</th>
-                  <th className="py-3 px-4">Personas</th>
-                  <th className="py-3 px-4">Armas</th>
-                  <th className="py-3 px-4">Vehículos</th>
-                  <th className="py-3 px-4 text-center">Resultado</th>
+                  <th className="px-4 py-3">IPP / ubicación / fecha</th>
+                  <th className="px-4 py-3">Superintendencia</th>
+                  <th className="px-4 py-3 text-center">Personas</th>
+                  <th className="px-4 py-3 text-center">Armas</th>
+                  <th className="px-4 py-3 text-center">Vehículos</th>
+                  <th className="px-4 py-3 text-right">Resultado</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/50">
+              <tbody className="divide-y divide-[#17263a]">
                 {loading ? (
-                  <tr><td colSpan={6} className="py-12 text-center text-slate-400"><span className="inline-flex items-center gap-2"><Loader2 className="w-5 h-5 animate-spin text-blue-500" /> Cargando registros...</span></td></tr>
+                  <tr><td colSpan={6} className="py-14 text-center text-slate-400"><span className="inline-flex items-center gap-2"><Loader2 className="h-5 w-5 animate-spin text-[#c4a35a]" /> Consultando registros...</span></td></tr>
                 ) : registros.length === 0 ? (
-                  <tr><td colSpan={6} className="py-12 text-center text-slate-400">Sin registros para los filtros seleccionados.</td></tr>
+                  <tr><td colSpan={6} className="py-14 text-center text-slate-500">Sin registros para los criterios seleccionados.</td></tr>
                 ) : registros.map((item) => {
                   const valores = obtenerValoresSecuestros(item)
                   return (
-                    <tr key={item.id} className="hover:bg-slate-800/30 transition">
-                      <td className="py-3.5 px-4">
+                    <tr key={item.id} className="transition hover:bg-white/[0.018]">
+                      <td className="px-4 py-4">
                         <div className="font-semibold text-white">{item.numero_ipp || 'S/D'} · {item.partido || 'S/D'}</div>
-                        <div className="text-[10px] text-slate-400">{item.fecha_ejecucion}</div>
+                        <div className="mt-1 font-mono text-[10px] text-slate-500">{item.fecha_ejecucion}</div>
                       </td>
-                      <td className="py-3.5 px-4 max-w-xs"><span className="whitespace-normal break-words text-[11px]">{item.superintendencias?.nombre || 'S/D'}</span></td>
-                      <Total valor={valores.totalPersonas} color="text-purple-400" />
-                      <Total valor={valores.totalArmas} color="text-red-400" />
-                      <Total valor={valores.totalVehiculos} color="text-sky-400" />
-                      <td className="py-3.5 px-4 text-center"><span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${String(item.resultado_medida).toLowerCase().includes('posi') ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800' : 'bg-red-950/80 text-red-400 border border-red-800'}`}>{item.resultado_medida || 'N/A'}</span></td>
+                      <td className="max-w-sm px-4 py-4"><span className="whitespace-normal break-words text-[11px] leading-relaxed">{item.superintendencias?.nombre || 'S/D'}</span></td>
+                      <Total valor={valores.totalPersonas} />
+                      <Total valor={valores.totalArmas} />
+                      <Total valor={valores.totalVehiculos} />
+                      <td className="px-4 py-4 text-right"><EstadoResultado valor={item.resultado_medida} /></td>
                     </tr>
                   )
                 })}
@@ -431,37 +448,76 @@ export default function BuscarAllanamientosPage() {
             </table>
           </div>
 
+          <div className="divide-y divide-[#17263a] md:hidden">
+            {loading ? (
+              <div className="flex items-center justify-center gap-2 py-14 text-xs text-slate-400"><Loader2 className="h-5 w-5 animate-spin text-[#c4a35a]" /> Consultando registros...</div>
+            ) : registros.length === 0 ? (
+              <div className="py-14 text-center text-xs text-slate-500">Sin registros para los criterios seleccionados.</div>
+            ) : registros.map((item) => {
+              const valores = obtenerValoresSecuestros(item)
+              return (
+                <article key={item.id} className="border-l-2 border-l-[#806c3f] px-4 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[9px] font-extrabold uppercase tracking-[0.08em] text-[#c4a35a]">IPP {item.numero_ipp || 'S/D'}</p>
+                      <h3 className="mt-1 text-sm font-bold text-white">{item.partido || 'S/D'}</h3>
+                      <p className="mt-1 font-mono text-[10px] text-slate-500">{item.fecha_ejecucion}</p>
+                    </div>
+                    <EstadoResultado valor={item.resultado_medida} />
+                  </div>
+                  <p className="mt-3 border-t border-[#17263a] pt-3 text-[10px] leading-relaxed text-slate-400">{item.superintendencias?.nombre || 'S/D'}</p>
+                  <div className="mt-3 grid grid-cols-3 divide-x divide-[#26364d] border border-[#26364d] bg-[#050e1c]">
+                    <TotalMovil etiqueta="Personas" valor={valores.totalPersonas} />
+                    <TotalMovil etiqueta="Armas" valor={valores.totalArmas} />
+                    <TotalMovil etiqueta="Vehículos" valor={valores.totalVehiculos} />
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+
           {!loading && totalRegistros > 0 && (
-            <div className="px-4 py-3 bg-slate-950/80 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
-              <div className="flex items-center gap-3">
-                <span>Mostrando <strong className="text-white">{indiceInicial + 1}</strong> a <strong className="text-white">{Math.min(indiceInicial + registros.length, totalRegistros)}</strong> de <strong className="text-white">{totalRegistros}</strong></span>
-                <select value={registrosPorPagina} onChange={(e) => { const cantidad = Number(e.target.value); setRegistrosPorPagina(cantidad); void ejecutarBusqueda(1, cantidad, filtrosAplicados) }} className="bg-slate-900 border border-slate-800 text-slate-300 text-[11px] rounded-lg px-2 py-1">
-                  <option value={25}>25 por pág.</option><option value={50}>50 por pág.</option><option value={100}>100 por pág.</option>
+            <div className="flex flex-col gap-3 border-t border-[#26364d] bg-[#050e1c] px-4 py-3 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-3">
+                <span><strong className="text-white">{indiceInicial + 1}</strong>–<strong className="text-white">{Math.min(indiceInicial + registros.length, totalRegistros)}</strong> de <strong className="text-white">{totalRegistros}</strong></span>
+                <select value={registrosPorPagina} onChange={(e) => { const cantidad = Number(e.target.value); setRegistrosPorPagina(cantidad); void ejecutarBusqueda(1, cantidad, filtrosAplicados) }} className="border border-[#26364d] bg-[#071426] px-2 py-1 text-[10px] text-slate-300 outline-none focus:border-[#c4a35a]">
+                  <option value={25}>25 por página</option><option value={50}>50 por página</option><option value={100}>100 por página</option>
                 </select>
               </div>
-              <div className="flex items-center gap-2">
-                <button onClick={() => void ejecutarBusqueda(paginaActual - 1)} disabled={paginaActual === 1} className="px-3 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white rounded-lg">Anterior</button>
-                <span>Página {paginaActual} de {totalPaginas}</span>
-                <button onClick={() => void ejecutarBusqueda(paginaActual + 1)} disabled={paginaActual >= totalPaginas} className="px-3 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white rounded-lg">Siguiente</button>
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                <button onClick={() => void ejecutarBusqueda(paginaActual - 1)} disabled={paginaActual === 1} className="border border-[#26364d] bg-[#071426] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-white disabled:opacity-30">Anterior</button>
+                <span className="px-1 text-center text-[10px]">Página {paginaActual} de {totalPaginas}</span>
+                <button onClick={() => void ejecutarBusqueda(paginaActual + 1)} disabled={paginaActual >= totalPaginas} className="border border-[#26364d] bg-[#071426] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-white disabled:opacity-30">Siguiente</button>
               </div>
             </div>
           )}
-        </div>
+        </section>
       </div>
-    </div>
+    </main>
   )
 }
 
-function Chip({ activo, onClick, color, icon, children }: { activo: boolean; onClick: () => void; color: 'red' | 'sky' | 'purple' | 'emerald'; icon: ReactNode; children: ReactNode }) {
-  const activos = {
-    red: 'bg-red-950/80 border-red-800 text-red-300',
-    sky: 'bg-sky-950/80 border-sky-800 text-sky-300',
-    purple: 'bg-purple-950/80 border-purple-800 text-purple-300',
-    emerald: 'bg-emerald-950/80 border-emerald-800 text-emerald-300',
-  }
-  return <button type="button" onClick={onClick} className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition flex items-center gap-1.5 ${activo ? activos[color] : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'}`}>{icon}{children}</button>
+function CampoConsulta({ etiqueta, children }: { etiqueta: string; children: ReactNode }) {
+  return <div><label className="mb-1.5 block text-[9px] font-extrabold uppercase tracking-[0.09em] text-slate-500">{etiqueta}</label>{children}</div>
 }
 
-function Total({ valor, color }: { valor: number; color: string }) {
-  return <td className="py-3.5 px-4"><span className="bg-slate-950 border border-slate-800/80 px-2.5 py-1 rounded-lg text-xs font-medium">Total: <strong className={color}>{valor}</strong></span></td>
+function BotonPeriodo({ activo, onClick, children }: { activo: boolean; onClick: () => void; children: ReactNode }) {
+  return <button type="button" onClick={onClick} className={`h-[38px] border-l-2 px-2 text-[10px] font-extrabold uppercase tracking-[0.04em] transition first:border-r first:border-r-[#26364d] ${activo ? 'border-l-[#c4a35a] bg-[#0e1d31] text-white' : 'border-l-transparent text-slate-500 hover:text-slate-300'}`}>{children}</button>
+}
+
+function Chip({ activo, onClick, icon, children }: { activo: boolean; onClick: () => void; icon: ReactNode; children: ReactNode }) {
+  return <button type="button" onClick={onClick} aria-pressed={activo} className={`flex min-h-9 items-center justify-center gap-1.5 border px-3 text-[10px] font-bold uppercase tracking-[0.035em] transition ${activo ? 'border-[#806c3f] bg-[#0e1d31] text-[#d5bd82]' : 'border-[#26364d] bg-[#050e1c] text-slate-500 hover:text-slate-300'}`}>{icon}{children}</button>
+}
+
+function EstadoResultado({ valor }: { valor: unknown }) {
+  const positivo = String(valor).toLowerCase().includes('posi')
+  return <span className={`inline-flex border-l-2 px-2 py-1 text-[9px] font-extrabold uppercase tracking-[0.06em] ${positivo ? 'border-emerald-500 text-emerald-400' : 'border-red-500 text-red-400'}`}>{String(valor || 'N/A')}</span>
+}
+
+function Total({ valor }: { valor: number }) {
+  return <td className="px-4 py-4 text-center"><strong className="font-mono text-sm text-white">{valor}</strong></td>
+}
+
+function TotalMovil({ etiqueta, valor }: { etiqueta: string; valor: number }) {
+  return <div className="px-2 py-2.5 text-center"><p className="text-[8px] font-extrabold uppercase tracking-[0.06em] text-slate-600">{etiqueta}</p><p className="mt-1 font-mono text-sm font-bold text-white">{valor}</p></div>
 }

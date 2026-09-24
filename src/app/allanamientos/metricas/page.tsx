@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { obtenerRangoSemanaRendida } from '@/lib/allanamientos';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid 
 } from 'recharts';
-import { Calendar, ShieldCheck, ShieldAlert, Car, Shield, UserCheck, TrendingUp, Radio, Lock } from 'lucide-react';
+import { Calendar, ShieldCheck, ShieldAlert, Car, Shield, UserCheck, TrendingUp, Radio, Lock, BarChart3 } from 'lucide-react';
 
 type DesgloseArmas = {
   'Arma Corta': number;
@@ -189,16 +190,17 @@ export default function MetricasPage() {
   if (autorizado === false) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-        <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-full mb-4">
-          <Lock className="w-8 h-8 text-red-400" />
+        <div className="mb-4 border border-red-800 bg-red-950/30 p-4">
+          <Lock className="h-8 w-8 text-red-400" />
         </div>
-        <h2 className="text-lg font-bold text-white mb-2">Acceso Restringido</h2>
+        <p className="cop-kicker">Control de acceso</p>
+        <h2 className="mb-2 mt-1 text-lg font-extrabold uppercase tracking-[0.04em] text-white">Acceso restringido</h2>
         <p className="text-xs text-slate-400 max-w-sm mb-6">
           Tu rol no tiene los permisos requeridos para visualizar el panel de métricas y estadísticas operativas.
         </p>
         <button
           onClick={() => router.push('/allanamientos')}
-          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-lg transition-colors border border-slate-700"
+          className="cop-action-secondary"
         >
           Volver a Allanamientos
         </button>
@@ -215,179 +217,218 @@ export default function MetricasPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 space-y-6">
-      <div className="flex justify-between items-center bg-slate-900/40 border border-slate-800/80 px-4 py-2 rounded-xl backdrop-blur-md">
-        <div className="flex items-center gap-2 text-emerald-400 text-xs font-semibold">
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-          </span>
-          MONITOREO AUDITORÍA EN VIVO
+    <main className="mx-auto max-w-7xl space-y-6 px-4 pb-12 pt-6 sm:px-6 lg:px-8">
+      <header className="border-b border-[#26364d] pb-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="cop-kicker">Control ejecutivo · OP-03</p>
+            <h1 className="mt-1 text-xl font-extrabold uppercase tracking-[0.035em] text-white sm:text-2xl">Tablero de indicadores</h1>
+            <p className="mt-1 text-xs text-slate-400">
+              Semana informada: <span className="font-mono text-slate-200">{formatearFecha(semanaDesde)} al {formatearFecha(semanaHasta)}</span>
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 border-l-2 border-l-emerald-600 pl-3 sm:items-end">
+            <div className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.08em] text-emerald-400">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" /> Monitoreo en línea
+            </div>
+            <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+              <Radio className="h-3.5 w-3.5 text-[#c4a35a]" />
+              Actualización: <span className="font-mono text-slate-300">{ultimaActualizacion}</span>
+            </div>
+          </div>
         </div>
-        <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
-          <Radio className="w-3.5 h-3.5 text-blue-400 animate-pulse" />
-          Última actualización: <span className="text-white font-mono">{ultimaActualizacion}</span>
-        </div>
-      </div>
+      </header>
 
       {errorCarga && (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-300">
+        <div className="border border-red-800 bg-red-950/30 px-4 py-3 text-xs text-red-300">
           {errorCarga}
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Rendición Semanal</span>
-            <Calendar className="w-4 h-4 text-blue-400" />
-          </div>
-          <div className="text-3xl font-extrabold text-white">{rendicionSemanal}</div>
-          <p className="text-[10px] text-slate-500 mt-1">Semana informada: {semanaDesde} al {semanaHasta}</p>
-        </div>
-
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Total Mensual</span>
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="text-3xl font-extrabold text-white">{totalMensual}</div>
-          <p className="text-[10px] text-slate-500 mt-1">Acumulado del mes actual</p>
-        </div>
-
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Efectividad Medidas</span>
-            <TrendingUp className="w-4 h-4 text-amber-400" />
-          </div>
-          <div className="text-3xl font-extrabold text-white">{efectividad}%</div>
-          <p className="text-[10px] text-slate-500 mt-1">Allanamientos con resultado positivo</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md flex flex-col justify-between">
+      <section className="overflow-hidden border border-[#26364d] bg-[#071426]/80">
+        <div className="flex items-center gap-3 border-b border-[#26364d] bg-[#050e1c] px-4 py-3 sm:px-5">
+          <span className="cop-form-section-index">01</span>
           <div>
-            <div className="flex items-center justify-between text-slate-400 mb-2">
-              <span className="text-[11px] font-semibold uppercase tracking-wider">Armas Secuestradas</span>
-              <ShieldAlert className="w-4 h-4 text-red-400" />
-            </div>
-            <div className="text-3xl font-extrabold text-white">{armasSemana}</div>
-            <p className="text-[10px] text-slate-500 mt-1">Semana informada ({armasMes} en el mes)</p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-1.5 pt-3 mt-3 border-t border-slate-800/80 text-[11px]">
-            <div className="text-slate-400">Corta: <span className="font-semibold text-white">{desgloseArmas['Arma Corta']}</span></div>
-            <div className="text-slate-400">Larga: <span className="font-semibold text-white">{desgloseArmas['Arma Larga']}</span></div>
-            <div className="text-slate-400">Blanca: <span className="font-semibold text-white">{desgloseArmas['Arma Blanca']}</span></div>
-            <div className="text-slate-400">Réplica: <span className="font-semibold text-white">{desgloseArmas['Réplica']}</span></div>
+            <h2 className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-white">Actividad general</h2>
+            <p className="mt-0.5 text-[10px] text-slate-500">Síntesis del período semanal y del acumulado mensual.</p>
           </div>
         </div>
+        <div className="grid grid-cols-1 divide-y divide-[#26364d] md:grid-cols-3 md:divide-x md:divide-y-0">
+          <IndicadorPrincipal icono={<Calendar className="h-4 w-4" />} etiqueta="Rendición semanal" valor={rendicionSemanal} detalle={`${formatearFecha(semanaDesde)} al ${formatearFecha(semanaHasta)}`} />
+          <IndicadorPrincipal icono={<ShieldCheck className="h-4 w-4" />} etiqueta="Total mensual" valor={totalMensual} detalle="Acumulado del mes actual" />
+          <IndicadorPrincipal icono={<TrendingUp className="h-4 w-4" />} etiqueta="Efectividad de las medidas" valor={`${efectividad}%`} detalle="Procedimientos con resultado positivo" />
+        </div>
+      </section>
 
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md flex flex-col justify-between">
+      <section className="overflow-hidden border border-[#26364d] bg-[#071426]/80">
+        <div className="flex items-center gap-3 border-b border-[#26364d] bg-[#050e1c] px-4 py-3 sm:px-5">
+          <span className="cop-form-section-index">02</span>
           <div>
-            <div className="flex items-center justify-between text-slate-400 mb-2">
-              <span className="text-[11px] font-semibold uppercase tracking-wider">Vehículos Secuestrados</span>
-              <Car className="w-4 h-4 text-cyan-400" />
-            </div>
-            <div className="text-3xl font-extrabold text-white">{vehiculosSemana}</div>
-            <p className="text-[10px] text-slate-500 mt-1">Semana informada ({vehiculosMes} en el mes)</p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-1.5 pt-3 mt-3 border-t border-slate-800/80 text-[11px]">
-            <div className="text-slate-400">Auto: <span className="font-semibold text-white">{desgloseVehiculos['Auto']}</span></div>
-            <div className="text-slate-400">Moto: <span className="font-semibold text-white">{desgloseVehiculos['Moto']}</span></div>
-            <div className="text-slate-400">Camioneta: <span className="font-semibold text-white">{desgloseVehiculos['Camioneta']}</span></div>
-            <div className="text-slate-400">Otros: <span className="font-semibold text-white">{desgloseVehiculos['Otros']}</span></div>
+            <h2 className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-white">Resultados informados</h2>
+            <p className="mt-0.5 text-[10px] text-slate-500">Elementos y personas registrados durante la semana informada.</p>
           </div>
         </div>
+        <div className="grid grid-cols-1 divide-y divide-[#26364d] md:grid-cols-3 md:divide-x md:divide-y-0">
+          <ResultadoInformado
+            codigo="R-01"
+            icono={<ShieldAlert className="h-4 w-4" />}
+            titulo="Armas secuestradas"
+            semana={armasSemana}
+            mes={armasMes}
+            items={Object.entries(desgloseArmas)}
+          />
+          <ResultadoInformado
+            codigo="R-02"
+            icono={<Car className="h-4 w-4" />}
+            titulo="Vehículos secuestrados"
+            semana={vehiculosSemana}
+            mes={vehiculosMes}
+            items={Object.entries(desgloseVehiculos)}
+          />
+          <ResultadoInformado
+            codigo="R-03"
+            icono={<UserCheck className="h-4 w-4" />}
+            titulo="Detenidos / aprehendidos"
+            semana={detenidosSemana}
+            mes={detenidosMes}
+            items={Object.entries(desglosePersonas)}
+          />
+        </div>
+      </section>
 
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md flex flex-col justify-between">
+      <section className="space-y-4">
+        <div className="flex items-center gap-3 border-b border-[#26364d] pb-3">
+          <span className="cop-form-section-index">03</span>
           <div>
-            <div className="flex items-center justify-between text-slate-400 mb-2">
-              <span className="text-[11px] font-semibold uppercase tracking-wider">Detenidos / Aprehendidos</span>
-              <UserCheck className="w-4 h-4 text-purple-400" />
+            <h2 className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-white">Lectura operativa</h2>
+            <p className="mt-0.5 text-[10px] text-slate-500">Evolución y principales concentraciones del período.</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <article className="border border-[#26364d] bg-[#071426]/80">
+            <EncabezadoPanel codigo="G-01" icono={<Calendar className="h-4 w-4" />} titulo="Evolución semanal de procedimientos" subtitulo="Últimas cuatro semanas informadas" />
+            <div className="h-72 p-4 sm:p-5">
+              {datosEvolucion.length === 0 ? (
+                <EstadoSinDatos />
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={datosEvolucion} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="2 4" stroke="#17263a" vertical={false} />
+                    <XAxis dataKey="name" stroke="#718198" fontSize={10} tickLine={false} axisLine={{ stroke: '#26364d' }} />
+                    <YAxis stroke="#718198" fontSize={10} allowDecimals={false} tickLine={false} axisLine={false} />
+                    <Tooltip cursor={{ fill: 'rgba(196, 163, 90, 0.05)' }} contentStyle={{ backgroundColor: '#050e1c', borderColor: '#806c3f', borderRadius: 0, fontSize: '11px' }} />
+                    <Bar dataKey="total" fill="#c4a35a" name="Allanamientos" />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
-            <div className="text-3xl font-extrabold text-white">{detenidosSemana}</div>
-            <p className="text-[10px] text-slate-500 mt-1">Semana informada ({detenidosMes} en el mes)</p>
-          </div>
+          </article>
 
-          <div className="grid grid-cols-2 gap-1.5 pt-3 mt-3 border-t border-slate-800/80 text-[11px]">
-            <div className="text-slate-400">Detenido: <span className="font-semibold text-white">{desglosePersonas['Detenido']}</span></div>
-            <div className="text-slate-400">Aprehendido: <span className="font-semibold text-white">{desglosePersonas['Aprehendido']}</span></div>
-          </div>
+          <RankingInstitucional codigo="G-02" icono={<Shield className="h-4 w-4" />} titulo="Partidos con más registros" subtitulo="Top 5 · semana informada" datos={datosPartidos} unidad="registros" />
+          <RankingInstitucional codigo="G-03" icono={<ShieldCheck className="h-4 w-4" />} titulo="Principales superintendencias" subtitulo="Top 5 · procedimientos informados" datos={datosSuperintendencias} unidad="procedimientos" />
+          <RankingInstitucional codigo="G-04" icono={<BarChart3 className="h-4 w-4" />} titulo="Especialidades intervinientes" subtitulo="Top 5 · personal afectado" datos={datosEspecialidades} unidad="efectivos" />
         </div>
+      </section>
+    </main>
+  );
+}
+
+function formatearFecha(valor: string) {
+  if (!valor) return '--/--/----';
+  const [anio, mes, dia] = valor.split('-');
+  return anio && mes && dia ? `${dia}/${mes}/${anio}` : valor;
+}
+
+function IndicadorPrincipal({ icono, etiqueta, valor, detalle }: { icono: ReactNode; etiqueta: string; valor: ReactNode; detalle: string }) {
+  return (
+    <div className="border-l-2 border-l-transparent px-5 py-5 transition hover:border-l-[#806c3f] hover:bg-white/[0.015]">
+      <div className="flex items-center justify-between gap-3 text-slate-500">
+        <span className="text-[9px] font-extrabold uppercase tracking-[0.1em]">{etiqueta}</span>
+        <span className="text-[#c4a35a]">{icono}</span>
       </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
-          <h3 className="text-xs font-bold text-white mb-4 flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-blue-400" /> Evolución Semanal de Procedimientos
-          </h3>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={datosEvolucion}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="name" stroke="#64748b" fontSize={10} />
-                <YAxis stroke="#64748b" fontSize={10} allowDecimals={false} />
-                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '11px' }} />
-                <Bar dataKey="total" fill="#2563eb" radius={[4, 4, 0, 0]} name="Allanamientos" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
-          <h3 className="text-xs font-bold text-white mb-4 flex items-center gap-2">
-            <Shield className="w-4 h-4 text-emerald-400" /> Top 5 Partidos con más registros · Semana informada
-          </h3>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={datosPartidos} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis type="number" stroke="#64748b" fontSize={10} allowDecimals={false} />
-                <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={10} width={100} />
-                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '11px' }} />
-                <Bar dataKey="total" fill="#10b981" radius={[0, 4, 4, 0]} name="Registros" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
-          <h3 className="text-xs font-bold text-white mb-4 flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-cyan-400" /> Distribución por Superintendencias · Semana informada
-          </h3>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={datosSuperintendencias} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis type="number" stroke="#64748b" fontSize={10} allowDecimals={false} />
-                <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={9} width={130} />
-                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '11px' }} />
-                <Bar dataKey="total" fill="#06b6d4" radius={[0, 4, 4, 0]} name="Procedimientos" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 backdrop-blur-md">
-          <h3 className="text-xs font-bold text-white mb-4 flex items-center gap-2">
-            <UserCheck className="w-4 h-4 text-purple-400" /> Top 5 de Especialidades · Personal afectado
-          </h3>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={datosEspecialidades} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis type="number" stroke="#64748b" fontSize={10} allowDecimals={false} />
-                <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={10} width={100} />
-                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '11px' }} />
-                <Bar dataKey="total" fill="#a855f7" radius={[0, 4, 4, 0]} name="Intervenciones" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
+      <p className="mt-3 font-mono text-3xl font-bold text-white sm:text-4xl">{valor}</p>
+      <p className="mt-1 text-[10px] text-slate-500">{detalle}</p>
     </div>
-  ); 
+  );
+}
+
+function ResultadoInformado({ codigo, icono, titulo, semana, mes, items }: { codigo: string; icono: ReactNode; titulo: string; semana: number; mes: number; items: Array<[string, number]> }) {
+  return (
+    <article className="p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[9px] font-extrabold uppercase tracking-[0.1em] text-[#c4a35a]">{codigo}</p>
+          <div className="mt-1 flex items-center gap-2 text-slate-300">
+            <span className="text-slate-500">{icono}</span>
+            <h3 className="text-[10px] font-extrabold uppercase tracking-[0.06em]">{titulo}</h3>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="font-mono text-3xl font-bold text-white">{semana}</p>
+          <p className="text-[9px] text-slate-600">{mes} en el mes</p>
+        </div>
+      </div>
+      <div className="mt-4 grid grid-cols-2 border-t border-[#17263a] pt-3">
+        {items.map(([nombre, cantidad]) => (
+          <div key={nombre} className="flex items-center justify-between gap-2 border-b border-[#17263a] px-1 py-2 text-[10px] even:ml-3">
+            <span className="text-slate-500">{nombre}</span>
+            <span className="font-mono font-bold text-slate-200">{cantidad}</span>
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function EncabezadoPanel({ codigo, icono, titulo, subtitulo }: { codigo: string; icono: ReactNode; titulo: string; subtitulo: string }) {
+  return (
+    <header className="flex items-start gap-3 border-b border-[#26364d] bg-[#050e1c] px-4 py-3 sm:px-5">
+      <span className="font-mono text-[9px] font-bold tracking-[0.08em] text-[#c4a35a]">{codigo}</span>
+      <span className="mt-0.5 text-slate-500">{icono}</span>
+      <div>
+        <h3 className="text-[10px] font-extrabold uppercase tracking-[0.065em] text-white">{titulo}</h3>
+        <p className="mt-0.5 text-[9px] text-slate-600">{subtitulo}</p>
+      </div>
+    </header>
+  );
+}
+
+function RankingInstitucional({ codigo, icono, titulo, subtitulo, datos, unidad }: { codigo: string; icono: ReactNode; titulo: string; subtitulo: string; datos: any[]; unidad: string }) {
+  const visibles = datos.slice(0, 5);
+  const maximo = Math.max(1, ...visibles.map((item) => Number(item.total) || 0));
+
+  return (
+    <article className="border border-[#26364d] bg-[#071426]/80">
+      <EncabezadoPanel codigo={codigo} icono={icono} titulo={titulo} subtitulo={subtitulo} />
+      <div className="min-h-72 p-4 sm:p-5">
+        {visibles.length === 0 ? (
+          <EstadoSinDatos />
+        ) : (
+          <ol className="divide-y divide-[#17263a]">
+            {visibles.map((item, indice) => {
+              const total = Number(item.total) || 0;
+              return (
+                <li key={`${String(item.name)}-${indice}`} className="grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-3 py-3">
+                  <span className="font-mono text-[10px] font-bold text-[#c4a35a]">{String(indice + 1).padStart(2, '0')}</span>
+                  <div className="min-w-0">
+                    <p className="break-words text-[10px] font-bold uppercase leading-relaxed text-slate-300">{String(item.name || 'Sin especificar')}</p>
+                    <div className="mt-2 h-1 bg-[#17263a]"><div className="h-full bg-[#806c3f]" style={{ width: `${Math.max(3, (total / maximo) * 100)}%` }} /></div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-mono text-base font-bold text-white">{total}</p>
+                    <p className="text-[8px] uppercase tracking-wide text-slate-600">{unidad}</p>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function EstadoSinDatos() {
+  return <div className="flex h-full min-h-52 items-center justify-center border border-dashed border-[#26364d] px-4 text-center text-[10px] uppercase tracking-[0.06em] text-slate-600">Sin registros para el período informado</div>;
 }
