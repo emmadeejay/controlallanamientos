@@ -9,6 +9,7 @@ import { Plus, Search, Edit3, Trash2, Lock, Upload, Eye, X, Shield, Calendar, Ma
 import { obtenerRangoSemanaRendida, obtenerValoresSecuestros } from '@/lib/allanamientos';
 import InformeSemanalControls from '@/components/InformeSemanalControls';
 import InstitutionalDialog, { type InstitutionalDialogTone } from '@/components/InstitutionalDialog';
+import { horarioAllanamiento, ubicacionAllanamiento } from '@/lib/jurisdicciones';
 
 // Sincronización precisa con la hora oficial de Argentina (UTC-3)
 function esVentanaHorariaValida(): boolean {
@@ -421,15 +422,15 @@ function ModalVistaPrevia({ item, onClose, puedeEditar, onEdit }: { item: any; o
                   icono={<Calendar className="h-4 w-4 text-amber-400" />}
                   etiqueta="Fecha y hora de ejecución"
                   principal={item.fecha_ejecucion || 'No informada'}
-                  secundario={item.horario_ejecucion ? `${item.horario_ejecucion} hs` : '--:-- hs'}
+                  secundario={horarioAllanamiento(item)}
                 />
               </div>
               <div className="divide-y divide-[#17263a]">
                 <DatoVistaPrevia
                   icono={<MapPin className="h-4 w-4 text-emerald-400" />}
                   etiqueta="Ubicación y dependencia"
-                  principal={item.partido || 'Sin partido'}
-                  secundario={item.dependencia || 'Sin especificación'}
+                  principal={ubicacionAllanamiento(item)}
+                  secundario={item.es_exhorto ? `Exhorto · ${item.dependencia || 'Sin dependencia'}` : item.dependencia || 'Sin especificación'}
                 />
                 <DatoVistaPrevia
                   icono={<FileText className="h-4 w-4 text-cyan-400" />}
@@ -693,7 +694,7 @@ export default function DashboardPage() {
     const terminoSeguro = termino.trim().replace(/[(),]/g, ' ');
     if (terminoSeguro) {
       query = query.or(
-        `numero_ipp.ilike.%${terminoSeguro}%,caratula.ilike.%${terminoSeguro}%,partido.ilike.%${terminoSeguro}%,dependencia.ilike.%${terminoSeguro}%`,
+        `numero_ipp.ilike.%${terminoSeguro}%,caratula.ilike.%${terminoSeguro}%,partido.ilike.%${terminoSeguro}%,localidad.ilike.%${terminoSeguro}%,dependencia.ilike.%${terminoSeguro}%`,
       );
     }
 
@@ -878,7 +879,7 @@ export default function DashboardPage() {
             <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
             <input
               type="text"
-              placeholder="Buscar en la semana por IPP, carátula, partido o dependencia..."
+              placeholder="Buscar por IPP, carátula, partido, localidad o dependencia..."
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               onKeyDown={(e) => {
@@ -943,12 +944,12 @@ export default function DashboardPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <div>{item.partido}</div>
+                        <div>{ubicacionAllanamiento(item)}{item.es_exhorto ? ' · Exhorto' : ''}</div>
                         <div className="text-[10px] text-slate-500">{item.dependencia || 'Sin espec.'}</div>
                       </td>
                       <td className="px-4 py-3">
                         <div>{item.fecha_ejecucion}</div>
-                        <div className="text-[10px] text-slate-500">{item.horario_ejecucion || '--:--'} hs</div>
+                        <div className="text-[10px] text-slate-500">{horarioAllanamiento(item)}</div>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center gap-1 border-l-2 pl-2 text-[10px] font-bold uppercase tracking-wide ${

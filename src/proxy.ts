@@ -38,6 +38,7 @@ export async function proxy(request: NextRequest) {
   const isProtectedRoute = 
     request.nextUrl.pathname.startsWith('/admin') || 
     request.nextUrl.pathname.startsWith('/allanamientos') || 
+    request.nextUrl.pathname.startsWith('/auth/mfa') ||
     request.nextUrl.pathname.startsWith('/select-app');
 
   // Si intenta acceder a una ruta protegida sin sesión real, se expulsa
@@ -51,7 +52,7 @@ export async function proxy(request: NextRequest) {
     const { data: perfil, error: perfilError } = await supabase
       .from('profiles')
       .select(
-        'rol, activo, estado_cuenta, vigencia_institucional_hasta, requiere_cambio_clave',
+        'rol, activo, estado_cuenta, vigencia_institucional_hasta, requiere_cambio_clave, modulos_permitidos',
       )
       .eq('id', user.id)
       .maybeSingle();
@@ -59,6 +60,7 @@ export async function proxy(request: NextRequest) {
     if (perfilError || !perfil) {
       const url = request.nextUrl.clone();
       url.pathname = '/login';
+      url.searchParams.set('motivo', perfilError ? 'perfil-no-disponible' : 'sin-perfil');
       return NextResponse.redirect(url);
     }
 
@@ -74,7 +76,18 @@ export async function proxy(request: NextRequest) {
     }
 
     const rolNormalizado = String(perfil.rol ?? '').trim().toLowerCase();
+    const esAdministrador = rolNormalizado === 'admin' || rolNormalizado === 'administrador';
+    if (esAdministrador && !debeQuedarEnSelector && !request.nextUrl.pathname.startsWith('/auth/mfa')) {
+      const { data: assurance, error: mfaError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (mfaError || assurance?.currentLevel !== 'aal2') {
+        const url = request.nextUrl.clone();
+        url.pathname = '/auth/mfa';
+        url.search = '';
+        return NextResponse.redirect(url);
+      }
+    }
     const esConsultaEjecutiva = ['auditor', 'consulta'].includes(rolNormalizado);
+    const puedeConsultarAllanamientos = perfil.modulos_permitidos?.includes('allanamientos') === true;
     const pathname = request.nextUrl.pathname;
     const estaEnRutaOperativa =
       pathname === '/allanamientos' ||
@@ -87,10 +100,10 @@ export async function proxy(request: NextRequest) {
     if (
       !debeQuedarEnSelector &&
       esConsultaEjecutiva &&
-      (estaEnRutaOperativa || estaEnSelectorEjecutivo)
+      (estaEnRutaOperativa || (estaEnSelectorEjecutivo && puedeConsultarAllanamientos))
     ) {
       const url = request.nextUrl.clone();
-      url.pathname = '/allanamientos/metricas';
+      url.pathname = puedeConsultarAllanamientos ? '/allanamientos/metricas' : '/select-app';
       url.search = '';
       return NextResponse.redirect(url);
     }
@@ -98,6 +111,16 @@ export async function proxy(request: NextRequest) {
 
   // Si ya tiene sesión y entra al login, se redirige al selector
   if (user && isAuthRoute) {
+    const { data: perfil, error: perfilError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    // Una sesión Auth sin perfil no puede entrar al selector ni rebotar al login.
+    // Ante un error de lectura se mantiene el acceso cerrado y se permite reintentar.
+    if (perfilError || !perfil) return supabaseResponse;
+
     const url = request.nextUrl.clone();
     url.pathname = '/select-app';
     return NextResponse.redirect(url);

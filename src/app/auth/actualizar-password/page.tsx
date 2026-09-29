@@ -68,7 +68,7 @@ export default function ActualizarPasswordPage() {
       <header className="cop-command-header w-full">
         <div className="mx-auto flex min-h-[76px] w-full max-w-[1320px] items-center gap-3 px-4 sm:px-6">
           <div className="flex h-12 w-12 items-center justify-center border-r border-[#26364d] pr-3">
-            <Image src="/logo_cop.png" alt="Escudo COP" width={44} height={44} className="object-contain" priority />
+            <Image src="/logo_cop.png" alt="Escudo COP" width={32} height={32} className="shrink-0 object-contain" priority />
           </div>
           <div>
             <p className="text-sm font-extrabold uppercase tracking-[0.08em] text-white">P.I.G. C.O.P.</p>

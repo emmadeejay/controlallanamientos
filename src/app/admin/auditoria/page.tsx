@@ -1,18 +1,15 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import {
-  ArrowLeft,
   Download,
   Filter,
-  History,
   RefreshCw,
   Search,
-  ShieldCheck,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '@/lib/supabase';
+import CopAdminHeader from '@/components/CopAdminHeader';
 
 type EventoAuditoria = {
   id: number;
@@ -59,6 +56,7 @@ const ETIQUETAS_ACCION: Record<string, string> = {
   trasladar_usuario: 'Traslado de usuario',
   eliminar_usuario: 'Usuario eliminado',
   restablecer_password: 'Contraseña restablecida',
+  iniciar_reset_clave_usuario: 'Restablecimiento de clave iniciado',
   cambiar_password_obligatorio: 'Cambio obligatorio de contraseña',
   cambiar_password_sesion: 'Cambio de contraseña con sesión autenticada',
 };
@@ -95,12 +93,14 @@ function resumenDetalles(detalles: Record<string, unknown> | null) {
 }
 
 export default function AuditoriaPage() {
-  const router = useRouter();
+  const [miEmail, setMiEmail] = useState('');
   const [eventos, setEventos] = useState<EventoAuditoria[]>([]);
   const [total, setTotal] = useState(0);
   const [pagina, setPagina] = useState(1);
   const [cargando, setCargando] = useState(true);
   const [exportando, setExportando] = useState(false);
+  const [cerrandoSesion, setCerrandoSesion] = useState(false);
+  const [mensajeExportacion, setMensajeExportacion] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState('');
   const [modulo, setModulo] = useState('todos');
@@ -167,6 +167,7 @@ export default function AuditoriaPage() {
 
   useEffect(() => {
     cargarEventos(1);
+    void supabase.auth.getUser().then(({ data: { user } }) => setMiEmail(user?.email || ''));
     // Los filtros se aplican únicamente con el botón para evitar consultas por tecla.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -189,15 +190,65 @@ export default function AuditoriaPage() {
     cargarEventos(1, filtrosVacios);
   }
 
+  async function cerrarSesion() {
+    if (cerrandoSesion) return;
+    setCerrandoSesion(true);
+    setError(null);
+    const { error: cierreError } = await supabase.auth.signOut();
+    if (cierreError) {
+      setError('No se pudo cerrar sesión. Intentá nuevamente.');
+      setCerrandoSesion(false);
+      return;
+    }
+    window.location.replace('/login');
+  }
+
   async function exportarAuditoria() {
+    if (exportando) return;
     setExportando(true);
     setError(null);
+    setMensajeExportacion(null);
 
     const acumulados: EventoAuditoria[] = [];
     const lote = 1000;
     const limiteSeguro = 20000;
+    let ultimoId: number | null = null;
 
-    for (let inicio = 0; inicio < limiteSeguro; inicio += lote) {
+    // Verificar el tamaño antes de generar el archivo. Nunca entregar un Excel
+    // que parezca completo si el filtro excede el límite del navegador.
+    let conteoQuery = supabase
+      .from('auditoria_eventos')
+      .select('id', { count: 'exact' });
+    if (filtrosAplicados.modulo !== 'todos') conteoQuery = conteoQuery.eq('modulo', filtrosAplicados.modulo);
+    if (filtrosAplicados.desde) conteoQuery = conteoQuery.gte('created_at', `${filtrosAplicados.desde}T00:00:00-03:00`);
+    if (filtrosAplicados.hasta) conteoQuery = conteoQuery.lte('created_at', `${filtrosAplicados.hasta}T23:59:59.999-03:00`);
+    const termino = limpiarBusqueda(filtrosAplicados.busqueda);
+    if (termino) {
+      conteoQuery = conteoQuery.or(
+        `actor_email.ilike.%${termino}%,accion.ilike.%${termino}%,entidad_id.ilike.%${termino}%,superintendencia_nombre.ilike.%${termino}%`,
+      );
+    }
+    const { data: primerEvento, count: totalExportacion, error: conteoError } = await conteoQuery
+      .order('id', { ascending: false })
+      .limit(1);
+    if (conteoError || totalExportacion === null) {
+      setError(conteoError?.message || 'No se pudo verificar la cantidad de eventos a exportar.');
+      setExportando(false);
+      return;
+    }
+    if (totalExportacion > limiteSeguro) {
+      setError(`Hay ${totalExportacion} eventos para este filtro. El máximo por archivo es ${limiteSeguro}; aplicá un rango de fechas más corto y exportá cada tramo por separado.`);
+      setExportando(false);
+      return;
+    }
+    if (totalExportacion === 0) {
+      setError('No hay eventos para exportar con los filtros aplicados.');
+      setExportando(false);
+      return;
+    }
+    const idMaximo = primerEvento?.[0]?.id;
+
+    while (acumulados.length < totalExportacion) {
       let query = supabase
         .from('auditoria_eventos')
         .select('id, created_at, actor_email, actor_rol, modulo, accion, entidad_tipo, entidad_id, superintendencia_nombre, resultado, motivo, referencia_documental, detalles');
@@ -206,16 +257,18 @@ export default function AuditoriaPage() {
       if (filtrosAplicados.desde) query = query.gte('created_at', `${filtrosAplicados.desde}T00:00:00-03:00`);
       if (filtrosAplicados.hasta) query = query.lte('created_at', `${filtrosAplicados.hasta}T23:59:59.999-03:00`);
 
-      const termino = limpiarBusqueda(filtrosAplicados.busqueda);
       if (termino) {
         query = query.or(
           `actor_email.ilike.%${termino}%,accion.ilike.%${termino}%,entidad_id.ilike.%${termino}%,superintendencia_nombre.ilike.%${termino}%`,
         );
       }
 
+      if (idMaximo !== undefined) query = query.lte('id', idMaximo);
+      if (ultimoId !== null) query = query.lt('id', ultimoId);
+
       const { data, error: queryError } = await query
-        .order('created_at', { ascending: false })
-        .range(inicio, inicio + lote - 1);
+        .order('id', { ascending: false })
+        .limit(Math.min(lote, totalExportacion - acumulados.length));
 
       if (queryError) {
         setError(queryError.message || 'No se pudo exportar la auditoría.');
@@ -225,7 +278,14 @@ export default function AuditoriaPage() {
 
       const loteActual = (data ?? []) as EventoAuditoria[];
       acumulados.push(...loteActual);
+      ultimoId = loteActual.at(-1)?.id ?? null;
       if (loteActual.length < lote) break;
+    }
+
+    if (acumulados.length !== totalExportacion) {
+      setError(`Los eventos cambiaron durante la exportación (${acumulados.length} de ${totalExportacion}). Volvé a intentarlo para evitar un archivo incompleto.`);
+      setExportando(false);
+      return;
     }
 
     const filas = acumulados.map((evento) => ({
@@ -251,58 +311,61 @@ export default function AuditoriaPage() {
       { wch: 55 }, { wch: 55 }, { wch: 55 },
     ];
     const libro = XLSX.utils.book_new();
+    const resumen = XLSX.utils.aoa_to_sheet([
+      ['Exportación de auditoría COP', ''],
+      ['Eventos exportados', acumulados.length],
+      ['Total al iniciar la exportación', totalExportacion],
+      ['Módulo', filtrosAplicados.modulo],
+      ['Desde', filtrosAplicados.desde || 'Sin límite'],
+      ['Hasta', filtrosAplicados.hasta || 'Sin límite'],
+      ['Búsqueda', termino || 'Sin filtro'],
+      ['Generado (Argentina)', fechaArgentina(new Date().toISOString())],
+    ]);
+    resumen['!cols'] = [{ wch: 33 }, { wch: 40 }];
+    XLSX.utils.book_append_sheet(libro, resumen, 'Resumen');
     XLSX.utils.book_append_sheet(libro, hoja, 'Auditoria');
-    XLSX.writeFile(
-      libro,
-      `auditoria-cop-${filtrosAplicados.desde || 'inicio'}-${filtrosAplicados.hasta || 'actual'}.xlsx`,
-    );
-    setExportando(false);
+    try {
+      XLSX.writeFile(
+        libro,
+        `auditoria-cop-${filtrosAplicados.desde || 'inicio'}-${filtrosAplicados.hasta || 'actual'}.xlsx`,
+      );
+      setMensajeExportacion(`${acumulados.length} de ${totalExportacion} eventos exportados. Revisá la hoja Resumen del archivo.`);
+    } catch {
+      setError('No se pudo generar el archivo Excel. Aplicá filtros más acotados e intentá nuevamente.');
+    } finally {
+      setExportando(false);
+    }
   }
 
   return (
     <div className="cop-shell min-h-screen text-slate-100">
-      <header className="cop-command-header sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
+      <CopAdminHeader active="auditoria" email={miEmail} role="administrador" onLogout={cerrarSesion} loggingOut={cerrandoSesion} />
+
+      <main className="mx-auto max-w-[1500px] space-y-5 px-4 pt-6 pb-12 sm:px-6 lg:px-8">
+        <section className="flex flex-col gap-5 border-b border-[#26364d] pb-5 xl:flex-row xl:items-end xl:justify-between">
+          <div className="flex items-start gap-4">
+            <span className="cop-module-index mt-1 hidden sm:block">03 / AUDITORÍA</span>
+            <span className="hidden h-12 w-px bg-[#26364d] sm:block" />
+            <div>
+              <p className="cop-kicker mb-2">Control interno · registros inmutables</p>
+              <h1 className="text-xl font-black uppercase tracking-[0.035em] text-white sm:text-2xl">Centro de auditoría COP</h1>
+              <p className="mt-2 text-xs text-slate-400">Altas, cambios, eliminaciones y decisiones sobre rendiciones. No se registran contraseñas ni tokens.</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 xl:justify-end">
             <button
               type="button"
-              onClick={() => router.push('/select-app')}
-              className="border border-[#33465f] bg-[#050e1c] p-2 text-slate-300 hover:border-[#c4a35a]"
-              title="Volver a módulos"
+              onClick={exportarAuditoria}
+              disabled={exportando || total === 0 || cerrandoSesion}
+              className="cop-action-secondary flex items-center gap-2 px-3 py-2 disabled:opacity-50 sm:px-4"
+              title="Exportar auditoría"
+              aria-label="Exportar auditoría"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <Download className="w-4 h-4" />
+              <span>{exportando ? 'Exportando...' : 'Exportar auditoría'}</span>
             </button>
-            <div className="flex h-9 w-9 items-center justify-center border border-[#806c3f] bg-[#050e1c] text-[#c4a35a]">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="font-bold text-white text-sm sm:text-base truncate">Centro de Auditoría COP</h1>
-              <p className="cop-kicker mt-1">Control interno · registros inmutables</p>
-            </div>
           </div>
-
-          <button
-            type="button"
-            onClick={exportarAuditoria}
-            disabled={exportando || total === 0}
-            className="cop-action-secondary flex items-center gap-2 px-4 py-2 disabled:opacity-50"
-          >
-            <Download className="w-4 h-4" />
-            <span className="hidden sm:inline">{exportando ? 'Exportando...' : 'Exportar auditoría'}</span>
-          </button>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-5">
-        <div>
-          <div className="flex items-center gap-2">
-            <History className="w-5 h-5 text-[#c4a35a]" />
-            <h2 className="text-xl font-bold text-white">Trazabilidad del sistema</h2>
-          </div>
-          <p className="text-xs text-slate-400 mt-1">
-            Altas, cambios, eliminaciones y decisiones sobre rendiciones. No se registran contraseñas ni tokens.
-          </p>
-        </div>
+        </section>
 
         <section className="space-y-4 border border-[#33465f] bg-[#071426] p-4">
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
@@ -365,6 +428,11 @@ export default function AuditoriaPage() {
         {error && (
           <div className="p-3 text-xs text-red-300 bg-red-500/10 border border-red-500/20 rounded-xl">
             {error}
+          </div>
+        )}
+        {mensajeExportacion && (
+          <div role="status" className="border border-emerald-800 bg-emerald-950/40 p-3 text-xs text-emerald-200">
+            {mensajeExportacion}
           </div>
         )}
 

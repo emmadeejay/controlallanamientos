@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { autorizarExportacionAllanamientosAction } from '@/app/actions/allanamientos'
 import { obtenerRangoSemanaRendida, obtenerValoresSecuestros } from '@/lib/allanamientos'
+import { JURISDICCIONES_ARGENTINA, horarioAllanamiento, ubicacionAllanamiento } from '@/lib/jurisdicciones'
 import * as XLSX from 'xlsx'
 import {
   Filter, Download, ArrowLeft, Loader2, RefreshCw,
@@ -17,6 +18,7 @@ type FiltrosAplicados = {
   desde: string
   hasta: string
   partido: string
+  provincia: string
   superintendencia: string
   soloArmas: boolean
   soloVehiculos: boolean
@@ -50,6 +52,7 @@ export default function BuscarAllanamientosPage() {
   const [superintendenciasList, setSuperintendenciasList] = useState<Superintendencia[]>([])
 
   const [partidoSel, setPartidoSel] = useState('')
+  const [provinciaSel, setProvinciaSel] = useState('')
   const [superintendenciaSel, setSuperintendenciaSel] = useState('')
   const [fechaDesde, setFechaDesde] = useState(inicioMesActual())
   const [fechaHasta, setFechaHasta] = useState(fechaArgentina())
@@ -60,7 +63,7 @@ export default function BuscarAllanamientosPage() {
   const [soloDetenidosAprehendidos, setSoloDetenidosAprehendidos] = useState(false)
   const [soloPositivos, setSoloPositivos] = useState(false)
   const [filtrosAplicados, setFiltrosAplicados] = useState<FiltrosAplicados>({
-    desde: inicioMesActual(), hasta: fechaArgentina(), partido: '', superintendencia: '',
+    desde: inicioMesActual(), hasta: fechaArgentina(), partido: '', provincia: '', superintendencia: '',
     soloArmas: false, soloVehiculos: false, soloPersonas: false, soloPositivos: false,
   })
 
@@ -102,6 +105,7 @@ export default function BuscarAllanamientosPage() {
       desde: overrides?.desde ?? fechaDesde,
       hasta: overrides?.hasta ?? fechaHasta,
       partido: overrides?.partido ?? partidoSel,
+      provincia: overrides?.provincia ?? provinciaSel,
       superintendencia: overrides?.superintendencia ?? superintendenciaSel,
       soloArmas: overrides?.soloArmas ?? soloArmas,
       soloVehiculos: overrides?.soloVehiculos ?? soloVehiculos,
@@ -114,6 +118,7 @@ export default function BuscarAllanamientosPage() {
     if (filtros.desde) query = query.gte('fecha_ejecucion', filtros.desde)
     if (filtros.hasta) query = query.lte('fecha_ejecucion', filtros.hasta)
     if (filtros.partido) query = query.eq('partido', filtros.partido)
+    if (filtros.provincia) query = query.eq('provincia', filtros.provincia)
     if (filtros.superintendencia) query = query.eq('superintendencia_id', filtros.superintendencia)
     if (filtros.soloArmas) query = query.gt('armas_secuestradas', 0)
     if (filtros.soloVehiculos) query = query.gt('vehiculos_secuestrados', 0)
@@ -180,6 +185,7 @@ export default function BuscarAllanamientosPage() {
     const desde = inicioMesActual()
     const hasta = fechaArgentina()
     setPartidoSel('')
+    setProvinciaSel('')
     setSuperintendenciaSel('')
     setSoloArmas(false)
     setSoloVehiculos(false)
@@ -189,7 +195,7 @@ export default function BuscarAllanamientosPage() {
     setFechaHasta(hasta)
     setPeriodoActivo('mes')
     void ejecutarBusqueda(1, registrosPorPagina, {
-      desde, hasta, partido: '', superintendencia: '',
+      desde, hasta, partido: '', provincia: '', superintendencia: '',
       soloArmas: false, soloVehiculos: false, soloPersonas: false, soloPositivos: false,
     })
   }
@@ -244,7 +250,10 @@ export default function BuscarAllanamientosPage() {
           'UFI / Juzgado': item.ufi_juzgado || 'S/D',
           'Fecha Solicitud': item.fecha_solicitud || '',
           'Fecha Ejecución': item.fecha_ejecucion || '',
-          'Hora Ejecución': item.horario_ejecucion || '',
+          'Hora Ejecución': horarioAllanamiento(item),
+          'Exhorto': item.es_exhorto ? 'Sí' : 'No',
+          'Provincia / CABA': item.provincia || 'Buenos Aires',
+          'Localidad': item.localidad || '',
           'Partido': item.partido || 'S/D',
           'Departamental': item.departamental || '',
           'Dependencia': item.dependencia || '',
@@ -353,8 +362,15 @@ export default function BuscarAllanamientosPage() {
                 </div>
               </CampoConsulta>
 
-              <CampoConsulta etiqueta="Partido">
-                <select value={partidoSel} onChange={(e) => setPartidoSel(e.target.value)} className="h-10 w-full border border-[#26364d] bg-[#050e1c] px-3 text-xs text-white outline-none transition focus:border-[#c4a35a]">
+              <CampoConsulta etiqueta="Provincia o CABA">
+                <select value={provinciaSel} onChange={(e) => { setProvinciaSel(e.target.value); setPartidoSel('') }} className="h-10 w-full border border-[#26364d] bg-[#050e1c] px-3 text-xs text-white outline-none transition focus:border-[#c4a35a]">
+                  <option value="">Todas las jurisdicciones</option>
+                  {JURISDICCIONES_ARGENTINA.map(provincia => <option key={provincia} value={provincia}>{provincia}</option>)}
+                </select>
+              </CampoConsulta>
+
+              <CampoConsulta etiqueta="Partido (Buenos Aires)">
+                <select value={partidoSel} disabled={!!provinciaSel && provinciaSel !== 'Buenos Aires'} onChange={(e) => setPartidoSel(e.target.value)} className="h-10 w-full border border-[#26364d] bg-[#050e1c] px-3 text-xs text-white outline-none transition focus:border-[#c4a35a]">
                   <option value="">Todos los partidos</option>
                   {partidosList.map((partido) => <option key={partido} value={partido}>{partido}</option>)}
                 </select>
@@ -433,7 +449,7 @@ export default function BuscarAllanamientosPage() {
                   return (
                     <tr key={item.id} className="transition hover:bg-white/[0.018]">
                       <td className="px-4 py-4">
-                        <div className="font-semibold text-white">{item.numero_ipp || 'S/D'} · {item.partido || 'S/D'}</div>
+                        <div className="font-semibold text-white">{item.numero_ipp || 'S/D'} · {ubicacionAllanamiento(item)}{item.es_exhorto ? ' · Exhorto' : ''}</div>
                         <div className="mt-1 font-mono text-[10px] text-slate-500">{item.fecha_ejecucion}</div>
                       </td>
                       <td className="max-w-sm px-4 py-4"><span className="whitespace-normal break-words text-[11px] leading-relaxed">{item.superintendencias?.nombre || 'S/D'}</span></td>
@@ -460,7 +476,7 @@ export default function BuscarAllanamientosPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-[9px] font-extrabold uppercase tracking-[0.08em] text-[#c4a35a]">IPP {item.numero_ipp || 'S/D'}</p>
-                      <h3 className="mt-1 text-sm font-bold text-white">{item.partido || 'S/D'}</h3>
+                      <h3 className="mt-1 text-sm font-bold text-white">{ubicacionAllanamiento(item)}{item.es_exhorto ? ' · Exhorto' : ''}</h3>
                       <p className="mt-1 font-mono text-[10px] text-slate-500">{item.fecha_ejecucion}</p>
                     </div>
                     <EstadoResultado valor={item.resultado_medida} />

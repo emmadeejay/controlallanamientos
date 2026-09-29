@@ -1,34 +1,29 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Image from 'next/image';
-import { useRouter } from 'next/navigation';
 import {
-  ArrowLeft,
   ArrowRightLeft,
   Building2,
   CheckCircle2,
   Clock3,
   Edit,
   KeyRound,
-  LogOut,
   PauseCircle,
   PlayCircle,
   RefreshCw,
   Search,
   ShieldAlert,
-  Trash2,
-  User,
   UserPlus,
-  Users,
   UserX,
   X,
 } from 'lucide-react';
+import CopAdminHeader from '@/components/CopAdminHeader';
 import {
   cambiarEstadoUsuarioAction,
+  conciliarCambioEstadoUsuarioAction,
+  conciliarResetClaveUsuarioAction,
   crearUsuarioAction,
   editarUsuarioAction,
-  eliminarUsuarioAction,
   registrarTrasladoUsuarioAction,
   resetearPasswordAction,
   revalidarUsuarioAction,
@@ -40,7 +35,6 @@ import {
   type EstadoAcceso,
   type EstadoCuenta,
 } from '@/lib/usuarios';
-import InstitutionalDialog from '@/components/InstitutionalDialog';
 
 interface Superintendencia {
   id: string;
@@ -112,10 +106,10 @@ function estiloEstado(estado: EstadoAcceso): string {
 }
 
 export default function GestionUsuariosAdminPage() {
-  const router = useRouter();
   const [modalAbierto, setModalAbierto] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [mensaje, setMensaje] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
+  const [errorTraslado, setErrorTraslado] = useState<string | null>(null);
   const [superintendencias, setSuperintendencias] = useState<Superintendencia[]>([]);
   const [usuarios, setUsuarios] = useState<UsuarioProfile[]>([]);
   const [busqueda, setBusqueda] = useState('');
@@ -124,8 +118,10 @@ export default function GestionUsuariosAdminPage() {
   const [usuarioEditando, setUsuarioEditando] = useState<UsuarioProfile | null>(null);
   const [usuarioRevalidando, setUsuarioRevalidando] = useState<UsuarioProfile | null>(null);
   const [usuarioTrasladando, setUsuarioTrasladando] = useState<UsuarioProfile | null>(null);
-  const [usuarioAEliminar, setUsuarioAEliminar] = useState<UsuarioProfile | null>(null);
   const [modalEstado, setModalEstado] = useState<ModalEstado>(null);
+  const [modalConciliacion, setModalConciliacion] = useState(false);
+  const [errorConciliacion, setErrorConciliacion] = useState<string | null>(null);
+  const [modalConciliacionClave, setModalConciliacionClave] = useState(false);
   const [modulosSeleccionados, setModulosSeleccionados] = useState<string[]>(['allanamientos']);
   const [miUsuarioId, setMiUsuarioId] = useState('');
   const [miEmail, setMiEmail] = useState('');
@@ -216,13 +212,16 @@ export default function GestionUsuariosAdminPage() {
     accion: (formData: FormData) => Promise<{ success: boolean; error?: string; temporaryPassword?: string; vigenciaHasta?: string }>,
     formData: FormData,
     textoExito: string,
+    mostrarError?: (texto: string) => void,
   ) => {
     setCargando(true);
     setMensaje(null);
     try {
       const respuesta = await accion(formData);
       if (!respuesta.success) {
-        setMensaje({ tipo: 'error', texto: respuesta.error || 'No se pudo completar la operación.' });
+        const texto = respuesta.error || 'No se pudo completar la operación.';
+        if (mostrarError) mostrarError(texto);
+        else setMensaje({ tipo: 'error', texto });
         return false;
       }
       const clave = respuesta.temporaryPassword ? ` Clave temporal única: ${respuesta.temporaryPassword}` : '';
@@ -231,7 +230,9 @@ export default function GestionUsuariosAdminPage() {
       await recargarUsuarios();
       return true;
     } catch {
-      setMensaje({ tipo: 'error', texto: 'Error inesperado al conectar con el servidor.' });
+      const texto = 'Error inesperado al conectar con el servidor.';
+      if (mostrarError) mostrarError(texto);
+      else setMensaje({ tipo: 'error', texto });
       return false;
     } finally {
       setCargando(false);
@@ -266,7 +267,10 @@ export default function GestionUsuariosAdminPage() {
   const handleTraslado = async (evento: React.FormEvent<HTMLFormElement>) => {
     evento.preventDefault();
     const formData = new FormData(evento.currentTarget);
-    if (await ejecutarFormulario(registrarTrasladoUsuarioAction, formData, 'Traslado registrado sobre la misma identidad.')) setUsuarioTrasladando(null);
+    setErrorTraslado(null);
+    if (await ejecutarFormulario(registrarTrasladoUsuarioAction, formData, 'Traslado registrado sobre la misma identidad.', setErrorTraslado)) {
+      setUsuarioTrasladando(null);
+    }
   };
 
   const handleEstado = async (evento: React.FormEvent<HTMLFormElement>) => {
@@ -274,6 +278,26 @@ export default function GestionUsuariosAdminPage() {
     const formData = new FormData(evento.currentTarget);
     const texto = modalEstado?.estado === 'activo' ? 'Usuario reactivado.' : modalEstado?.estado === 'pausado' ? 'Usuario pausado.' : 'Usuario dado de baja operativa.';
     if (await ejecutarFormulario(cambiarEstadoUsuarioAction, formData, texto)) setModalEstado(null);
+  };
+
+  const handleConciliar = async (evento: React.FormEvent<HTMLFormElement>) => {
+    evento.preventDefault();
+    setErrorConciliacion(null);
+    if (await ejecutarFormulario(
+      conciliarCambioEstadoUsuarioAction,
+      new FormData(evento.currentTarget),
+      'Operación pendiente conciliada.',
+      setErrorConciliacion,
+    )) setModalConciliacion(false);
+  };
+
+  const handleConciliarClave = async (evento: React.FormEvent<HTMLFormElement>) => {
+    evento.preventDefault();
+    setErrorConciliacion(null);
+    if (await ejecutarFormulario(
+      conciliarResetClaveUsuarioAction, new FormData(evento.currentTarget),
+      'Restablecimiento conciliado.', setErrorConciliacion,
+    )) setModalConciliacionClave(false);
   };
 
   const handleResetearPassword = async () => {
@@ -296,27 +320,6 @@ export default function GestionUsuariosAdminPage() {
     }
   };
 
-  const handleEliminar = async () => {
-    if (!usuarioAEliminar || cargando) return;
-    setCargando(true);
-    setMensaje(null);
-    try {
-      const respuesta = await eliminarUsuarioAction(usuarioAEliminar.id);
-      if (respuesta.success) {
-        setMensaje({ tipo: 'ok', texto: 'Usuario sin actividad eliminado.' });
-        await recargarUsuarios();
-      } else {
-        setMensaje({ tipo: 'error', texto: respuesta.error });
-      }
-      setUsuarioAEliminar(null);
-    } catch {
-      setMensaje({ tipo: 'error', texto: 'No se pudo completar la eliminación.' });
-      setUsuarioAEliminar(null);
-    } finally {
-      setCargando(false);
-    }
-  };
-
   const toggleModulo = (modulo: string) => {
     setModulosSeleccionados((actuales) => actuales.includes(modulo) ? actuales.filter((item) => item !== modulo) : [...actuales, modulo]);
   };
@@ -332,30 +335,25 @@ export default function GestionUsuariosAdminPage() {
 
   const cerrarSesion = async () => {
     await supabase.auth.signOut();
-    router.push('/login');
+    window.location.replace('/login');
   };
 
   return (
     <div className="cop-shell min-h-screen text-slate-100 flex flex-col selection:bg-[#806c3f] selection:text-white">
-      <header className="cop-command-header w-full px-6 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <Image src="/logo_cop.png" alt="Logo C.O.P" width={36} height={36} className="object-contain" priority />
-          <div><h1 className="text-sm font-bold text-white tracking-wide uppercase">Plataforma Integral de Gestión COP</h1><p className="cop-kicker mt-1">Administración de identidades</p></div>
-        </div>
-        <div className="flex items-center gap-3 text-xs">
-          <div className="flex items-center gap-2 border border-[#33465f] bg-[#050e1c] px-3 py-1.5"><User className="w-3.5 h-3.5 text-[#c4a35a]" /><span className="text-slate-300 font-mono text-[11px]">{miEmail}</span><span className="text-[#c4a35a] text-[10px] font-bold uppercase">{miRolActual}</span></div>
-          <button onClick={cerrarSesion} className="cop-action-secondary flex items-center gap-1.5 !border-red-900/70 !text-red-400"><LogOut className="w-3.5 h-3.5" /> Cerrar sesión</button>
-        </div>
-      </header>
+      <CopAdminHeader active="usuarios" email={miEmail} role={miRolActual} onLogout={cerrarSesion} />
 
-      <main className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-8 flex-1 space-y-6">
-        <section className="flex flex-col justify-between gap-4 border border-[#33465f] border-l-4 border-l-[#c4a35a] bg-[#071426] p-6 sm:flex-row">
-          <div className="flex items-center gap-4">
-            <button onClick={() => router.push('/select-app')} className="border border-[#33465f] bg-[#050e1c] p-2.5 text-slate-300"><ArrowLeft className="w-4 h-4" /></button>
-            <div className="flex h-10 w-10 items-center justify-center border border-[#806c3f] bg-[#050e1c]"><Users className="w-5 h-5 text-[#c4a35a]" /></div>
-            <div><h2 className="text-lg font-bold">Gestión Centralizada de Usuarios</h2><p className="text-xs text-slate-400">Identidad única, destino, vigencia y trazabilidad institucional</p></div>
+      <main className="mx-auto w-full max-w-[1500px] flex-1 space-y-6 px-4 pt-6 pb-12 sm:px-6 lg:px-8">
+        <section className="flex flex-col gap-5 border-b border-[#26364d] pb-5 xl:flex-row xl:items-end xl:justify-between">
+          <div className="flex items-start gap-4">
+            <span className="cop-module-index mt-1 hidden sm:block">02 / USUARIOS</span>
+            <span className="hidden h-12 w-px bg-[#26364d] sm:block" />
+            <div><p className="cop-kicker mb-2">Administración de identidades</p><h1 className="text-xl font-black uppercase tracking-[0.035em] text-white sm:text-2xl">Gestión de usuarios</h1><p className="mt-2 text-xs text-slate-400">Identidad única, destino, vigencia y trazabilidad institucional</p></div>
           </div>
-          {puedeCrearUsuarios && <button onClick={() => { setModulosSeleccionados(['allanamientos']); setModalAbierto(true); }} className="cop-action-primary flex items-center justify-center gap-2 px-4 py-2.5"><UserPlus className="w-4 h-4" /> Nuevo usuario</button>}
+          <div className="flex flex-wrap gap-2">
+            {rolNormalizado === 'administrador' && <button onClick={() => { setErrorConciliacion(null); setModalConciliacion(true); }} className="cop-action-secondary flex items-center justify-center gap-2 px-4 py-2.5"><ShieldAlert className="w-4 h-4" /> Conciliar operación</button>}
+            {rolNormalizado === 'administrador' && <button onClick={() => { setErrorConciliacion(null); setModalConciliacionClave(true); }} className="cop-action-secondary flex items-center justify-center gap-2 px-4 py-2.5"><KeyRound className="w-4 h-4" /> Conciliar clave</button>}
+            {puedeCrearUsuarios && <button onClick={() => { setModulosSeleccionados(['allanamientos']); setModalAbierto(true); }} className="cop-action-primary flex items-center justify-center gap-2 px-4 py-2.5"><UserPlus className="w-4 h-4" /> Nuevo usuario</button>}
+          </div>
         </section>
 
         {mensaje && (
@@ -402,11 +400,10 @@ export default function GestionUsuariosAdminPage() {
                         <button title="Editar perfil" onClick={() => { setUsuarioEditando(usuario); setModulosSeleccionados(usuario.modulos_permitidos || ['allanamientos']); }} className="p-2 text-slate-400 hover:text-[#c4a35a]"><Edit className="w-4 h-4" /></button>
                         {(estado === 'activo' || estado === 'por_vencer' || estado === 'validacion_vencida') && <button title="Restablecer clave" onClick={() => setUsuarioACambiarPass(usuario)} className="p-2 text-slate-400 hover:text-amber-400"><KeyRound className="w-4 h-4" /></button>}
                         {normalizarRol(usuario.rol) !== 'administrador' && (estado === 'activo' || estado === 'por_vencer' || estado === 'validacion_vencida') && <button title="Revalidar por 60 días" onClick={() => setUsuarioRevalidando(usuario)} className="p-2 text-slate-400 hover:text-[#c4a35a]"><RefreshCw className="w-4 h-4" /></button>}
-                        {(estado === 'activo' || estado === 'por_vencer' || estado === 'validacion_vencida') && <button title="Registrar traslado" onClick={() => setUsuarioTrasladando(usuario)} className="p-2 text-slate-400 hover:text-[#c4a35a]"><ArrowRightLeft className="w-4 h-4" /></button>}
+                        {(estado === 'activo' || estado === 'por_vencer' || estado === 'validacion_vencida') && <button title="Registrar traslado" onClick={() => { setErrorTraslado(null); setUsuarioTrasladando(usuario); }} className="p-2 text-slate-400 hover:text-[#c4a35a]"><ArrowRightLeft className="w-4 h-4" /></button>}
                         {(estado === 'activo' || estado === 'por_vencer' || estado === 'validacion_vencida') && <button title="Pausa temporal" onClick={() => setModalEstado({ usuario, estado: 'pausado' })} className="p-2 text-slate-400 hover:text-amber-400"><PauseCircle className="w-4 h-4" /></button>}
                         {(estado === 'pausado' || estado === 'deshabilitado') && <button title="Reactivar identidad" onClick={() => setModalEstado({ usuario, estado: 'activo' })} className="p-2 text-emerald-500 hover:text-emerald-300"><PlayCircle className="w-4 h-4" /></button>}
                         {estado !== 'deshabilitado' && <button title="Baja operativa" onClick={() => setModalEstado({ usuario, estado: 'deshabilitado' })} className="p-2 text-slate-400 hover:text-red-400"><UserX className="w-4 h-4" /></button>}
-                        {rolNormalizado === 'administrador' && <button title="Eliminar sólo si no tiene actividad" onClick={() => setUsuarioAEliminar(usuario)} className="p-2 text-slate-400 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>}
                       </div>
                     )}
                   </article>
@@ -458,8 +455,17 @@ export default function GestionUsuariosAdminPage() {
       )}
 
       {usuarioTrasladando && (
-        <Modal titulo="Registrar traslado" icono={<ArrowRightLeft className="w-4 h-4 text-[#c4a35a]" />} cerrar={() => setUsuarioTrasladando(null)} ancho="max-w-md">
-          <form onSubmit={handleTraslado} className="space-y-4"><input type="hidden" name="id" value={usuarioTrasladando.id} /><p className="text-sm text-slate-300">Se conserva el mismo usuario, UUID y actividad histórica de <strong>{nombreUsuario(usuarioTrasladando)}</strong>.</p><Campo label="Nuevo destino"><SelectorSuperintendencia superintendencias={superintendencias} excluir={usuarioTrasladando.superintendencia_id} /></Campo><Campo label="Motivo del traslado"><input required name="motivo" className="input" /></Campo><Campo label="Referencia documental"><input required name="referencia_documental" placeholder="Nota o correo institucional" className="input" /></Campo><p className="text-xs text-amber-400">El traslado renueva la vigencia por 60 días y obliga a cambiar la contraseña.</p><AccionesModal cargando={cargando} cancelar={() => setUsuarioTrasladando(null)} confirmar="Registrar traslado" /></form>
+        <Modal titulo="Registrar traslado" icono={<ArrowRightLeft className="w-4 h-4 text-[#c4a35a]" />} cerrar={() => { setErrorTraslado(null); setUsuarioTrasladando(null); }} ancho="max-w-md">
+          <form onSubmit={handleTraslado} className="space-y-4">
+            <input type="hidden" name="id" value={usuarioTrasladando.id} />
+            {errorTraslado && <div role="alert" className="border border-red-800 bg-red-950/50 p-3 text-xs text-red-200">{errorTraslado}</div>}
+            <p className="text-sm text-slate-300">Se conserva el mismo usuario, UUID y actividad histórica de <strong>{nombreUsuario(usuarioTrasladando)}</strong>.</p>
+            <Campo label="Nuevo destino"><SelectorSuperintendencia superintendencias={superintendencias} excluir={usuarioTrasladando.superintendencia_id} /></Campo>
+            <Campo label="Motivo del traslado"><input required name="motivo" className="input" /></Campo>
+            <Campo label="Referencia documental"><input required name="referencia_documental" placeholder="Nota o correo institucional" className="input" /></Campo>
+            <p className="text-xs text-amber-400">El traslado renueva la vigencia por 60 días y obliga a cambiar la contraseña.</p>
+            <AccionesModal cargando={cargando} cancelar={() => { setErrorTraslado(null); setUsuarioTrasladando(null); }} confirmar="Registrar traslado" />
+          </form>
         </Modal>
       )}
 
@@ -469,22 +475,27 @@ export default function GestionUsuariosAdminPage() {
         </Modal>
       )}
 
-      <InstitutionalDialog
-        open={Boolean(usuarioAEliminar)}
-        title="Eliminar identidad sin actividad"
-        description={usuarioAEliminar
-          ? `Se intentará eliminar definitivamente a ${nombreUsuario(usuarioAEliminar)}. La operación sólo será autorizada si la identidad no posee actividad histórica asociada.`
-          : undefined}
-        tone="danger"
-        confirmLabel="Eliminar usuario"
-        loading={cargando}
-        onCancel={() => setUsuarioAEliminar(null)}
-        onConfirm={handleEliminar}
-      >
-        <div className="border-l-2 border-red-700 bg-[#050e1c] px-3 py-2 text-xs text-slate-400">
-          Si existe trazabilidad previa, el servidor rechazará la eliminación y deberá utilizarse la baja operativa.
-        </div>
-      </InstitutionalDialog>
+      {modalConciliacion && (
+        <Modal titulo="Conciliar operación de usuario" icono={<ShieldAlert className="w-4 h-4 text-amber-400" />} cerrar={() => setModalConciliacion(false)} ancho="max-w-md">
+          <form onSubmit={handleConciliar} className="space-y-4">
+            <p className="text-xs text-slate-300">Usá el código recibido cuando falló una pausa, baja o reactivación. Se volverá a verificar Auth y se confirmará el estado pendiente. Si es una reactivación, se generará otra clave temporal.</p>
+            <Campo label="Código de operación"><input required name="operacion_id" autoComplete="off" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" className="input font-mono" /></Campo>
+            {errorConciliacion && <p role="alert" className="border border-red-800 bg-red-950/40 p-3 text-xs text-red-300">{errorConciliacion}</p>}
+            <AccionesModal cargando={cargando} cancelar={() => { setErrorConciliacion(null); setModalConciliacion(false); }} confirmar="Conciliar" />
+          </form>
+        </Modal>
+      )}
+
+      {modalConciliacionClave && (
+        <Modal titulo="Conciliar restablecimiento de clave" icono={<KeyRound className="w-4 h-4 text-amber-400" />} cerrar={() => setModalConciliacionClave(false)} ancho="max-w-md">
+          <form onSubmit={handleConciliarClave} className="space-y-4">
+            <p className="text-xs text-slate-300">Usá el código de la operación pendiente. Se generará otra clave temporal y la cuenta seguirá bloqueada hasta que Auth y Auditoría queden confirmados.</p>
+            <Campo label="Código de operación"><input required name="operacion_id" autoComplete="off" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" className="input font-mono" /></Campo>
+            {errorConciliacion && <p role="alert" className="border border-red-800 bg-red-950/40 p-3 text-xs text-red-300">{errorConciliacion}</p>}
+            <AccionesModal cargando={cargando} cancelar={() => { setErrorConciliacion(null); setModalConciliacionClave(false); }} confirmar="Conciliar clave" />
+          </form>
+        </Modal>
+      )}
 
       <footer className="w-full border-t border-[#26364d] bg-[#071426] py-6 text-center"><p className="text-xs text-slate-400">Plataforma Integral de Gestión · Desarrollo: Emmanuel Machado</p></footer>
       <style jsx global>{`.input { width: 100%; padding: .7rem .875rem; background: #050e1c; border: 1px solid #33465f; border-radius: .25rem; color: white; font-size: .75rem; outline: none; } .input:focus { border-color: #c4a35a; }`}</style>

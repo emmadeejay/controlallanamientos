@@ -38,5 +38,8 @@ export default async function ImportarAllanamientosLayout({
     redirect('/select-app');
   }
 
+  const { data: assurance, error: mfaError } = await supabaseSesion.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (mfaError || assurance?.currentLevel !== 'aal2') redirect('/auth/mfa');
+
   return children;
 }

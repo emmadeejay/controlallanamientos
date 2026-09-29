@@ -49,5 +49,10 @@ export default async function UsuariosLayout({ children }: UsuariosLayoutProps) 
     redirect('/select-app');
   }
 
+  if (rol === 'administrador') {
+    const { data: assurance, error: mfaError } = await supabaseSesion.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (mfaError || assurance?.currentLevel !== 'aal2') redirect('/auth/mfa');
+  }
+
   return children;
 }

@@ -97,12 +97,10 @@ export default function SelectAppPage() {
           // Fail-Safe: Si no hay módulos en la base, se deniega todo por defecto asignando []
           setModulosPermitidos(profile?.modulos_permitidos || []);
 
-          if (
-            profile?.requiere_cambio_clave &&
-            (estadoDetectado === 'activo' || estadoDetectado === 'por_vencer')
-          ) {
-            setRequiereCambioClave(true);
-          }
+          setRequiereCambioClave(
+            profile?.requiere_cambio_clave === true &&
+            (estadoDetectado === 'activo' || estadoDetectado === 'por_vencer'),
+          );
         }
       } catch (err) {
         console.error('Error al verificar sesión:', err);
@@ -312,6 +310,16 @@ export default function SelectAppPage() {
           <p className="text-sm text-slate-400 mt-1">
             Seleccioná una dependencia funcional para iniciar la jornada.
           </p>
+          {esAdministrador && (
+            <button
+              type="button"
+              onClick={() => router.push('/auth/mfa')}
+              className="cop-action-secondary mt-4 inline-flex items-center gap-2"
+            >
+              <Shield className="h-4 w-4" />
+              Verificación en dos pasos
+            </button>
+          )}
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -569,7 +577,7 @@ export default function SelectAppPage() {
         confirmLabel="Continuar"
         showCancel={false}
         onCancel={() => setClaveActualizada(false)}
-        onConfirm={() => setClaveActualizada(false)}
+        onConfirm={() => window.location.replace('/select-app')}
       />
 
       <footer className="border-t border-[#26364d] bg-[#071426] py-5 text-xs text-slate-500">

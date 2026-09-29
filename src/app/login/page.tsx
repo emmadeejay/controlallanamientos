@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, CheckCircle2, X } from 'lucide-react'
@@ -15,6 +15,15 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const motivo = new URLSearchParams(window.location.search).get('motivo')
+    if (motivo === 'sin-perfil') {
+      setError('La cuenta no tiene un perfil institucional asignado. Solicitá el alta a la oficina COP.')
+    } else if (motivo === 'perfil-no-disponible') {
+      setError('No se pudo verificar el perfil institucional. Intentá nuevamente más tarde.')
+    }
+  }, [])
 
   // Estados para Recuperar Contraseña
   const [modalReset, setModalReset] = useState(false)
@@ -38,6 +47,19 @@ export default function LoginPage() {
       }
 
       if (data.user) {
+        const { data: perfil, error: perfilError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', data.user.id)
+          .maybeSingle()
+
+        if (perfilError || !perfil) {
+          if (!perfilError) await supabase.auth.signOut()
+          throw new Error(perfilError
+            ? 'No se pudo verificar el perfil institucional. Intentá nuevamente más tarde.'
+            : 'La cuenta no tiene un perfil institucional asignado. Solicitá el alta a la oficina COP.')
+        }
+
         router.push('/select-app')
         router.refresh()
       }
@@ -92,7 +114,7 @@ export default function LoginPage() {
       <header className="cop-command-header relative z-10">
         <div className="mx-auto flex min-h-[76px] w-full max-w-[1500px] items-center gap-3 px-5 sm:px-8">
           <div className="flex h-12 w-12 items-center justify-center border-r border-[#26364d] pr-3">
-            <Image src="/logo_cop.png" alt="Escudo COP" width={48} height={48} priority />
+            <Image src="/logo_cop.png" alt="Escudo COP" width={32} height={32} className="shrink-0 object-contain" priority />
           </div>
           <div>
             <p className="hidden text-[14px] font-extrabold tracking-[0.035em] text-white sm:block lg:text-[15px]">

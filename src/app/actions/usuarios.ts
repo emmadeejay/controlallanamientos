@@ -1,16 +1,13 @@
 'use server';
 
-import { randomInt } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { registrarEventoAuditoria } from '@/lib/auditoria';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient as createServerClient } from '@/lib/supabase/server';
 import {
-  fechaHoyArgentina,
-  fechaVigenciaNueva,
   normalizarRolUsuario,
   perfilTieneAcceso,
-  sumarDiasFecha,
   type EstadoCuenta,
 } from '@/lib/usuarios';
 
@@ -116,19 +113,19 @@ function generarPasswordTemporal(): string {
 }
 
 function leerModulos(formData: FormData): string[] {
-  const valor = leerTexto(formData, 'modulos_array');
-  if (!valor) return ['allanamientos'];
+  const valor = formData.get('modulos_array');
+  if (typeof valor !== 'string' || !valor.trim()) {
+    throw new ErrorDeAccion('La lista de módulos es obligatoria.');
+  }
 
   try {
     const modulos = JSON.parse(valor);
-    if (!Array.isArray(modulos)) throw new Error('Formato inválido');
-    const permitidos = modulos
-      .map((modulo) => String(modulo).trim().toLowerCase())
-      .filter(
-        (modulo, index, lista) =>
-          MODULOS_VALIDOS.has(modulo) && lista.indexOf(modulo) === index,
-      );
-    return permitidos.length > 0 ? permitidos : ['allanamientos'];
+    if (!Array.isArray(modulos) || modulos.some(
+      (modulo) => typeof modulo !== 'string' || !MODULOS_VALIDOS.has(modulo.trim().toLowerCase()),
+    )) {
+      throw new Error('Formato inválido');
+    }
+    return [...new Set(modulos.map((modulo: string) => modulo.trim().toLowerCase()))];
   } catch {
     throw new ErrorDeAccion('La lista de módulos no tiene un formato válido.');
   }
@@ -166,6 +163,13 @@ async function obtenerActorAutorizado(): Promise<PerfilActor> {
 
   if (!perfilTieneAcceso(perfil)) {
     throw new ErrorDeAccion('La cuenta no está habilitada o su validación institucional venció.');
+  }
+
+  if (rol === 'administrador') {
+    const { data: assurance, error: mfaError } = await supabaseSesion.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (mfaError || assurance?.currentLevel !== 'aal2') {
+      throw new ErrorDeAccion('Verificá el segundo factor antes de gestionar usuarios.');
+    }
   }
 
   return {
@@ -255,26 +259,6 @@ async function validarIdentificadoresUnicos(dni: string, legajo: string, excluir
   if (legajoExistente?.length) throw new ErrorDeAccion('Ya existe un usuario con ese legajo.');
 }
 
-async function registrarAsignacionInicial(params: {
-  usuarioId: string;
-  superintendenciaId: string;
-  actorId: string;
-  referencia: string;
-  motivo?: string;
-}) {
-  const supabaseAdmin = createAdminClient();
-  const { error } = await supabaseAdmin.from('usuario_asignaciones').insert({
-    usuario_id: params.usuarioId,
-    superintendencia_id: params.superintendenciaId,
-    vigente_desde: fechaHoyArgentina(),
-    vigente_hasta: null,
-    motivo: params.motivo || 'Alta inicial',
-    referencia_documental: params.referencia,
-    registrada_por: params.actorId,
-  });
-  if (error) throw error;
-}
-
 export async function crearUsuarioAction(
   formData: FormData,
 ): Promise<ResultadoAccionUsuario> {
@@ -308,7 +292,6 @@ export async function crearUsuarioAction(
 
     const passwordTemporal = generarPasswordTemporal();
     const nombreCompleto = `${nombre} ${apellido}`.trim();
-    const vigenciaHasta = fechaVigenciaNueva();
     const supabaseAdmin = createAdminClient();
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
@@ -324,56 +307,50 @@ export async function crearUsuarioAction(
       throw authError ?? new Error('No se recibió el usuario creado.');
     }
 
-    const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
-      id: authData.user.id,
-      email,
-      nombre,
-      apellido,
-      nombre_completo: nombreCompleto,
-      dni,
-      legajo,
-      rol,
-      superintendencia_id: superintendenciaId,
-      modulos_permitidos: modulosPermitidos,
-      activo: true,
-      estado_cuenta: 'activo',
-      vigencia_institucional_hasta: vigenciaHasta,
-      revalidado_at: new Date().toISOString(),
-      revalidado_por: actor.id,
-      referencia_vigencia: referencia.slice(0, 500),
-      requiere_cambio_clave: true,
-    });
-
-    if (profileError) {
-      await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-      throw profileError;
+    const { data: vigenciaRpc, error: altaError } = await supabaseAdmin.rpc(
+      'confirmar_alta_usuario_atomica',
+      {
+        p_actor_id: actor.id, p_usuario_id: authData.user.id, p_email: email,
+        p_nombre: nombre, p_apellido: apellido, p_dni: dni, p_legajo: legajo,
+        p_rol: rol, p_superintendencia_id: superintendenciaId,
+        p_modulos: modulosPermitidos, p_referencia: referencia,
+      },
+    );
+    let vigenciaHasta = vigenciaRpc ? String(vigenciaRpc) : null;
+    if (altaError || !vigenciaHasta) {
+      // Si la respuesta de red se perdió después del commit, no borrar el alta.
+      const { data: perfilCreado, error: consultaError } = await supabaseAdmin
+        .from('profiles').select('vigencia_institucional_hasta')
+        .eq('id', authData.user.id).maybeSingle();
+      if (perfilCreado?.vigencia_institucional_hasta) {
+        vigenciaHasta = perfilCreado.vigencia_institucional_hasta;
+      } else if (consultaError) {
+        const { error: bloqueoError } = await supabaseAdmin.auth.admin.updateUserById(
+          authData.user.id, { ban_duration: '876600h' },
+        );
+        console.error('Alta sin confirmación; revisar Auth y perfil.', {
+          usuarioId: authData.user.id, error: consultaError.message,
+          bloqueo: bloqueoError?.message,
+        });
+        throw new ErrorDeAccion(`No se pudo confirmar el alta ${authData.user.id}. Revisá la cuenta en Auth y el perfil antes de reintentar.`);
+      } else {
+        const { error: borradoError } = await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+        if (borradoError) {
+          const { error: bloqueoError } = await supabaseAdmin.auth.admin.updateUserById(
+            authData.user.id, { ban_duration: '876600h' },
+          );
+          console.error('No se pudo compensar el alta incompleta.', {
+            usuarioId: authData.user.id, borrado: borradoError.message,
+            bloqueo: bloqueoError?.message,
+          });
+          throw new ErrorDeAccion(`El alta ${authData.user.id} quedó pendiente de revisión en Auth. No repitas la operación.`);
+        }
+        throw altaError ?? new Error('No se confirmó el alta institucional.');
+      }
     }
-
-    try {
-      await registrarAsignacionInicial({
-        usuarioId: authData.user.id,
-        superintendenciaId,
-        actorId: actor.id,
-        referencia,
-      });
-    } catch (error) {
-      await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-      throw error;
-    }
-
-    await registrarEventoAuditoria(supabaseAdmin, {
-      actor,
-      modulo: 'usuarios',
-      accion: 'crear_usuario',
-      entidadTipo: 'usuario',
-      entidadId: authData.user.id,
-      superintendenciaId,
-      referenciaDocumental: referencia,
-      detalles: { email, nombre_completo: nombreCompleto, rol, vigencia_hasta: vigenciaHasta },
-    });
 
     revalidatePath('/admin/usuarios');
-    return { success: true, temporaryPassword: passwordTemporal, vigenciaHasta };
+    return { success: true, temporaryPassword: passwordTemporal, vigenciaHasta: vigenciaHasta! };
   } catch (error) {
     return respuestaDeError(error, 'No se pudo crear el usuario.');
   }
@@ -405,36 +382,17 @@ export async function editarUsuarioAction(
     }
 
     const supabaseAdmin = createAdminClient();
-    const { error } = await supabaseAdmin
-      .from('profiles')
-      .update({
-        nombre,
-        apellido,
-        nombre_completo: `${nombre} ${apellido}`.trim(),
-        dni,
-        legajo,
-        rol,
-        modulos_permitidos: modulosPermitidos,
-        vigencia_institucional_hasta: rol === 'administrador' ? null : objetivo.vigencia_institucional_hasta,
-      })
-      .eq('id', id);
-    if (error) throw error;
-
-    await registrarEventoAuditoria(supabaseAdmin, {
-      actor,
-      modulo: 'usuarios',
-      accion: 'editar_usuario',
-      entidadTipo: 'usuario',
-      entidadId: id,
-      superintendenciaId,
-      detalles: {
-        email: objetivo.email,
-        nombre_completo: `${nombre} ${apellido}`.trim(),
-        rol_anterior: objetivo.rol,
-        rol_nuevo: rol,
-        modulos_permitidos: modulosPermitidos,
-      },
+    const { error } = await supabaseAdmin.rpc('editar_usuario_atomico', {
+      p_actor_id: actor.id,
+      p_usuario_id: id,
+      p_nombre: nombre,
+      p_apellido: apellido,
+      p_dni: dni,
+      p_legajo: legajo,
+      p_rol: rol,
+      p_modulos: modulosPermitidos,
     });
+    if (error) throw error;
 
     revalidatePath('/admin/usuarios');
     return { success: true };
@@ -462,36 +420,16 @@ export async function revalidarUsuarioAction(
       throw new ErrorDeAccion('Una cuenta pausada o con baja operativa debe reactivarse, no revalidarse.');
     }
 
-    const vigenciaHasta = fechaVigenciaNueva();
     const supabaseAdmin = createAdminClient();
-    const { error } = await supabaseAdmin
-      .from('profiles')
-      .update({
-        activo: true,
-        estado_cuenta: 'activo',
-        vigencia_institucional_hasta: vigenciaHasta,
-        revalidado_at: new Date().toISOString(),
-        revalidado_por: actor.id,
-        referencia_vigencia: referencia.slice(0, 500),
-        motivo_estado: null,
-      })
-      .eq('id', userId);
+    const { data: vigenciaHasta, error } = await supabaseAdmin.rpc(
+      'revalidar_usuario_atomico',
+      { p_actor_id: actor.id, p_usuario_id: userId, p_motivo: motivo, p_referencia: referencia },
+    );
     if (error) throw error;
-
-    await registrarEventoAuditoria(supabaseAdmin, {
-      actor,
-      modulo: 'usuarios',
-      accion: 'revalidar_usuario',
-      entidadTipo: 'usuario',
-      entidadId: userId,
-      superintendenciaId: objetivo.superintendencia_id,
-      motivo,
-      referenciaDocumental: referencia,
-      detalles: { email: objetivo.email, vigencia_hasta: vigenciaHasta },
-    });
+    if (!vigenciaHasta) throw new Error('La revalidación no devolvió la nueva vigencia.');
 
     revalidatePath('/admin/usuarios');
-    return { success: true, vigenciaHasta };
+    return { success: true, vigenciaHasta: String(vigenciaHasta) };
   } catch (error) {
     return respuestaDeError(error, 'No se pudo revalidar el usuario.');
   }
@@ -521,68 +459,27 @@ export async function registrarTrasladoUsuarioAction(
       throw new ErrorDeAccion('La nueva superintendencia debe ser diferente de la actual.');
     }
 
-    const vigenciaHasta = fechaVigenciaNueva();
     const supabaseAdmin = createAdminClient();
-    const { error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .update({
-        superintendencia_id: nuevaSuperintendenciaId,
-        activo: true,
-        estado_cuenta: 'activo',
-        vigencia_institucional_hasta: vigenciaHasta,
-        revalidado_at: new Date().toISOString(),
-        revalidado_por: actor.id,
-        referencia_vigencia: referencia.slice(0, 500),
-        requiere_cambio_clave: true,
-        motivo_estado: motivo.slice(0, 1000),
-      })
-      .eq('id', userId);
-    if (profileError) throw profileError;
-
-    const ayer = sumarDiasFecha(fechaHoyArgentina(), -1);
-    const { error: cierreError } = await supabaseAdmin
-      .from('usuario_asignaciones')
-      .update({ vigente_hasta: ayer })
-      .eq('usuario_id', userId)
-      .is('vigente_hasta', null);
-    const { error: nuevaError } = await supabaseAdmin.from('usuario_asignaciones').insert({
-      usuario_id: userId,
-      superintendencia_id: nuevaSuperintendenciaId,
-      vigente_desde: fechaHoyArgentina(),
-      vigente_hasta: null,
-      motivo: motivo.slice(0, 1000),
-      referencia_documental: referencia.slice(0, 500),
-      registrada_por: actor.id,
-    });
-
-    if (cierreError || nuevaError) {
-      await supabaseAdmin
-        .from('profiles')
-        .update({ superintendencia_id: objetivo.superintendencia_id })
-        .eq('id', userId);
-      throw cierreError ?? nuevaError;
-    }
-
-    await registrarEventoAuditoria(supabaseAdmin, {
-      actor,
-      modulo: 'usuarios',
-      accion: 'trasladar_usuario',
-      entidadTipo: 'usuario',
-      entidadId: userId,
-      superintendenciaId: nuevaSuperintendenciaId,
-      motivo,
-      referenciaDocumental: referencia,
-      detalles: {
-        email: objetivo.email,
-        superintendencia_anterior: objetivo.superintendencia_id,
-        superintendencia_nueva: nuevaSuperintendenciaId,
-        vigencia_hasta: vigenciaHasta,
-        requiere_cambio_clave: true,
+    const { data: vigenciaHasta, error: trasladoError } = await supabaseAdmin.rpc(
+      'trasladar_usuario_atomico',
+      {
+        p_actor_id: actor.id,
+        p_usuario_id: userId,
+        p_destino_id: nuevaSuperintendenciaId,
+        p_motivo: motivo,
+        p_referencia: referencia,
       },
-    });
+    );
+    if (trasladoError) {
+      if (trasladoError.message === 'El traslado del mismo día requiere una fecha de inicio anterior') {
+        throw new ErrorDeAccion('No se puede trasladar esta identidad el mismo día en que comenzó su asignación.');
+      }
+      throw trasladoError;
+    }
+    if (!vigenciaHasta) throw new Error('El traslado no devolvió la vigencia nueva.');
 
     revalidatePath('/admin/usuarios');
-    return { success: true, vigenciaHasta };
+    return { success: true, vigenciaHasta: String(vigenciaHasta) };
   } catch (error) {
     return respuestaDeError(error, 'No se pudo registrar el traslado.');
   }
@@ -599,150 +496,119 @@ export async function cambiarEstadoUsuarioAction(
     const referencia = leerTexto(formData, 'referencia_documental');
     if (!ESTADOS_GESTIONABLES.has(estado)) throw new ErrorDeAccion('El estado solicitado no es válido.');
     if (!motivo) throw new ErrorDeAccion('Debés indicar el motivo de la decisión.');
+    if (estado === 'activo' && !referencia) {
+      throw new ErrorDeAccion('La reactivación requiere una referencia documental.');
+    }
 
     const objetivo = await obtenerPerfilObjetivo(userId);
     exigirPuedeGestionarObjetivo(actor, objetivo);
     if (actor.id === objetivo.id) throw new ErrorDeAccion('No podés cambiar el estado de tu propia cuenta.');
 
     const supabaseAdmin = createAdminClient();
-    let temporaryPassword: string | undefined;
-    let vigenciaHasta = objetivo.vigencia_institucional_hasta;
-
-    if (estado === 'activo') {
-      temporaryPassword = generarPasswordTemporal();
-      vigenciaHasta = fechaVigenciaNueva();
-      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-        password: temporaryPassword,
-        ban_duration: 'none',
-      });
-      if (authError) throw authError;
-    } else {
-      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-        ban_duration: '876600h',
-      });
-      if (authError) throw authError;
-    }
-
-    const cambiosPerfil: Record<string, unknown> = {
-      activo: estado === 'activo',
-      estado_cuenta: estado,
-      motivo_estado: motivo.slice(0, 1000),
-      referencia_estado: referencia ? referencia.slice(0, 500) : null,
-      estado_actualizado_at: new Date().toISOString(),
-      estado_actualizado_por: actor.id,
-    };
-    if (estado === 'activo') {
-      cambiosPerfil.vigencia_institucional_hasta = vigenciaHasta;
-      cambiosPerfil.revalidado_at = new Date().toISOString();
-      cambiosPerfil.revalidado_por = actor.id;
-      cambiosPerfil.referencia_vigencia = referencia.slice(0, 500);
-      cambiosPerfil.requiere_cambio_clave = true;
-    }
-
-    const { error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .update(cambiosPerfil)
-      .eq('id', userId);
-
-    if (profileError) {
-      await supabaseAdmin.auth.admin.updateUserById(userId, {
-        ban_duration: estado === 'activo' ? '876600h' : 'none',
-      });
-      throw profileError;
-    }
-
-    if (estado === 'deshabilitado') {
-      await supabaseAdmin
-        .from('usuario_asignaciones')
-        .update({ vigente_hasta: fechaHoyArgentina() })
-        .eq('usuario_id', userId)
-        .is('vigente_hasta', null);
-    } else if (estado === 'activo') {
-      const { data: asignacionAbierta } = await supabaseAdmin
-        .from('usuario_asignaciones')
-        .select('id')
-        .eq('usuario_id', userId)
-        .is('vigente_hasta', null)
-        .limit(1);
-      if (!asignacionAbierta?.length && objetivo.superintendencia_id) {
-        await registrarAsignacionInicial({
-          usuarioId: userId,
-          superintendenciaId: objetivo.superintendencia_id,
-          actorId: actor.id,
-          referencia,
-          motivo: `Reactivación: ${motivo}`,
-        });
-      }
-    }
-
-    const accion =
-      estado === 'activo'
-        ? 'reactivar_usuario'
-        : estado === 'pausado'
-          ? 'pausar_usuario'
-          : 'deshabilitar_usuario';
-    await registrarEventoAuditoria(supabaseAdmin, {
-      actor,
-      modulo: 'usuarios',
-      accion,
-      entidadTipo: 'usuario',
-      entidadId: userId,
-      superintendenciaId: objetivo.superintendencia_id,
-      motivo,
-      referenciaDocumental: referencia || null,
-      detalles: {
-        email: objetivo.email,
-        estado_anterior: objetivo.estado_cuenta,
-        estado_nuevo: estado,
-        vigencia_hasta: vigenciaHasta,
-      },
+    const operacionId = randomUUID();
+    const { error: inicioError } = await supabaseAdmin.rpc('iniciar_cambio_estado_usuario', {
+      p_operacion_id: operacionId,
+      p_actor_id: actor.id,
+      p_usuario_id: userId,
+      p_estado_anterior: objetivo.estado_cuenta,
+      p_estado_nuevo: estado,
+      p_motivo: motivo,
+      p_referencia: referencia || null,
     });
+    if (inicioError) {
+      if (inicioError.message.includes('reactivación del mismo día')) {
+        throw new ErrorDeAccion('No se puede reactivar el mismo día de la baja: las fechas de asignación se superpondrían.');
+      }
+      throw inicioError;
+    }
+
+    const temporaryPassword = estado === 'activo' ? generarPasswordTemporal() : undefined;
+    let authError: Error | null = null;
+    try {
+      const resultadoAuth = await supabaseAdmin.auth.admin.updateUserById(userId,
+        estado === 'activo'
+          ? { password: temporaryPassword!, ban_duration: 'none' }
+          : { ban_duration: '876600h' },
+      );
+      authError = resultadoAuth.error;
+    } catch (error) {
+      authError = error instanceof Error ? error : new Error('Auth no respondió');
+    }
+
+    const { data: vigenciaHasta, error: finalError } = await supabaseAdmin.rpc(
+      'finalizar_cambio_estado_usuario',
+      { p_operacion_id: operacionId, p_auth_confirmada: !authError },
+    );
+    if (finalError) {
+      console.error('Cambio de estado pendiente de conciliación.', {
+        operacionId, userId, mensaje: finalError.message,
+      });
+      throw new ErrorDeAccion(`La operación ${operacionId} quedó pendiente de conciliación. La cuenta permanece bloqueada en la aplicación; informá este código a la oficina COP.`);
+    }
+    if (authError) {
+      console.error('Auth no confirmó el cambio de estado.', { operacionId, userId, error: authError.message });
+      revalidatePath('/admin/usuarios');
+      throw new ErrorDeAccion(`Auth no confirmó la operación ${operacionId}. La cuenta permanece bloqueada en la aplicación; informá este código a la oficina COP.`);
+    }
 
     revalidatePath('/admin/usuarios');
     return {
       success: true,
       nuevoEstado: estado,
       temporaryPassword,
-      vigenciaHasta: vigenciaHasta || undefined,
+      vigenciaHasta: vigenciaHasta ? String(vigenciaHasta) : undefined,
     };
   } catch (error) {
     return respuestaDeError(error, 'No se pudo cambiar el estado del usuario.');
   }
 }
 
-export async function eliminarUsuarioAction(userId: string): Promise<ResultadoAccionUsuario> {
+export async function conciliarCambioEstadoUsuarioAction(
+  formData: FormData,
+): Promise<ResultadoAccionUsuario> {
   try {
     const actor = await obtenerActorAutorizado();
-    const objetivo = await obtenerPerfilObjetivo(userId);
-    exigirPuedeGestionarObjetivo(actor, objetivo);
-    if (actor.rol !== 'administrador') throw new ErrorDeAccion('Sólo el administrador puede eliminar usuarios.');
-    if (actor.id === objetivo.id) throw new ErrorDeAccion('No podés eliminar tu propia cuenta.');
-
-    const supabaseAdmin = createAdminClient();
-    const { count } = await supabaseAdmin
-      .from('allanamientos')
-      .select('id', { count: 'exact', head: true })
-      .eq('operador_id', userId);
-    if ((count ?? 0) > 0) {
-      throw new ErrorDeAccion('El usuario posee actividad histórica. Utilizá Baja operativa para conservar la trazabilidad.');
+    if (actor.rol !== 'administrador') {
+      throw new ErrorDeAccion('Sólo el administrador puede conciliar operaciones pendientes.');
     }
-
-    const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
-    if (error) throw error;
-    await registrarEventoAuditoria(supabaseAdmin, {
-      actor,
-      modulo: 'usuarios',
-      accion: 'eliminar_usuario',
-      entidadTipo: 'usuario',
-      entidadId: userId,
-      superintendenciaId: objetivo.superintendencia_id,
-      motivo: 'Eliminación excepcional de cuenta sin actividad operativa',
-      detalles: { email: objetivo.email, nombre_completo: objetivo.nombre_completo, rol: objetivo.rol },
-    });
+    const operacionId = leerTexto(formData, 'operacion_id');
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(operacionId)) {
+      throw new ErrorDeAccion('Ingresá un código de operación válido.');
+    }
+    const supabaseAdmin = createAdminClient();
+    const { data: operacion, error: consultaError } = await supabaseAdmin.rpc(
+      'obtener_cambio_estado_pendiente', { p_operacion_id: operacionId },
+    );
+    if (consultaError || !operacion?.usuario_id) {
+      throw new ErrorDeAccion('No se encontró una operación pendiente con ese código.');
+    }
+    const estado = String(operacion.estado_nuevo);
+    const usuarioId = String(operacion.usuario_id);
+    const temporaryPassword = estado === 'activo' ? generarPasswordTemporal() : undefined;
+    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(usuarioId,
+      estado === 'activo'
+        ? { password: temporaryPassword!, ban_duration: 'none' }
+        : { ban_duration: '876600h' },
+    );
+    if (authError) {
+      console.error('Auth no permitió conciliar el estado de usuario.', { operacionId, usuarioId, error: authError.message });
+      throw new ErrorDeAccion(`Auth sigue sin confirmar la operación ${operacionId}. La identidad permanece bloqueada en la aplicación.`);
+    }
+    const { data: vigenciaHasta, error: finalError } = await supabaseAdmin.rpc(
+      'finalizar_cambio_estado_usuario',
+      { p_operacion_id: operacionId, p_auth_confirmada: true },
+    );
+    if (finalError) {
+      console.error('No se pudo confirmar la conciliación.', { operacionId, usuarioId, error: finalError.message });
+      throw new ErrorDeAccion(`La operación ${operacionId} sigue pendiente de conciliación. La identidad permanece bloqueada en la aplicación.`);
+    }
     revalidatePath('/admin/usuarios');
-    return { success: true };
+    return {
+      success: true, nuevoEstado: estado as EstadoCuenta, temporaryPassword,
+      vigenciaHasta: vigenciaHasta ? String(vigenciaHasta) : undefined,
+    };
   } catch (error) {
-    return respuestaDeError(error, 'No se pudo eliminar el usuario.');
+    return respuestaDeError(error, 'No se pudo conciliar el cambio de estado.');
   }
 }
 
@@ -755,37 +621,70 @@ export async function resetearPasswordAction(
     exigirPuedeGestionarObjetivo(actor, objetivo);
     const passwordTemporal = generarPasswordTemporal();
     const supabaseAdmin = createAdminClient();
-
-    const { error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .update({ requiere_cambio_clave: true })
-      .eq('id', userId);
-    if (profileError) throw profileError;
+    const operacionId = randomUUID();
+    const { error: inicioError } = await supabaseAdmin.rpc('iniciar_reset_clave_usuario', {
+      p_operacion_id: operacionId, p_actor_id: actor.id, p_usuario_id: userId,
+    });
+    if (inicioError) throw inicioError;
 
     const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
       password: passwordTemporal,
     });
     if (authError) {
-      await supabaseAdmin
-        .from('profiles')
-        .update({ requiere_cambio_clave: objetivo.requiere_cambio_clave ?? false })
-        .eq('id', userId);
-      throw authError;
+      console.error('Auth no confirmó el restablecimiento.', { operacionId, userId, error: authError.message });
+      throw new ErrorDeAccion(`Operación ${operacionId} pendiente. La cuenta está bloqueada; conciliá la operación antes de volver a usarla.`);
     }
-
-    await registrarEventoAuditoria(supabaseAdmin, {
-      actor,
-      modulo: 'usuarios',
-      accion: 'restablecer_password',
-      entidadTipo: 'usuario',
-      entidadId: userId,
-      superintendenciaId: objetivo.superintendencia_id,
-      detalles: { email: objetivo.email, requiere_cambio_clave: true },
+    const { error: finalError } = await supabaseAdmin.rpc('finalizar_reset_clave_usuario', {
+      p_operacion_id: operacionId,
     });
+    if (finalError) {
+      console.error('No se pudo confirmar el restablecimiento.', { operacionId, userId, error: finalError.message });
+      throw new ErrorDeAccion(`Operación ${operacionId} pendiente. La cuenta está bloqueada; conciliá la operación para generar otra clave temporal.`);
+    }
     revalidatePath('/admin/usuarios');
     return { success: true, temporaryPassword: passwordTemporal };
   } catch (error) {
     return respuestaDeError(error, 'No se pudo restablecer la contraseña.');
+  }
+}
+
+export async function conciliarResetClaveUsuarioAction(formData: FormData): Promise<ResultadoAccionUsuario> {
+  try {
+    const actor = await obtenerActorAutorizado();
+    if (actor.rol !== 'administrador') {
+      throw new ErrorDeAccion('Sólo el administrador puede conciliar operaciones pendientes.');
+    }
+    const operacionId = leerTexto(formData, 'operacion_id');
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(operacionId)) {
+      throw new ErrorDeAccion('Ingresá un código de operación válido.');
+    }
+    const supabaseAdmin = createAdminClient();
+    const { data: op, error: consultaError } = await supabaseAdmin.rpc(
+      'obtener_reset_clave_pendiente', { p_operacion_id: operacionId },
+    );
+    if (consultaError || !op?.usuario_id) {
+      throw new ErrorDeAccion('No se encontró un restablecimiento pendiente con ese código.');
+    }
+    const userId = String(op.usuario_id);
+    const passwordTemporal = generarPasswordTemporal();
+    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+      password: passwordTemporal,
+    });
+    if (authError) {
+      console.error('Auth no permitió conciliar la clave.', { operacionId, userId, error: authError.message });
+      throw new ErrorDeAccion(`La operación ${operacionId} sigue pendiente. La cuenta permanece bloqueada.`);
+    }
+    const { error: finalError } = await supabaseAdmin.rpc('finalizar_reset_clave_usuario', {
+      p_operacion_id: operacionId,
+    });
+    if (finalError) {
+      console.error('No se pudo finalizar la clave conciliada.', { operacionId, userId, error: finalError.message });
+      throw new ErrorDeAccion(`La operación ${operacionId} sigue pendiente. La cuenta permanece bloqueada.`);
+    }
+    revalidatePath('/admin/usuarios');
+    return { success: true, temporaryPassword: passwordTemporal };
+  } catch (error) {
+    return respuestaDeError(error, 'No se pudo conciliar el restablecimiento.');
   }
 }
 

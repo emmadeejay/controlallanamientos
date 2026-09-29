@@ -9,6 +9,7 @@ type FiltrosExportacionAllanamientos = {
   desde?: string;
   hasta?: string;
   partido?: string;
+  provincia?: string;
   superintendencia?: string;
   soloArmas?: boolean;
   soloVehiculos?: boolean;
@@ -65,6 +66,13 @@ export async function autorizarExportacionAllanamientosAction(
       };
     }
 
+    if (rol === 'administrador') {
+      const { data: assurance, error: mfaError } = await supabaseSesion.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (mfaError || assurance?.currentLevel !== 'aal2') {
+        return { success: false as const, error: 'Verificá el segundo factor antes de exportar.' };
+      }
+    }
+
     const textoSeguro = (valor: unknown, maximo: number) =>
       String(valor ?? '').trim().slice(0, maximo);
     const cantidad = Math.max(0, Math.trunc(Number(filtros.cantidad) || 0));
@@ -72,6 +80,7 @@ export async function autorizarExportacionAllanamientosAction(
       desde: textoSeguro(filtros.desde, 10) || null,
       hasta: textoSeguro(filtros.hasta, 10) || null,
       partido: textoSeguro(filtros.partido, 120) || null,
+      provincia: textoSeguro(filtros.provincia, 120) || null,
       superintendencia_id: textoSeguro(filtros.superintendencia, 80) || null,
       solo_armas: filtros.soloArmas === true,
       solo_vehiculos: filtros.soloVehiculos === true,

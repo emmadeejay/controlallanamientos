@@ -124,11 +124,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="mx-auto flex min-h-[76px] max-w-[1800px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
             
             <div className="flex items-center gap-3 sm:gap-6">
-              <div 
-                onClick={() => router.push(esConsultaEjecutiva ? '/allanamientos/metricas' : '/select-app')} 
-                className="flex items-center gap-3 cursor-pointer hover:opacity-90 transition-opacity"
-                title={esConsultaEjecutiva ? 'Volver a Estadísticas' : 'Volver al Menú Principal'}
-              >
+              <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center border-r border-[#26364d] pr-3">
                   <img src={LOGO_URL} alt="Logo" className="max-h-full max-w-full object-contain" />
                 </div>
@@ -142,17 +138,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </div>
               </div>
 
-              {!esConsultaEjecutiva && (
-                <button
-                  onClick={() => router.push('/select-app')}
-                  className="border border-[#26364d] p-2 text-slate-400 transition hover:border-[#806c3f] hover:text-[#c4a35a]"
-                  title="Menú Principal de Apps"
-                >
-                  <Grid className="w-4 h-4" />
-                </button>
-              )}
+              <button
+                onClick={() => router.push('/select-app')}
+                className="border border-[#26364d] p-2 text-slate-400 transition hover:border-[#806c3f] hover:text-[#c4a35a]"
+                title="Menú Principal de Apps"
+                aria-label="Menú Principal de Apps"
+              >
+                <Grid className="w-4 h-4" />
+              </button>
 
-              <nav className="flex items-center border-l border-[#26364d] pl-2 sm:pl-4">
+              <nav aria-label="Secciones de Allanamientos" className="flex items-center border-l border-[#26364d] pl-2 sm:pl-4">
                 {!esConsultaEjecutiva && (
                   <Link
                     href="/allanamientos"

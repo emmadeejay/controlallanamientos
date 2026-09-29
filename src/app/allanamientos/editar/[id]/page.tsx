@@ -11,6 +11,7 @@ import {
   validarFechasAllanamiento,
 } from '@/lib/allanamientos'
 import { perfilTieneAcceso } from '@/lib/usuarios'
+import { JURISDICCIONES_ARGENTINA } from '@/lib/jurisdicciones'
 
 export default function EditarAllanamientoPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
@@ -26,12 +27,14 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
 
   // Listas maestras
   const [partidosList, setPartidosList] = useState<string[]>([])
+  const [partidosError, setPartidosError] = useState(false)
   const [especialidadesList, setEspecialidadesList] = useState<string[]>([])
   const [superintendenciasList, setSuperintendenciasList] = useState<{ id: string; nombre: string }[]>([])
 
   // Horario en formato 24hs
   const [horaEjecucion, setHoraEjecucion] = useState('12')
   const [minutoEjecucion, setMinutoEjecucion] = useState('00')
+  const [enElActo, setEnElActo] = useState(false)
 
   // Estado del formulario
   const [formData, setFormData] = useState({
@@ -41,6 +44,9 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
     ufi_juzgado: '',
     fecha_solicitud: '',
     partido: '',
+    es_exhorto: false,
+    provincia: 'Buenos Aires',
+    localidad: '',
     departamental: '',
     dependencia: '',
     fecha_ejecucion: '',
@@ -108,8 +114,9 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
 
   async function fetchMaestras() {
     try {
-      const { data: partData } = await supabase.from('partidos').select('nombre').order('nombre')
+      const { data: partData, error: partError } = await supabase.from('partidos').select('nombre').order('nombre')
       if (partData) setPartidosList(partData.map(p => p.nombre))
+      setPartidosError(Boolean(partError || !partData?.length))
 
       const { data: espData } = await supabase.from('especialidades').select('nombre').order('nombre')
       if (espData) setEspecialidadesList(espData.map(e => e.nombre))
@@ -138,6 +145,7 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         if (h) setHoraEjecucion(h.padStart(2, '0'))
         if (m) setMinutoEjecucion(m.padStart(2, '0'))
       }
+      setEnElActo(data.en_el_acto === true)
 
       // Cargar Armas desde JSON o columnas de BD
       let loadedArmas: { subtipo: string; cantidad: number }[] = []
@@ -231,6 +239,9 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         ufi_juzgado: data.ufi_juzgado || '',
         fecha_solicitud: data.fecha_solicitud || '',
         partido: data.partido || '',
+        es_exhorto: data.es_exhorto === true,
+        provincia: data.provincia || 'Buenos Aires',
+        localidad: data.localidad || '',
         departamental: data.departamental || '',
         dependencia: data.dependencia || '',
         fecha_ejecucion: data.fecha_ejecucion || '',
@@ -304,7 +315,11 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
     setError(null)
 
     try {
-      const horarioFinal = `${horaEjecucion}:${minutoEjecucion}`
+      const horarioFinal = enElActo ? null : `${horaEjecucion}:${minutoEjecucion}`
+      const provincia = formData.es_exhorto ? formData.provincia : 'Buenos Aires'
+      if (!provincia || (provincia === 'Buenos Aires' ? !formData.partido : !formData.localidad.trim())) {
+        throw new Error('Indicá el partido o la localidad de destino del exhorto.')
+      }
 
       const secuestrosPositivos = formData.resultado_secuestros === 'Positivo'
       const armasValidas = secuestrosPositivos ? sanitizarDetalles(armas) : []
@@ -322,8 +337,12 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         fecha_solicitud: formData.fecha_solicitud || null,
         fecha_ejecucion: formData.fecha_ejecucion,
         horario_ejecucion: horarioFinal,
-        partido: formData.partido,
-        lugar_presentacion: formData.dependencia || formData.partido,
+        en_el_acto: enElActo,
+        es_exhorto: formData.es_exhorto,
+        provincia,
+        localidad: provincia === 'Buenos Aires' ? null : formData.localidad.trim(),
+        partido: provincia === 'Buenos Aires' ? formData.partido : null,
+        lugar_presentacion: formData.dependencia || formData.partido || formData.localidad,
         departamental: formData.departamental || null,
         dependencia: formData.dependencia || 'Sin especificar',
         objetivos: Number(formData.objetivos) || 1,
@@ -460,8 +479,6 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
                   value={formData.fecha_solicitud} 
                   onChange={handleChange}
                   max={formData.fecha_ejecucion || rangoSemanaRendida.hoy}
-                  onClick={(e) => e.currentTarget.showPicker?.()}
-                  onKeyDown={(e) => e.preventDefault()}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer [color-scheme:dark]"
                 />
               </div>
@@ -533,9 +550,23 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
                 </div>
               )}
 
-              <div>
+              <label className="md:col-span-2 lg:col-span-3 flex items-center gap-3 text-sm text-slate-200">
+                <input type="checkbox" checked={formData.es_exhorto}
+                  onChange={(e) => setFormData(prev => ({ ...prev, es_exhorto: e.target.checked, provincia: 'Buenos Aires', localidad: '', partido: '' }))}
+                  className="h-4 w-4 accent-blue-500" /> Exhorto (procedimiento fuera de la jurisdicción habitual)
+              </label>
+              {formData.es_exhorto && <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">Provincia o CABA *</label>
+                <select value={formData.provincia} required
+                  onChange={(e) => setFormData(prev => ({ ...prev, provincia: e.target.value, partido: '', localidad: '' }))}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white">
+                  {JURISDICCIONES_ARGENTINA.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>}
+
+              {formData.provincia === 'Buenos Aires' ? <div>
                 <label className="block text-xs font-medium text-slate-400 mb-1">Partido *</label>
-                <select 
+                <select
                   name="partido" 
                   required 
                   value={formData.partido} 
@@ -547,7 +578,13 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
                     <option key={idx} value={p}>{p}</option>
                   ))}
                 </select>
-              </div>
+                {partidosError && <p role="alert" className="mt-1 text-xs text-amber-400">No hay partidos disponibles en este entorno. Revisá el catálogo y tu acceso.</p>}
+              </div> : <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">Localidad / municipio *</label>
+                <input name="localidad" value={formData.localidad} onChange={handleChange} required maxLength={150}
+                  placeholder="Indique la localidad de destino"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white" />
+              </div>}
 
               <div>
                 <label className="block text-xs font-medium text-slate-400 mb-1">Departamental</label>
@@ -585,19 +622,23 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
                   onChange={handleChange}
                   min={esElevado ? undefined : rangoSemanaRendida.inicio}
                   max={esElevado ? rangoSemanaRendida.hoy : rangoSemanaRendida.fin}
-                  onClick={(e) => e.currentTarget.showPicker?.()}
-                  onKeyDown={(e) => e.preventDefault()}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer [color-scheme:dark]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">Horario de Ejecución (24hs) *</label>
-                <div className="flex items-center gap-2">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-slate-400">Horario de Ejecución (24hs)</span>
+                  <label className="flex items-center gap-2 text-xs text-slate-200">
+                    <input type="checkbox" checked={enElActo} onChange={e => setEnElActo(e.target.checked)} className="h-4 w-4 accent-blue-500" /> En el acto
+                  </label>
+                </div>
+                <div className={`flex items-center gap-2 transition-opacity ${enElActo ? 'opacity-40' : ''}`}>
                   <select
+                    disabled={enElActo}
                     value={horaEjecucion}
                     onChange={(e) => setHoraEjecucion(e.target.value)}
-                    className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer text-center"
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer text-center disabled:cursor-not-allowed"
                   >
                     {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map((h) => (
                       <option key={h} value={h} className="bg-slate-900 text-white">
@@ -607,9 +648,10 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
                   </select>
                   <span className="text-white font-bold">:</span>
                   <select
+                    disabled={enElActo}
                     value={minutoEjecucion}
                     onChange={(e) => setMinutoEjecucion(e.target.value)}
-                    className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer text-center"
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer text-center disabled:cursor-not-allowed"
                   >
                     {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')).map((m) => (
                       <option key={m} value={m} className="bg-slate-900 text-white">
