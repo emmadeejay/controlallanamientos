@@ -789,8 +789,9 @@ export async function resetearPasswordAction(
   }
 }
 
-export async function cambiarPasswordObligatorioAction(
+async function actualizarPasswordDeSesion(
   nuevaPassword: string,
+  accion: 'cambiar_password_obligatorio' | 'cambiar_password_sesion',
 ): Promise<ResultadoAccionUsuario> {
   try {
     const passwordError = validarPassword(nuevaPassword);
@@ -802,15 +803,19 @@ export async function cambiarPasswordObligatorioAction(
     } = await supabaseSesion.auth.getUser();
     if (userError || !user) throw new ErrorDeAccion('La sesión no es válida. Volvé a iniciar sesión.');
 
-    const { error: passwordUpdateError } = await supabaseSesion.auth.updateUser({ password: nuevaPassword });
-    if (passwordUpdateError) throw passwordUpdateError;
-
     const supabaseAdmin = createAdminClient();
-    const { data: perfil } = await supabaseAdmin
+    const { data: perfil, error: perfilError } = await supabaseAdmin
       .from('profiles')
       .select('rol, superintendencia_id')
       .eq('id', user.id)
       .maybeSingle();
+    if (perfilError || !perfil) {
+      throw new ErrorDeAccion('No se encontró un perfil válido para la sesión.');
+    }
+
+    const { error: passwordUpdateError } = await supabaseSesion.auth.updateUser({ password: nuevaPassword });
+    if (passwordUpdateError) throw passwordUpdateError;
+
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .update({ requiere_cambio_clave: false, password_changed_at: new Date().toISOString() })
@@ -818,12 +823,12 @@ export async function cambiarPasswordObligatorioAction(
     if (profileError) throw profileError;
 
     await registrarEventoAuditoria(supabaseAdmin, {
-      actor: { id: user.id, email: user.email || null, rol: perfil?.rol || 'usuario' },
+      actor: { id: user.id, email: user.email || null, rol: perfil.rol || 'usuario' },
       modulo: 'seguridad',
-      accion: 'cambiar_password_obligatorio',
+      accion,
       entidadTipo: 'usuario',
       entidadId: user.id,
-      superintendenciaId: perfil?.superintendencia_id || null,
+      superintendenciaId: perfil.superintendencia_id || null,
       detalles: { requiere_cambio_clave: false },
     });
     revalidatePath('/select-app');
@@ -831,4 +836,16 @@ export async function cambiarPasswordObligatorioAction(
   } catch (error) {
     return respuestaDeError(error, 'No se pudo cambiar la contraseña.');
   }
+}
+
+export async function cambiarPasswordObligatorioAction(
+  nuevaPassword: string,
+): Promise<ResultadoAccionUsuario> {
+  return actualizarPasswordDeSesion(nuevaPassword, 'cambiar_password_obligatorio');
+}
+
+export async function actualizarPasswordRecuperacionAction(
+  nuevaPassword: string,
+): Promise<ResultadoAccionUsuario> {
+  return actualizarPasswordDeSesion(nuevaPassword, 'cambiar_password_sesion');
 }

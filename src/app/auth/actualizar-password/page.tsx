@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { actualizarPasswordRecuperacionAction } from '@/app/actions/usuarios';
 import { Lock, Eye, EyeOff, CheckCircle2, ShieldAlert, Loader2 } from 'lucide-react';
 import Image from 'next/image';
 
@@ -36,11 +37,13 @@ export default function ActualizarPasswordPage() {
     setMensaje(null);
 
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: nuevaPassword,
-      });
-
-      if (error) throw error;
+      // Espera a que el enlace de recuperación establezca la sesión SSR.
+      const { data: { user }, error: sesionError } = await supabase.auth.getUser();
+      if (sesionError || !user) {
+        throw new Error('El enlace de recuperación no estableció una sesión válida. Volvé a solicitarlo.');
+      }
+      const resultado = await actualizarPasswordRecuperacionAction(nuevaPassword);
+      if (!resultado.success) throw new Error(resultado.error);
 
       setMensaje({
         tipo: 'ok',

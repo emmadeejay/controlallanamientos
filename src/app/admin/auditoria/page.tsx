@@ -60,6 +60,7 @@ const ETIQUETAS_ACCION: Record<string, string> = {
   eliminar_usuario: 'Usuario eliminado',
   restablecer_password: 'Contraseña restablecida',
   cambiar_password_obligatorio: 'Cambio obligatorio de contraseña',
+  cambiar_password_sesion: 'Cambio de contraseña con sesión autenticada',
 };
 
 function fechaArgentina(fechaIso: string) {
