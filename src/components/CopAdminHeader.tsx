@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Grid, LogOut, Shield, User } from 'lucide-react';
 
 type Props = {
-  active: 'usuarios' | 'auditoria';
+  active: 'usuarios' | 'auditoria' | 'importacion';
   email: string;
   role: string;
   onLogout: () => void;
@@ -13,6 +13,12 @@ type Props = {
 };
 
 export default function CopAdminHeader({ active, email, role, onLogout, loggingOut = false }: Props) {
+  const titulo = active === 'usuarios'
+    ? 'GESTIÓN DE USUARIOS'
+    : active === 'auditoria'
+      ? 'AUDITORÍA COP'
+      : 'IMPORTACIÓN HISTÓRICA';
+
   return (
     <>
       <header className="cop-command-header sticky top-0 z-50">
@@ -23,7 +29,7 @@ export default function CopAdminHeader({ active, email, role, onLogout, loggingO
                 <Image src="/logo_cop.png" alt="Logo COP" width={36} height={36} className="h-auto w-9 object-contain" priority />
               </div>
               <div className="hidden sm:block">
-                <span className="block text-[15px] font-extrabold leading-none tracking-[0.04em] text-white">{active === 'usuarios' ? 'GESTIÓN DE USUARIOS' : 'AUDITORÍA COP'}</span>
+                <span className="block text-[15px] font-extrabold leading-none tracking-[0.04em] text-white">{titulo}</span>
                 <span className="cop-kicker mt-1.5 block">Dirección Centro de Operaciones Policiales</span>
               </div>
             </div>
