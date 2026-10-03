@@ -6,9 +6,9 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { obtenerRangoSemanaRendida } from '@/lib/allanamientos';
 import { consultarResumenesHistoricosAction, type ResumenHistoricoConsulta } from '@/app/actions/resumen-historico';
-import { informeHistoricoPorSemana } from '@/lib/informes-historicos';
+import { INFORMES_HISTORICOS, informeHistoricoPorSemana } from '@/lib/informes-historicos';
 import { 
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid 
+  BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
 } from 'recharts';
 import { Calendar, ShieldCheck, ShieldAlert, Car, Shield, UserCheck, TrendingUp, Radio, Lock, BarChart3, RefreshCw } from 'lucide-react';
 
@@ -220,9 +220,11 @@ export default function MetricasPage() {
   }
 
   const historicoSeleccionado = resumenesHistoricos.find((r) => r.id === historicoId);
-  const serieHistorica = resumenesHistoricos.slice(0, 12).reverse().map((r) => ({
-    name: `${r.semana_inicio.slice(8, 10)}/${r.semana_inicio.slice(5, 7)}`,
-    total: r.total_presentado,
+  const serieHistorica = INFORMES_HISTORICOS.map((informe) => ({
+    name: `${informe.semana_inicio.slice(8, 10)}/${informe.semana_inicio.slice(5, 7)}`,
+    total: informe.total_informe,
+    tipo: informe.tipo,
+    semana: informe.semana_inicio,
   }));
 
   if (autorizado === false) {
@@ -405,20 +407,26 @@ export default function MetricasPage() {
             {puedeDescargarInformes && informeHistoricoPorSemana(historicoSeleccionado.semana_inicio) &&
               <a href={`/api/informes-historicos/${historicoSeleccionado.semana_inicio}`} className="inline-block text-xs font-bold text-[#d5bd82] hover:underline">Descargar informe presentado (PDF)</a>}
             <p className="text-[10px] text-amber-300">Este resumen no contiene IPP, partido, secuestros ni resultados individuales. No se utiliza para calcular tasas de efectividad.</p>
-            <div className="grid gap-5 lg:grid-cols-2">
+            <div className="space-y-5">
               <div>
-                <h3 className="mb-3 text-xs font-bold text-white">Evolución de totales documentales</h3>
-                <div className="h-64">
+                <h3 className="mb-1 text-xs font-bold text-white">Evolución de informes presentados · 17 semanas</h3>
+                <p className="mb-3 text-[10px] text-slate-400">Cifras de los PDF originales. La semana 01/06 está pendiente de conciliación individual; las barras no alimentan los indicadores operativos.</p>
+                <div className="overflow-x-auto" role="region" aria-label="Evolución de los 17 informes semanales">
+                  <div className="h-64 min-w-[900px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={serieHistorica} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="2 4" stroke="#17263a" vertical={false} />
-                      <XAxis dataKey="name" stroke="#718198" fontSize={10} tickLine={false} axisLine={{ stroke: '#26364d' }} />
+                      <XAxis dataKey="name" interval={0} stroke="#718198" fontSize={10} tickLine={false} axisLine={{ stroke: '#26364d' }} />
                       <YAxis stroke="#718198" fontSize={10} allowDecimals={false} tickLine={false} axisLine={false} />
                       <Tooltip contentStyle={{ backgroundColor: '#050e1c', borderColor: '#806c3f', borderRadius: 0, fontSize: '11px' }} />
-                      <Bar dataKey="total" fill="#c4a35a" name="Total documental" />
+                      <Bar dataKey="total" name="Total presentado según PDF" maxBarSize={40}>
+                        {serieHistorica.map((item) => <Cell key={item.semana} fill={item.tipo === 'parcial' ? '#d97757' : item.tipo === 'individual' ? '#7894b7' : '#c4a35a'} />)}
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
+                  </div>
                 </div>
+                <p className="mt-2 text-[10px] text-slate-400">Dorado: resumen documental · Azul: PDF de semana con carga individual · Terracota: PDF de semana parcial pendiente de conciliación.</p>
               </div>
               <div>
                 <h3 className="mb-3 text-xs font-bold text-white">Desglose por superintendencia</h3>
