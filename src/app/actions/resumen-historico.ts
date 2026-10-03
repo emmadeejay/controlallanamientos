@@ -2,6 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
+import { INFORMES_HISTORICOS } from '@/lib/informes-historicos';
 import { normalizarRolUsuario, perfilTieneAcceso } from '@/lib/usuarios';
 
 export type ResumenHistoricoConsulta = {
@@ -12,6 +13,8 @@ export type ResumenHistoricoConsulta = {
   archivo_excel: string;
   archivo_pdf: string;
   unidades: Array<{ nombre_fuente: string; total_informado: number | null }>;
+  tipo: 'documental' | 'individual' | 'parcial';
+  filas_importadas: number | null;
 };
 
 const FECHA_ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -47,15 +50,29 @@ export async function consultarResumenesHistoricosAction(desde: string, hasta: s
 
     // Los resúmenes representan semanas completas. Un período parcial puede
     // solaparse con una semana, pero el total nunca se prorratea por día.
-    const { data, error } = await admin.from('resumenes_historicos_semanales')
+    const especiales = INFORMES_HISTORICOS.filter((informe) => informe.tipo !== 'documental' &&
+      informe.semana_inicio <= hasta && informe.semana_fin >= desde);
+    const consultaLotes = especiales.length > 0
+      ? admin.from('importaciones_allanamientos')
+          .select('semana_inicio, filas_importadas, archivo_nombre')
+          .eq('estado', 'completado')
+          .in('semana_inicio', especiales.map((informe) => informe.semana_inicio))
+      : Promise.resolve({ data: [], error: null });
+    const [{ data, error }, { data: lotes, error: lotesError }] = await Promise.all([
+      admin.from('resumenes_historicos_semanales')
       .select('id, semana_inicio, semana_fin, total_presentado, archivo_excel, archivo_pdf, resumenes_historicos_unidades(nombre_fuente, total_informado)')
       .eq('estado', 'vigente')
       .lte('semana_inicio', hasta)
       .gte('semana_fin', desde)
       .order('semana_inicio', { ascending: false })
-      .limit(500);
-    if (error) throw error;
-    const resumenes: ResumenHistoricoConsulta[] = (data ?? []).map((item) => ({
+      .limit(500),
+      consultaLotes,
+    ]);
+    if (error || lotesError) throw error ?? lotesError;
+    const semanasConDetalle = new Set(especiales.map((informe) => informe.semana_inicio));
+    const documentales: ResumenHistoricoConsulta[] = (data ?? [])
+      .filter((item) => !semanasConDetalle.has(item.semana_inicio))
+      .map((item) => ({
       id: item.id,
       semana_inicio: item.semana_inicio,
       semana_fin: item.semana_fin,
@@ -66,7 +83,25 @@ export async function consultarResumenesHistoricosAction(desde: string, hasta: s
         nombre_fuente: unidad.nombre_fuente,
         total_informado: unidad.total_informado,
       })),
-    }));
+      tipo: 'documental',
+      filas_importadas: null,
+      }));
+    const individuales: ResumenHistoricoConsulta[] = especiales.map((informe) => {
+      const archivos = (lotes ?? []).filter((lote) => lote.semana_inicio === informe.semana_inicio);
+      return {
+        id: `informe-${informe.semana_inicio}`,
+        semana_inicio: informe.semana_inicio,
+        semana_fin: informe.semana_fin,
+        total_presentado: informe.total_informe,
+        archivo_excel: archivos.map((lote) => lote.archivo_nombre).join(', '),
+        archivo_pdf: informe.archivo_pdf,
+        unidades: [],
+        tipo: informe.tipo,
+        filas_importadas: archivos.reduce((total, lote) => total + Number(lote.filas_importadas || 0), 0),
+      };
+    });
+    const resumenes = [...documentales, ...individuales]
+      .sort((a, b) => b.semana_inicio.localeCompare(a.semana_inicio));
     return { success: true, resumenes };
   } catch (error) {
     console.error('No se pudieron consultar los resúmenes históricos.', error);

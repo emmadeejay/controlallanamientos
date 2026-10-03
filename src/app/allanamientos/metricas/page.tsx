@@ -398,15 +398,17 @@ export default function MetricasPage() {
             <div className="flex flex-wrap items-end justify-between gap-4">
               <label className="space-y-2 text-xs text-slate-300">Semana documentada
                 <select value={historicoId} onChange={(e) => setHistoricoId(e.target.value)} className="block w-full border border-[#33465f] bg-[#050e1c] px-3 py-2 text-white">
-                  {resumenesHistoricos.map((r) => <option key={r.id} value={r.id}>{formatearFecha(r.semana_inicio)} al {formatearFecha(r.semana_fin)}</option>)}
+                  {resumenesHistoricos.map((r) => <option key={r.id} value={r.id}>{formatearFecha(r.semana_inicio)} al {formatearFecha(r.semana_fin)}{r.tipo === 'individual' ? ' · detalle individual' : r.tipo === 'parcial' ? ' · detalle parcial' : ''}</option>)}
                 </select>
               </label>
-              <p className="font-mono text-3xl font-bold text-[#d5bd82]">{historicoSeleccionado.total_presentado} <span className="text-xs font-normal text-slate-400">informados</span></p>
+              <p className="font-mono text-3xl font-bold text-[#d5bd82]">{historicoSeleccionado.total_presentado} <span className="text-xs font-normal text-slate-400">informados {historicoSeleccionado.tipo === 'documental' ? '' : 'según PDF'}</span></p>
             </div>
-            <p className="break-words text-[10px] text-slate-400">Respaldo: {historicoSeleccionado.archivo_excel} · {historicoSeleccionado.archivo_pdf}</p>
+            <p className="break-words text-[10px] text-slate-400">Respaldo: {historicoSeleccionado.archivo_excel ? `${historicoSeleccionado.archivo_excel} · ` : ''}{historicoSeleccionado.archivo_pdf}</p>
             {puedeDescargarInformes && informeHistoricoPorSemana(historicoSeleccionado.semana_inicio) &&
               <a href={`/api/informes-historicos/${historicoSeleccionado.semana_inicio}`} className="inline-block text-xs font-bold text-[#d5bd82] hover:underline">Descargar informe presentado (PDF)</a>}
-            <p className="text-[10px] text-amber-300">Este resumen no contiene IPP, partido, secuestros ni resultados individuales. No se utiliza para calcular tasas de efectividad.</p>
+            {historicoSeleccionado.tipo === 'documental' && <p className="text-[10px] text-amber-300">Este resumen no contiene IPP, partido, secuestros ni resultados individuales. No se utiliza para calcular tasas de efectividad.</p>}
+            {historicoSeleccionado.tipo === 'individual' && <p className="text-[10px] text-sky-300">Semana con carga individual: {historicoSeleccionado.filas_importadas} fichas importadas de {historicoSeleccionado.total_presentado} informadas en el PDF. El detalle está disponible en Buscar según los permisos del rol. No se registra otro resumen para esta semana.</p>}
+            {historicoSeleccionado.tipo === 'parcial' && <p className="text-[10px] text-orange-300">Semana parcial: el PDF informa {historicoSeleccionado.total_presentado}; hay {historicoSeleccionado.filas_importadas} fichas importadas. La diferencia permanece pendiente de conciliación y no se completa con registros ficticios.</p>}
             <div className="space-y-5">
               <div>
                 <h3 className="mb-1 text-xs font-bold text-white">Evolución de informes presentados · 17 semanas</h3>
@@ -430,13 +432,14 @@ export default function MetricasPage() {
               </div>
               <div>
                 <h3 className="mb-3 text-xs font-bold text-white">Desglose por superintendencia</h3>
-                {historicoSeleccionado.unidades.length===0 && <p className="border border-amber-800/50 p-3 text-xs text-amber-300">Sin desglose verificable por superintendencia. El total documental se mantiene separado de las métricas individuales.</p>}
-                <div className="max-h-64 overflow-y-auto border border-[#26364d]">
+                {historicoSeleccionado.tipo === 'documental' && historicoSeleccionado.unidades.length===0 && <p className="border border-amber-800/50 p-3 text-xs text-amber-300">Sin desglose verificable por superintendencia. El total documental se mantiene separado de las métricas individuales.</p>}
+                {historicoSeleccionado.tipo !== 'documental' && <p className="border border-[#26364d] p-3 text-xs text-slate-300">El informe PDF no contiene un desglose validado en este panel. Las fichas individuales se consultan en Buscar según los permisos del rol.</p>}
+                {historicoSeleccionado.unidades.length>0 && <div className="max-h-64 overflow-y-auto border border-[#26364d]">
                   {historicoSeleccionado.unidades.map((u) => <div key={u.nombre_fuente} className="flex justify-between gap-3 border-b border-[#17263a] px-3 py-2 text-[10px] text-slate-300">
                     <span>{u.nombre_fuente}</span><strong className={u.total_informado === null ? 'text-amber-300' : 'text-white'}>{u.total_informado === null ? 'Sin informar' : u.total_informado}</strong>
                   </div>)}
-                </div>
-                {historicoSeleccionado.unidades.length>0 && <p className="mt-2 text-[10px] text-slate-500">{historicoSeleccionado.unidades.length} unidades; los casilleros sin informar se conservan como tales.</p>}
+                </div>}
+                {historicoSeleccionado.tipo === 'documental' && historicoSeleccionado.unidades.length>0 && <p className="mt-2 text-[10px] text-slate-500">{historicoSeleccionado.unidades.length} unidades; los casilleros sin informar se conservan como tales.</p>}
               </div>
             </div>
           </>}

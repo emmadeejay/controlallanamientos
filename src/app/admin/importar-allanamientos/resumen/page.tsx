@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { CheckCircle2, FileSpreadsheet, LoaderCircle, ShieldCheck, TriangleAlert } from 'lucide-react';
 import CopAdminHeader from '@/components/CopAdminHeader';
+import { consultarResumenesHistoricosAction, type ResumenHistoricoConsulta } from '@/app/actions/resumen-historico';
 import { createClient } from '@/lib/supabase/client';
 import { sha256Archivo } from '@/lib/importacion-historica';
 import { procesarResumenHistorico, type ResumenHistoricoPreparado } from '@/lib/resumen-historico';
@@ -26,6 +27,7 @@ export default function ResumenHistoricoPage() {
   const [fuente, setFuente] = useState<File | null>(null);
   const [revision, setRevision] = useState<ResumenHistoricoPreparado | null>(null);
   const [lotes, setLotes] = useState<Lote[]>([]);
+  const [informesIndividuales, setInformesIndividuales] = useState<ResumenHistoricoConsulta[]>([]);
   const [motivo, setMotivo] = useState('');
   const [confirmado, setConfirmado] = useState(false);
   const [ocupado, setOcupado] = useState(false);
@@ -37,15 +39,17 @@ export default function ResumenHistoricoPage() {
 
   useEffect(() => {
     async function cargar() {
-      const [{ data: auth }, { data, error: listadoError }] = await Promise.all([
+      const [{ data: auth }, { data, error: listadoError }, archivo] = await Promise.all([
         supabase.auth.getUser(),
         supabase.from('resumenes_historicos_semanales')
           .select('id,semana_inicio,semana_fin,total_presentado,archivo_excel,desglose_estado,estado,creado_at')
           .order('creado_at', { ascending: false }).limit(20),
+        consultarResumenesHistoricosAction('2026-06-01', '2026-09-27'),
       ]);
       setEmail(auth.user?.email ?? '');
       if (listadoError) setError('No se pudo consultar el módulo de resúmenes. Verificá que el SQL esté instalado en pruebas.');
       else setLotes((data ?? []) as Lote[]);
+      if (archivo.success) setInformesIndividuales(archivo.resumenes.filter((r) => r.tipo !== 'documental'));
     }
     void cargar();
   }, [supabase]);
@@ -172,6 +176,18 @@ export default function ResumenHistoricoPage() {
             {lotes.map((l)=><tr key={l.id} className="border-b border-slate-800"><td className="p-2">{l.semana_inicio} al {l.semana_fin}</td><td className="p-2 font-bold">{l.total_presentado}</td><td className="p-2">{l.estado} · {l.desglose_estado==='sin_desglose'?'Sin desglose':'Por unidad'}</td><td className="p-2">{l.estado==='vigente' && <button type="button" onClick={()=>{setAnularId(l.id);setMotivoAnulacion('')}} className="text-amber-300 hover:underline">Anular</button>}</td></tr>)}
             {lotes.length===0 && <tr><td colSpan={4} className="p-3 text-slate-500">Todavía no hay resúmenes registrados.</td></tr>}
           </tbody></table></div>
+        </section>
+
+        <section className="space-y-3 border border-[#33465f] bg-[#071426] p-5">
+          <h2 className="font-bold text-white">Informes con carga individual o parcial</h2>
+          <p className="text-xs text-slate-400">Se muestran junto al archivo semanal para consultar el PDF, sin registrar un segundo resumen ni duplicar las fichas.</p>
+          {informesIndividuales.map((informe) => <div key={informe.id} className="flex flex-wrap items-center justify-between gap-3 border-t border-[#26364d] pt-3 text-xs">
+            <div>
+              <p className="font-bold text-slate-200">{informe.semana_inicio} al {informe.semana_fin} · {informe.tipo === 'parcial' ? 'Detalle parcial' : 'Carga individual'}</p>
+              <p className="mt-1 text-slate-400">{informe.total_presentado} según PDF · {informe.filas_importadas} fichas importadas{informe.tipo === 'parcial' ? ' · pendiente de conciliación' : ''}</p>
+            </div>
+            <a href={`/api/informes-historicos/${informe.semana_inicio}`} className="font-bold text-[#d5bd82] hover:underline">Descargar PDF</a>
+          </div>)}
         </section>
 
         {anularId && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4" role="dialog" aria-modal="true" aria-label="Anular resumen histórico"><div className="w-full max-w-lg space-y-4 border border-red-800 bg-[#071426] p-6"><h2 className="font-bold text-white">Anular resumen histórico</h2><p className="text-xs text-slate-300">Se conservarán la cifra original, el motivo y la auditoría; dejará de estar vigente.</p><textarea autoFocus value={motivoAnulacion} onChange={(e)=>setMotivoAnulacion(e.target.value)} className="min-h-24 w-full border border-slate-700 bg-[#050e1c] p-3 text-xs" placeholder="Motivo documentado (al menos 12 caracteres)" /><div className="flex justify-end gap-2"><button type="button" onClick={()=>setAnularId('')} className="cop-action-secondary">Cancelar</button><button type="button" disabled={ocupado||motivoAnulacion.trim().length<12} onClick={anular} className="bg-red-700 px-4 py-2 text-xs font-bold disabled:opacity-40">Confirmar anulación</button></div></div></div>}
