@@ -377,12 +377,12 @@ export default function ImportacionHistoricaPage() {
         </section>
 
         <section className="grid gap-4 lg:grid-cols-3">
-          <div className="border border-[#33465f] bg-[#071426] p-5 lg:col-span-2">
+          <div className="min-w-0 border border-[#33465f] bg-[#071426] p-5 lg:col-span-2">
             <div className="mb-5 flex items-center gap-2">
               <FileSpreadsheet className="h-5 w-5 text-[#c4a35a]" />
               <h2 className="font-bold text-white">1. Seleccionar y comprobar la semana</h2>
             </div>
-            <div className="grid gap-4 md:grid-cols-[220px_1fr_auto] md:items-end">
+            <div className="grid min-w-0 gap-4 md:grid-cols-[220px_minmax(0,1fr)_auto] md:items-end">
               <label className="space-y-1.5 text-xs font-semibold text-slate-400">
                 Lunes de la semana
                 <select
@@ -403,11 +403,11 @@ export default function ImportacionHistoricaPage() {
                   Más reciente primero. Las semanas se habilitan automáticamente al finalizar cada domingo.
                 </span>
               </label>
-              <label className="space-y-1.5 text-xs font-semibold text-slate-400">
+              <label className="min-w-0 space-y-1.5 text-xs font-semibold text-slate-400">
                 Archivo normalizado
-                <div className="flex min-h-10 items-center border border-dashed border-[#33465f] bg-[#050e1c] px-3 py-2 text-xs text-slate-300">
-                  <Upload className="mr-2 h-4 w-4 text-[#c4a35a]" />
-                  <span className="truncate">{archivo?.name || 'Elegir archivo .xlsx'}</span>
+                <div className="flex min-h-10 min-w-0 max-w-full items-center border border-dashed border-[#33465f] bg-[#050e1c] px-3 py-2 text-xs text-slate-300">
+                  <Upload className="mr-2 h-4 w-4 shrink-0 text-[#c4a35a]" />
+                  <span className="min-w-0 flex-1 truncate" title={archivo?.name || undefined}>{archivo?.name || 'Elegir archivo .xlsx'}</span>
                 </div>
                 <input
                   type="file"
@@ -420,7 +420,7 @@ export default function ImportacionHistoricaPage() {
                 type="button"
                 onClick={prevalidar}
                 disabled={procesando || !archivo}
-                className="cop-action-primary inline-flex h-10 items-center justify-center gap-2 px-4 disabled:cursor-not-allowed disabled:opacity-40"
+                className="cop-action-primary inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap px-4 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {procesando ? (
                   <LoaderCircle className="h-4 w-4 animate-spin" />
