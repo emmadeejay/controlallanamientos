@@ -5,6 +5,8 @@ import type { ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { autorizarExportacionAllanamientosAction } from '@/app/actions/allanamientos'
+import { consultarResumenesHistoricosAction, type ResumenHistoricoConsulta } from '@/app/actions/resumen-historico'
+import { INFORMES_HISTORICOS } from '@/lib/informes-historicos'
 import { obtenerRangoSemanaRendida, obtenerValoresSecuestros } from '@/lib/allanamientos'
 import { JURISDICCIONES_ARGENTINA, horarioAllanamiento, ubicacionAllanamiento } from '@/lib/jurisdicciones'
 import * as XLSX from 'xlsx'
@@ -46,7 +48,11 @@ export default function BuscarAllanamientosPage() {
   const [paginaActual, setPaginaActual] = useState(1)
   const [registrosPorPagina, setRegistrosPorPagina] = useState(25)
   const [mensajeError, setMensajeError] = useState('')
+  const [resumenes, setResumenes] = useState<ResumenHistoricoConsulta[]>([])
+  const [errorResumenes, setErrorResumenes] = useState('')
+  const [resumenesOmitidos, setResumenesOmitidos] = useState(false)
   const [puedeExportar, setPuedeExportar] = useState(false)
+  const [puedeDescargarInformes, setPuedeDescargarInformes] = useState(false)
 
   const [partidosList, setPartidosList] = useState<string[]>([])
   const [superintendenciasList, setSuperintendenciasList] = useState<Superintendencia[]>([])
@@ -88,6 +94,7 @@ export default function BuscarAllanamientosPage() {
 
     const rol = String(perfil?.rol ?? '').trim().toLowerCase()
     setPuedeExportar(['admin', 'administrador', 'supervisor'].includes(rol))
+    setPuedeDescargarInformes(['admin', 'administrador', 'supervisor', 'auditor'].includes(rol))
   }
 
   async function cargarListasMaestras() {
@@ -142,6 +149,7 @@ export default function BuscarAllanamientosPage() {
 
     setLoading(true)
     setMensajeError('')
+    setErrorResumenes('')
     const indiceDesde = (pagina - 1) * porPagina
 
     try {
@@ -153,17 +161,31 @@ export default function BuscarAllanamientosPage() {
         .range(indiceDesde, indiceDesde + porPagina - 1)
 
       query = aplicarFiltrosConsulta(query, filtros)
-      const { data, error, count } = await query
+      const tieneFiltrosDeDetalle = !!(
+        filtros.partido || filtros.provincia || filtros.superintendencia ||
+        filtros.soloArmas || filtros.soloVehiculos || filtros.soloPersonas || filtros.soloPositivos
+      )
+      const [resultado, totales] = await Promise.all([
+        query,
+        tieneFiltrosDeDetalle
+          ? Promise.resolve(null)
+          : consultarResumenesHistoricosAction(filtros.desde || '2026-06-01', filtros.hasta || fechaArgentina()),
+      ])
+      const { data, error, count } = resultado
       if (error) throw error
 
       setRegistros(data ?? [])
       setTotalRegistros(count ?? 0)
+      setResumenesOmitidos(tieneFiltrosDeDetalle)
+      setResumenes(totales?.success ? totales.resumenes : [])
+      if (totales && !totales.success) setErrorResumenes(totales.error)
       setPaginaActual(pagina)
       setFiltrosAplicados(filtros)
     } catch (error) {
       console.error('Error al filtrar allanamientos:', error)
       setRegistros([])
       setTotalRegistros(0)
+      setResumenes([])
       setMensajeError('No se pudo completar la consulta. Intentá nuevamente.')
     } finally {
       setLoading(false)
@@ -416,13 +438,55 @@ export default function BuscarAllanamientosPage() {
 
         {mensajeError && <div className="border border-red-800 bg-red-950/30 px-4 py-3 text-xs text-red-300">{mensajeError}</div>}
 
+        <section aria-label="Totales históricos documentales" className="border border-[#806c3f] bg-[#071426]/80">
+          <div className="border-b border-[#26364d] bg-[#050e1c] px-4 py-3 sm:px-5">
+            <h2 className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#d5bd82]">Totales históricos documentales</h2>
+            <p className="mt-1 text-[10px] text-slate-400">Cifras de informes presentados antes de la carga periódica. No se comprobó su correspondencia allanamiento por allanamiento. No son fichas individuales ni integran indicadores por procedimiento.</p>
+          </div>
+          <div className="space-y-3 px-4 py-4 text-xs sm:px-5">
+            {errorResumenes && <p role="alert" className="text-red-300">{errorResumenes}</p>}
+            {resumenesOmitidos && <p className="text-amber-300">Los totales semanales no admiten filtros de partido, provincia, superintendencia ni contenido de cada procedimiento. Quitá esos filtros para verlos por semana.</p>}
+            {!loading && !resumenesOmitidos && !errorResumenes && resumenes.length === 0 &&
+              <p className="text-slate-400">Sin resúmenes documentales vigentes para este período.</p>}
+            {!resumenesOmitidos && resumenes.map((resumen) => (
+              <div key={resumen.id} className="border-l-2 border-[#c4a35a] bg-[#050e1c] px-4 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <strong className="text-white">Semana {resumen.semana_inicio} al {resumen.semana_fin}</strong>
+                  <span className="font-mono text-sm font-bold text-[#d5bd82]">{resumen.total_presentado} informados</span>
+                </div>
+                <p className="mt-1 break-words text-[10px] text-slate-400">Respaldo: {resumen.archivo_excel} · {resumen.archivo_pdf}</p>
+                {resumen.unidades.length===0 && <p className="mt-1 text-[10px] text-amber-300">Total documental sin desglose verificable por superintendencia.</p>}
+                {((filtrosAplicados.desde && filtrosAplicados.desde > resumen.semana_inicio) ||
+                  (filtrosAplicados.hasta && filtrosAplicados.hasta < resumen.semana_fin)) &&
+                  <p className="mt-1 text-[10px] text-amber-300">El filtro abarca sólo parte de la semana. La cifra corresponde a la semana completa.</p>}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {puedeDescargarInformes && <section aria-label="Informes semanales presentados" className="border border-[#33465f] bg-[#071426]/80 px-4 py-4 text-xs sm:px-5">
+          <h2 className="font-bold uppercase text-white">Informes semanales originales (2026)</h2>
+          <p className="mt-1 text-slate-400">Un PDF por semana histórica. El informe reproduce lo presentado en su momento; la descarga no implica control de cada registro.</p>
+          {(filtrosAplicados.partido || filtrosAplicados.provincia || filtrosAplicados.superintendencia || filtrosAplicados.soloArmas || filtrosAplicados.soloVehiculos || filtrosAplicados.soloPersonas || filtrosAplicados.soloPositivos) &&
+            <p className="mt-2 text-amber-300">Los PDF corresponden a semanas completas y no aplican los filtros de detalle.</p>}
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {INFORMES_HISTORICOS.filter((item) =>
+              (!filtrosAplicados.desde || item.semana_fin >= filtrosAplicados.desde) &&
+              (!filtrosAplicados.hasta || item.semana_inicio <= filtrosAplicados.hasta)
+            ).map((item) => <div key={item.semana_inicio} className="flex items-center justify-between gap-3 border border-[#26364d] p-3">
+              <span>{item.semana_inicio} al {item.semana_fin}<br /><small className="text-slate-400">{item.tipo === 'parcial' ? 'Detalle individual parcial' : item.tipo === 'individual' ? 'Detalle individual cargado' : 'Total documental'}</small></span>
+              <a href={`/api/informes-historicos/${item.semana_inicio}`} className="shrink-0 font-bold text-[#d5bd82] hover:underline">Descargar PDF</a>
+            </div>)}
+          </div>
+        </section>}
+
         <section className="overflow-hidden border border-[#26364d] bg-[#071426]/80">
           <div className="flex items-center justify-between gap-3 border-b border-[#26364d] bg-[#050e1c] px-4 py-3 sm:px-5">
             <div className="flex items-center gap-3">
               <span className="cop-form-section-index">02</span>
               <div>
                 <h2 className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-white">Resultado de la consulta</h2>
-                <p className="mt-0.5 text-[10px] text-slate-500">{totalRegistros} registros encontrados</p>
+                <p className="mt-0.5 text-[10px] text-slate-500">{totalRegistros} allanamientos individuales encontrados</p>
               </div>
             </div>
           </div>

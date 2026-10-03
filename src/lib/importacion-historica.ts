@@ -25,15 +25,16 @@ export type FilaImportacionHistorica = {
   ufi_juzgado: string;
   fecha_solicitud: string | null;
   fecha_ejecucion: string;
-  horario_ejecucion: string;
+  horario_ejecucion: string | null;
+  en_el_acto: boolean;
   partido: string;
   lugar_presentacion: string;
   departamental: string | null;
   dependencia: string;
   objetivos: number;
   personal_propio: number;
-  resultado_medida: 'Positivo' | 'Negativo';
-  resultado_secuestros: 'Positivo' | 'Negativo';
+  resultado_medida: 'Positivo' | 'Negativo' | 'Sin informar';
+  resultado_secuestros: 'Positivo' | 'Negativo' | 'Sin Especificar';
   secuestro_armas: DetalleImportado[];
   secuestro_vehiculos: DetalleImportado[];
   detenidos_aprehendidos: DetalleImportado[];
@@ -165,21 +166,51 @@ function fechaIso(valor: unknown, campo: string, fila: number, opcional = false)
   return resultado;
 }
 
-function hora24(valor: unknown, fila: number): string {
-  if (valor === '' || valor === null || valor === undefined) return '';
+type HorarioHistorico = {
+  horario: string | null;
+  enElActo: boolean;
+  referencia: string | null;
+};
+
+function horaHistorica(valor: unknown, fila: number): HorarioHistorico {
+  if (valor === '' || valor === null || valor === undefined) {
+    return { horario: null, enElActo: false, referencia: null };
+  }
 
   if (valor instanceof Date && !Number.isNaN(valor.getTime())) {
-    return `${String(valor.getHours()).padStart(2, '0')}:${String(valor.getMinutes()).padStart(2, '0')}`;
+    return {
+      horario: `${String(valor.getHours()).padStart(2, '0')}:${String(valor.getMinutes()).padStart(2, '0')}`,
+      enElActo: false,
+      referencia: null,
+    };
   }
 
   if (typeof valor === 'number') {
     const partes = XLSX.SSF.parse_date_code(valor);
     if (partes) {
-      return `${String(partes.H).padStart(2, '0')}:${String(partes.M).padStart(2, '0')}`;
+      return {
+        horario: `${String(partes.H).padStart(2, '0')}:${String(partes.M).padStart(2, '0')}`,
+        enElActo: false,
+        referencia: null,
+      };
     }
   }
 
-  const crudo = texto(valor).toLowerCase().replace(/\s*hs?\.?$/, '');
+  const original = texto(valor);
+  const normalizado = clave(original);
+  if (['EN_EL_ACTO', 'ACTO', 'EN_LA_URGENCIA'].includes(normalizado)) {
+    return { horario: null, enElActo: true, referencia: original };
+  }
+  if (['S_HABILIT_HORARIA', 'SIN_HABILITACION_HORARIA'].includes(normalizado)) {
+    return { horario: null, enElActo: false, referencia: original };
+  }
+
+  const crudo = original
+    .toLowerCase()
+    .replace(/(\d)\s*hs\s*:\s*(\d)/, '$1:$2')
+    .replace(/[;,_]/g, ':')
+    .replace(/\s*hs?\.?$/, '')
+    .trim();
   const coincidencia = crudo.match(/^(\d{1,2})(?::(\d{1,2}))?$/);
   if (!coincidencia) throw new Error(`Fila ${fila}: HORA_EJECUCION no es válida.`);
 
@@ -188,14 +219,39 @@ function hora24(valor: unknown, fila: number): string {
   if (horas > 23 || minutos > 59) {
     throw new Error(`Fila ${fila}: HORA_EJECUCION no es válida.`);
   }
-  return `${String(horas).padStart(2, '0')}:${String(minutos).padStart(2, '0')}`;
+  return {
+    horario: `${String(horas).padStart(2, '0')}:${String(minutos).padStart(2, '0')}`,
+    enElActo: false,
+    referencia: null,
+  };
 }
 
-function resultado(valor: unknown, campo: string, fila: number): 'Positivo' | 'Negativo' {
+function resultadoMedida(
+  valor: unknown,
+  fila: number,
+): 'Positivo' | 'Negativo' | 'Sin informar' {
   const normalizado = clave(valor);
   if (normalizado === 'POSITIVO') return 'Positivo';
   if (normalizado === 'NEGATIVO') return 'Negativo';
-  throw new Error(`Fila ${fila}: ${campo} debe ser Positivo o Negativo.`);
+  if (['SIN_INFORMAR', 'SIN_INFORMACION'].includes(normalizado)) return 'Sin informar';
+  throw new Error(
+    `Fila ${fila}: RESULTADO_MEDIDA debe ser Positivo, Negativo o Sin informar.`,
+  );
+}
+
+function resultadoSecuestros(
+  valor: unknown,
+  fila: number,
+): 'Positivo' | 'Negativo' | 'Sin Especificar' {
+  const normalizado = clave(valor);
+  if (normalizado === 'POSITIVO') return 'Positivo';
+  if (normalizado === 'NEGATIVO') return 'Negativo';
+  if (['SIN_ESPECIFICAR', 'SIN_INFORMAR', 'SIN_INFORMACION'].includes(normalizado)) {
+    return 'Sin Especificar';
+  }
+  throw new Error(
+    `Fila ${fila}: RESULTADO_SECUESTROS debe ser Positivo, Negativo o Sin Especificar.`,
+  );
 }
 
 function leerHoja(
@@ -367,12 +423,11 @@ export async function procesarPlantillaHistorica(
     const detallesPersonas = personas.get(registroId) ?? [];
     const tieneSecuestros =
       detallesArmas.length + detallesVehiculos.length + detallesPersonas.length > 0;
-    const resultadoSecuestros = resultado(
+    const resultadoSecuestro = resultadoSecuestros(
       valor(fila, 'RESULTADO_SECUESTROS'),
-      'RESULTADO_SECUESTROS',
       fila.numeroExcel,
     );
-    if (resultadoSecuestros === 'Negativo' && tieneSecuestros) {
+    if (resultadoSecuestro === 'Negativo' && tieneSecuestros) {
       throw new Error(
         `Fila ${fila.numeroExcel}: RESULTADO_SECUESTROS es Negativo pero existen detalles en la hoja Secuestros.`,
       );
@@ -382,6 +437,14 @@ export async function procesarPlantillaHistorica(
       'FILA_ORIGEN',
       fila.numeroExcel,
     );
+    const horario = horaHistorica(valor(fila, 'HORA_EJECUCION'), fila.numeroExcel);
+    const observacionOriginal = textoOpcional(valor(fila, 'OBSERVACIONES'));
+    const observaciones = [
+      observacionOriginal,
+      horario.referencia ? `Horario informado en la fuente histórica: ${horario.referencia}.` : null,
+    ]
+      .filter((item): item is string => Boolean(item))
+      .join(' ');
 
     return {
       registro_id: registroId,
@@ -401,7 +464,8 @@ export async function procesarPlantillaHistorica(
         'FECHA_EJECUCION',
         fila.numeroExcel,
       )!,
-      horario_ejecucion: hora24(valor(fila, 'HORA_EJECUCION'), fila.numeroExcel),
+      horario_ejecucion: horario.horario,
+      en_el_acto: horario.enElActo,
       partido: texto(valor(fila, 'PARTIDO')),
       lugar_presentacion:
         texto(valor(fila, 'LUGAR_PRESENTACION')) || texto(valor(fila, 'DEPENDENCIA')),
@@ -413,12 +477,8 @@ export async function procesarPlantillaHistorica(
         'PERSONAL_PROPIO',
         fila.numeroExcel,
       ),
-      resultado_medida: resultado(
-        valor(fila, 'RESULTADO_MEDIDA'),
-        'RESULTADO_MEDIDA',
-        fila.numeroExcel,
-      ),
-      resultado_secuestros: resultadoSecuestros,
+      resultado_medida: resultadoMedida(valor(fila, 'RESULTADO_MEDIDA'), fila.numeroExcel),
+      resultado_secuestros: resultadoSecuestro,
       secuestro_armas: detallesArmas,
       secuestro_vehiculos: detallesVehiculos,
       detenidos_aprehendidos: detallesPersonas,
@@ -426,7 +486,7 @@ export async function procesarPlantillaHistorica(
       orden_servicio_propia: textoOpcional(valor(fila, 'NRO_OS_PROPIA')),
       orden_servicio_cop: textoOpcional(valor(fila, 'NRO_OS_COP')),
       numero_parte_urgente: textoOpcional(valor(fila, 'NRO_PARTE_URGENTE')),
-      observaciones: textoOpcional(valor(fila, 'OBSERVACIONES')),
+      observaciones: observaciones || null,
       hoja_origen: texto(valor(fila, 'HOJA_ORIGEN')) || 'Allanamientos',
       fila_origen: filaOrigen || fila.numeroExcel,
     };
@@ -441,6 +501,8 @@ export function descargarPlantillaHistorica() {
     ['REGISTRO_ID vincula un allanamiento con sus colaboraciones y secuestros. Debe ser único dentro del archivo.'],
     ['Las fechas admiten AAAA-MM-DD o DD/MM/AAAA. Se recomienda AAAA-MM-DD.'],
     ['NRO_OS_PROPIA conserva números o el texto URGENCIA. NRO_OS_COP puede quedar vacío.'],
+    ['“Sin informar” y “Sin Especificar” son valores exclusivos para documentación histórica incompleta.'],
+    ['HORA_EJECUCION admite una hora de 24 horas, EN EL ACTO o vacío cuando la fuente histórica no informó horario.'],
     ['No use una fila por cada secuestro en Allanamientos: cargue el detalle en la hoja Secuestros.'],
     ['HOJA_ORIGEN y FILA_ORIGEN identifican la ubicación en la planilla institucional anterior.'],
   ]);

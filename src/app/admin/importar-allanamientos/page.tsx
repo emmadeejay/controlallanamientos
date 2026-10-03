@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -280,7 +281,7 @@ export default function ImportacionHistoricaPage() {
     } catch (err) {
       console.error('No se pudo importar el lote histórico.', err);
       setError(
-        err instanceof Error
+        err && typeof err === 'object' && 'message' in err && typeof err.message === 'string'
           ? err.message
           : 'La importación fue rechazada y no se guardó ninguna fila.',
       );
@@ -361,13 +362,18 @@ export default function ImportacionHistoricaPage() {
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={descargarPlantillaHistorica}
-            className="cop-action-secondary inline-flex items-center justify-center gap-2 px-4 py-2.5"
-          >
-            <Download className="h-4 w-4" /> Descargar plantilla oficial
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/admin/importar-allanamientos/resumen" className="cop-action-secondary inline-flex items-center justify-center gap-2 px-4 py-2.5">
+              Resumen documental semanal
+            </Link>
+            <button
+              type="button"
+              onClick={descargarPlantillaHistorica}
+              className="cop-action-secondary inline-flex items-center justify-center gap-2 px-4 py-2.5"
+            >
+              <Download className="h-4 w-4" /> Descargar plantilla oficial
+            </button>
+          </div>
         </section>
 
         <section className="grid gap-4 lg:grid-cols-3">
@@ -433,6 +439,7 @@ export default function ImportacionHistoricaPage() {
               <li>Una fila idéntica se bloquea como duplicado exacto.</li>
               <li>Igual superintendencia + fecha + IPP exige revisión, no se elimina.</li>
               <li>OS propia admite número o “URGENCIA”; OS COP puede quedar vacía.</li>
+              <li>“Sin informar” sólo se admite en lotes históricos y queda identificado en las métricas.</li>
               <li>Si algo falla, la semana completa se revierte automáticamente.</li>
             </ul>
           </aside>
@@ -456,7 +463,7 @@ export default function ImportacionHistoricaPage() {
           <div className="flex items-start gap-3 rounded-2xl border border-emerald-700/50 bg-emerald-950/30 p-5 text-sm text-emerald-300">
             <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0" />
             <div>
-              <p className="font-bold">Semana importada correctamente</p>
+              <p className="font-bold">Lote histórico importado correctamente</p>
               <p className="mt-1 text-xs text-emerald-300/80">
                 Se guardaron {filas.length} registros. Lote de auditoría: {loteCreado}
               </p>
@@ -512,7 +519,10 @@ export default function ImportacionHistoricaPage() {
                           {fila?.superintendencia_nombre}
                         </td>
                         <td className="px-4 py-3 text-slate-300">
-                          {fila?.fecha_ejecucion} {fila?.horario_ejecucion || '00:00'}
+                          {fila?.fecha_ejecucion}{' '}
+                          {fila?.en_el_acto
+                            ? 'En el acto'
+                            : fila?.horario_ejecucion || 'Sin horario informado'}
                         </td>
                         <td className="px-4 py-3">
                           <span
@@ -571,8 +581,8 @@ export default function ImportacionHistoricaPage() {
                     className="mt-0.5 h-4 w-4 accent-amber-500"
                   />
                   <span>
-                    Revisé las coincidencias y confirmo que representan allanamientos válidos,
-                    no una repetición accidental.
+                    Revisé todas las advertencias, incluidas las coincidencias y los datos
+                    históricos sin informar. Confirmo que este lote corresponde a la fuente documental.
                   </span>
                 </label>
                 <textarea

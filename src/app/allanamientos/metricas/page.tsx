@@ -5,10 +5,12 @@ import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { obtenerRangoSemanaRendida } from '@/lib/allanamientos';
+import { consultarResumenesHistoricosAction, type ResumenHistoricoConsulta } from '@/app/actions/resumen-historico';
+import { informeHistoricoPorSemana } from '@/lib/informes-historicos';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid 
 } from 'recharts';
-import { Calendar, ShieldCheck, ShieldAlert, Car, Shield, UserCheck, TrendingUp, Radio, Lock, BarChart3 } from 'lucide-react';
+import { Calendar, ShieldCheck, ShieldAlert, Car, Shield, UserCheck, TrendingUp, Radio, Lock, BarChart3, RefreshCw } from 'lucide-react';
 
 type DesgloseArmas = {
   'Arma Corta': number;
@@ -37,6 +39,7 @@ export default function MetricasPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [autorizado, setAutorizado] = useState<boolean | null>(null);
+  const [puedeDescargarInformes, setPuedeDescargarInformes] = useState(false);
   const [ultimaActualizacion, setUltimaActualizacion] = useState<string>('');
   const [errorCarga, setErrorCarga] = useState('');
   const [semanaDesde, setSemanaDesde] = useState('');
@@ -45,6 +48,8 @@ export default function MetricasPage() {
   const [rendicionSemanal, setRendicionSemanal] = useState(0);
   const [totalMensual, setTotalMensual] = useState(0);
   const [efectividad, setEfectividad] = useState(100);
+  const [resultadosInformados, setResultadosInformados] = useState(0);
+  const [resultadosSinInformar, setResultadosSinInformar] = useState(0);
   
   const [armasSemana, setArmasSemana] = useState(0);
   const [vehiculosSemana, setVehiculosSemana] = useState(0);
@@ -68,6 +73,10 @@ export default function MetricasPage() {
   const [datosPartidos, setDatosPartidos] = useState<any[]>([]);
   const [datosSuperintendencias, setDatosSuperintendencias] = useState<any[]>([]);
   const [datosEspecialidades, setDatosEspecialidades] = useState<any[]>([]);
+  const [resumenesHistoricos, setResumenesHistoricos] = useState<ResumenHistoricoConsulta[]>([]);
+  const [historicoId, setHistoricoId] = useState('');
+  const [cargandoHistoricos, setCargandoHistoricos] = useState(false);
+  const [errorHistoricos, setErrorHistoricos] = useState('');
 
   useEffect(() => {
     async function verificarPermisos() {
@@ -87,6 +96,7 @@ export default function MetricasPage() {
 
       const rolTabla = String(perfil?.rol ?? '').toUpperCase();
       setAutorizado(ROLES_PERMITIDOS.includes(rolTabla));
+      setPuedeDescargarInformes(['ADMIN', 'ADMINISTRADOR', 'SUPERVISOR', 'AUDITOR'].includes(rolTabla));
     }
 
     verificarPermisos();
@@ -96,6 +106,7 @@ export default function MetricasPage() {
     if (!autorizado) return;
 
     void cargarMetricas();
+    void cargarHistoricos();
 
     let temporizador: ReturnType<typeof setTimeout> | undefined;
     const solicitarActualizacion = () => {
@@ -144,6 +155,8 @@ export default function MetricasPage() {
       setRendicionSemanal(Number(metricas.rendicion_semanal) || 0);
       setTotalMensual(Number(metricas.total_mensual) || 0);
       setEfectividad(Number(metricas.efectividad) || 0);
+      setResultadosInformados(Number(metricas.resultados_informados) || 0);
+      setResultadosSinInformar(Number(metricas.resultados_sin_informar) || 0);
       setArmasSemana(Number(metricas.armas_semana) || 0);
       setVehiculosSemana(Number(metricas.vehiculos_semana) || 0);
       setDetenidosSemana(Number(metricas.personas_semana) || 0);
@@ -186,6 +199,31 @@ export default function MetricasPage() {
       setLoading(false);
     }
   }
+
+  async function cargarHistoricos() {
+    setCargandoHistoricos(true);
+    setErrorHistoricos('');
+    const hasta = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Argentina/Buenos_Aires',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date());
+    const resultado = await consultarResumenesHistoricosAction('2026-06-01', hasta);
+    if (resultado.success) {
+      setResumenesHistoricos(resultado.resumenes);
+      setHistoricoId((actual) => resultado.resumenes.some((r) => r.id === actual)
+        ? actual : (resultado.resumenes[0]?.id ?? ''));
+    } else {
+      setResumenesHistoricos([]);
+      setErrorHistoricos(resultado.error);
+    }
+    setCargandoHistoricos(false);
+  }
+
+  const historicoSeleccionado = resumenesHistoricos.find((r) => r.id === historicoId);
+  const serieHistorica = resumenesHistoricos.slice(0, 12).reverse().map((r) => ({
+    name: `${r.semana_inicio.slice(8, 10)}/${r.semana_inicio.slice(5, 7)}`,
+    total: r.total_presentado,
+  }));
 
   if (autorizado === false) {
     return (
@@ -256,7 +294,16 @@ export default function MetricasPage() {
         <div className="grid grid-cols-1 divide-y divide-[#26364d] md:grid-cols-3 md:divide-x md:divide-y-0">
           <IndicadorPrincipal icono={<Calendar className="h-4 w-4" />} etiqueta="Rendición semanal" valor={rendicionSemanal} detalle={`${formatearFecha(semanaDesde)} al ${formatearFecha(semanaHasta)}`} />
           <IndicadorPrincipal icono={<ShieldCheck className="h-4 w-4" />} etiqueta="Total mensual" valor={totalMensual} detalle="Acumulado del mes actual" />
-          <IndicadorPrincipal icono={<TrendingUp className="h-4 w-4" />} etiqueta="Efectividad de las medidas" valor={`${efectividad}%`} detalle="Procedimientos con resultado positivo" />
+          <IndicadorPrincipal
+            icono={<TrendingUp className="h-4 w-4" />}
+            etiqueta="Efectividad de las medidas"
+            valor={`${efectividad}%`}
+            detalle={
+              resultadosSinInformar > 0
+                ? `${resultadosInformados} resultados informados · ${resultadosSinInformar} sin informar`
+                : 'Procedimientos con resultado positivo'
+            }
+          />
         </div>
       </section>
 
@@ -328,6 +375,63 @@ export default function MetricasPage() {
           <RankingInstitucional codigo="G-02" icono={<Shield className="h-4 w-4" />} titulo="Partidos con más registros" subtitulo="Top 5 · semana informada" datos={datosPartidos} unidad="registros" />
           <RankingInstitucional codigo="G-03" icono={<ShieldCheck className="h-4 w-4" />} titulo="Principales superintendencias" subtitulo="Top 5 · procedimientos informados" datos={datosSuperintendencias} unidad="procedimientos" />
           <RankingInstitucional codigo="G-04" icono={<BarChart3 className="h-4 w-4" />} titulo="Especialidades intervinientes" subtitulo="Top 5 · personal afectado" datos={datosEspecialidades} unidad="efectivos" />
+        </div>
+      </section>
+
+      <section aria-label="Archivo estadístico documental" className="border border-[#806c3f] bg-[#071426]/80">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#26364d] bg-[#050e1c] px-4 py-3 sm:px-5">
+          <div>
+            <h2 className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#d5bd82]">Archivo estadístico documental</h2>
+            <p className="mt-1 text-[10px] text-slate-400">Cifras de informes presentados antes de la carga periódica. No se comprobó su correspondencia allanamiento por allanamiento. Se muestran por separado de los indicadores operativos.</p>
+          </div>
+          <button type="button" onClick={() => void cargarHistoricos()} disabled={cargandoHistoricos} className="cop-action-secondary disabled:opacity-40">
+            <RefreshCw className={`h-3.5 w-3.5 ${cargandoHistoricos ? 'animate-spin' : ''}`} /> Actualizar archivo
+          </button>
+        </div>
+        <div className="space-y-5 p-4 sm:p-5">
+          {errorHistoricos && <p role="alert" className="text-xs text-red-300">{errorHistoricos}</p>}
+          {!errorHistoricos && !cargandoHistoricos && resumenesHistoricos.length === 0 &&
+            <p className="text-xs text-slate-400">Todavía no hay resúmenes históricos vigentes.</p>}
+          {historicoSeleccionado && <>
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <label className="space-y-2 text-xs text-slate-300">Semana documentada
+                <select value={historicoId} onChange={(e) => setHistoricoId(e.target.value)} className="block w-full border border-[#33465f] bg-[#050e1c] px-3 py-2 text-white">
+                  {resumenesHistoricos.map((r) => <option key={r.id} value={r.id}>{formatearFecha(r.semana_inicio)} al {formatearFecha(r.semana_fin)}</option>)}
+                </select>
+              </label>
+              <p className="font-mono text-3xl font-bold text-[#d5bd82]">{historicoSeleccionado.total_presentado} <span className="text-xs font-normal text-slate-400">informados</span></p>
+            </div>
+            <p className="break-words text-[10px] text-slate-400">Respaldo: {historicoSeleccionado.archivo_excel} · {historicoSeleccionado.archivo_pdf}</p>
+            {puedeDescargarInformes && informeHistoricoPorSemana(historicoSeleccionado.semana_inicio) &&
+              <a href={`/api/informes-historicos/${historicoSeleccionado.semana_inicio}`} className="inline-block text-xs font-bold text-[#d5bd82] hover:underline">Descargar informe presentado (PDF)</a>}
+            <p className="text-[10px] text-amber-300">Este resumen no contiene IPP, partido, secuestros ni resultados individuales. No se utiliza para calcular tasas de efectividad.</p>
+            <div className="grid gap-5 lg:grid-cols-2">
+              <div>
+                <h3 className="mb-3 text-xs font-bold text-white">Evolución de totales documentales</h3>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={serieHistorica} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="2 4" stroke="#17263a" vertical={false} />
+                      <XAxis dataKey="name" stroke="#718198" fontSize={10} tickLine={false} axisLine={{ stroke: '#26364d' }} />
+                      <YAxis stroke="#718198" fontSize={10} allowDecimals={false} tickLine={false} axisLine={false} />
+                      <Tooltip contentStyle={{ backgroundColor: '#050e1c', borderColor: '#806c3f', borderRadius: 0, fontSize: '11px' }} />
+                      <Bar dataKey="total" fill="#c4a35a" name="Total documental" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+              <div>
+                <h3 className="mb-3 text-xs font-bold text-white">Desglose por superintendencia</h3>
+                {historicoSeleccionado.unidades.length===0 && <p className="border border-amber-800/50 p-3 text-xs text-amber-300">Sin desglose verificable por superintendencia. El total documental se mantiene separado de las métricas individuales.</p>}
+                <div className="max-h-64 overflow-y-auto border border-[#26364d]">
+                  {historicoSeleccionado.unidades.map((u) => <div key={u.nombre_fuente} className="flex justify-between gap-3 border-b border-[#17263a] px-3 py-2 text-[10px] text-slate-300">
+                    <span>{u.nombre_fuente}</span><strong className={u.total_informado === null ? 'text-amber-300' : 'text-white'}>{u.total_informado === null ? 'Sin informar' : u.total_informado}</strong>
+                  </div>)}
+                </div>
+                {historicoSeleccionado.unidades.length>0 && <p className="mt-2 text-[10px] text-slate-500">{historicoSeleccionado.unidades.length} unidades; los casilleros sin informar se conservan como tales.</p>}
+              </div>
+            </div>
+          </>}
         </div>
       </section>
     </main>
