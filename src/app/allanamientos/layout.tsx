@@ -159,7 +159,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   </Link>
                 )}
 
-                {!esOperador && (
+                {!esOperador && rolNormalizado !== 'consulta' && (
                   <Link
                     href="/allanamientos/buscar"
                     className="cop-nav-link"

@@ -29,11 +29,12 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
   const [partidosList, setPartidosList] = useState<string[]>([])
   const [partidosError, setPartidosError] = useState(false)
   const [especialidadesList, setEspecialidadesList] = useState<string[]>([])
+  const [especialidadesError, setEspecialidadesError] = useState(false)
   const [superintendenciasList, setSuperintendenciasList] = useState<{ id: string; nombre: string }[]>([])
 
   // Horario en formato 24hs
-  const [horaEjecucion, setHoraEjecucion] = useState('12')
-  const [minutoEjecucion, setMinutoEjecucion] = useState('00')
+  const [horaEjecucion, setHoraEjecucion] = useState('')
+  const [minutoEjecucion, setMinutoEjecucion] = useState('')
   const [enElActo, setEnElActo] = useState(false)
 
   // Estado del formulario
@@ -118,8 +119,9 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
       if (partData) setPartidosList(partData.map(p => p.nombre))
       setPartidosError(Boolean(partError || !partData?.length))
 
-      const { data: espData } = await supabase.from('especialidades').select('nombre').order('nombre')
-      if (espData) setEspecialidadesList(espData.map(e => e.nombre))
+      const { data: espData, error: espError } = await supabase.from('especialidades').select('nombre').order('nombre')
+      setEspecialidadesList(espData?.map(e => e.nombre) ?? [])
+      setEspecialidadesError(Boolean(espError || !espData?.length))
 
       const { data: superData } = await supabase.from('superintendencias').select('id, nombre').order('nombre')
       if (superData) setSuperintendenciasList(superData)
@@ -300,6 +302,11 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    const requiereHorario = formData.fecha_ejecucion >= '2026-09-28'
+    if (requiereHorario && (!/^([01]\d|2[0-3])$/.test(horaEjecucion) || !/^[0-5]\d$/.test(minutoEjecucion))) {
+      setError('Indicá la hora y los minutos de ejecución.')
+      return
+    }
     const errorFechas = validarFechasAllanamiento({
       fechaEjecucion: formData.fecha_ejecucion,
       fechaSolicitud: formData.fecha_solicitud,
@@ -315,7 +322,9 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
     setError(null)
 
     try {
-      const horarioFinal = enElActo ? null : `${horaEjecucion}:${minutoEjecucion}`
+      const enElActoHistorico = !requiereHorario && enElActo
+      const horarioFinal = enElActoHistorico || !horaEjecucion || !minutoEjecucion
+        ? null : `${horaEjecucion}:${minutoEjecucion}`
       const provincia = formData.es_exhorto ? formData.provincia : 'Buenos Aires'
       if (!provincia || (provincia === 'Buenos Aires' ? !formData.partido : !formData.localidad.trim())) {
         throw new Error('Indicá el partido o la localidad de destino del exhorto.')
@@ -337,7 +346,7 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         fecha_solicitud: formData.fecha_solicitud || null,
         fecha_ejecucion: formData.fecha_ejecucion,
         horario_ejecucion: horarioFinal,
-        en_el_acto: enElActo,
+        en_el_acto: enElActoHistorico,
         es_exhorto: formData.es_exhorto,
         provincia,
         localidad: provincia === 'Buenos Aires' ? null : formData.localidad.trim(),
@@ -628,18 +637,21 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
 
               <div>
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-medium text-slate-400">Horario de Ejecución (24hs)</span>
-                  <label className="flex items-center gap-2 text-xs text-slate-200">
-                    <input type="checkbox" checked={enElActo} onChange={e => setEnElActo(e.target.checked)} className="h-4 w-4 accent-blue-500" /> En el acto
-                  </label>
+                  <span className="text-xs font-medium text-slate-400">Hora de ejecución (24 h){formData.fecha_ejecucion >= '2026-09-28' ? ' *' : ''}</span>
+                  {formData.fecha_ejecucion < '2026-09-28' && <label className="flex items-center gap-2 text-xs text-slate-200">
+                    <input type="checkbox" checked={enElActo} onChange={e => setEnElActo(e.target.checked)} className="h-4 w-4 accent-blue-500" /> En el acto (histórico)
+                  </label>}
                 </div>
-                <div className={`flex items-center gap-2 transition-opacity ${enElActo ? 'opacity-40' : ''}`}>
+                <div className={`flex items-center gap-2 transition-opacity ${formData.fecha_ejecucion < '2026-09-28' && enElActo ? 'opacity-40' : ''}`}>
                   <select
-                    disabled={enElActo}
+                    disabled={formData.fecha_ejecucion < '2026-09-28' && enElActo}
+                    required={formData.fecha_ejecucion >= '2026-09-28'}
+                    aria-label="Hora de ejecución"
                     value={horaEjecucion}
                     onChange={(e) => setHoraEjecucion(e.target.value)}
                     className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer text-center disabled:cursor-not-allowed"
                   >
+                    <option value="">Hora</option>
                     {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map((h) => (
                       <option key={h} value={h} className="bg-slate-900 text-white">
                         {h} hs
@@ -648,11 +660,14 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
                   </select>
                   <span className="text-white font-bold">:</span>
                   <select
-                    disabled={enElActo}
+                    disabled={formData.fecha_ejecucion < '2026-09-28' && enElActo}
+                    required={formData.fecha_ejecucion >= '2026-09-28'}
+                    aria-label="Minutos de ejecución"
                     value={minutoEjecucion}
                     onChange={(e) => setMinutoEjecucion(e.target.value)}
                     className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer text-center disabled:cursor-not-allowed"
                   >
+                    <option value="">Minuto</option>
                     {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')).map((m) => (
                       <option key={m} value={m} className="bg-slate-900 text-white">
                         {m} min
@@ -738,6 +753,11 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
             </div>
 
             <div className="space-y-3">
+              {especialidadesError && (
+                <p role="alert" className="border border-amber-700/60 bg-amber-950/30 px-4 py-3 text-xs text-amber-300">
+                  No hay especialidades disponibles en este entorno. Revisá el catálogo y tu acceso antes de modificar personal en colaboración.
+                </p>
+              )}
               {colaboraciones.map((colab, index) => (
                 <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center bg-slate-950/40 p-3 rounded-xl border border-slate-800/60">
                   <div className="md:col-span-6">

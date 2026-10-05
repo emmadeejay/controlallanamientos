@@ -63,7 +63,7 @@ export default function InformeSemanalControls({
   }
 
   async function consolidar() {
-    if (faltantes > 0 || procesando) return;
+    if (resumen.length === 0 || faltantes > 0 || procesando) return;
 
     setProcesando(true);
     setError('');
@@ -133,12 +133,12 @@ export default function InformeSemanalControls({
         <button
           type="button"
           onClick={() => setConfirmandoConsolidacion(true)}
-          disabled={procesando || faltantes > 0}
-          title={faltantes > 0 ? `Faltan ${faltantes} rendiciones` : 'Consolidar informe semanal'}
+          disabled={procesando || resumen.length === 0 || faltantes > 0}
+          title={faltantes > 0 ? `${faltantes} rendiciones sin finalizar` : 'Consolidar informe semanal'}
           className="cop-action-primary inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800 disabled:text-slate-500"
         >
           {procesando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileCheck2 className="w-3.5 h-3.5" />}
-          {faltantes > 0 ? `Faltan ${faltantes} rendiciones` : 'Consolidar semana'}
+          {resumen.length === 0 ? 'Sin unidades' : faltantes > 0 ? `${faltantes} sin finalizar` : 'Consolidar semana'}
         </button>
       ) : faltantes === 0 ? (
         <span className="inline-flex items-center gap-1.5 text-[11px] text-emerald-300">
@@ -146,6 +146,8 @@ export default function InformeSemanalControls({
         </span>
       ) : null}
 
+      {faltantes > 0 && !consolidacion && puedeConsolidar &&
+        <span className="text-right text-[10px] text-slate-400">PDF al finalizar todas</span>}
       {error && <span className="max-w-sm text-right text-[10px] text-amber-300">{error}</span>}
 
       <InstitutionalDialog

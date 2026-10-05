@@ -47,7 +47,7 @@ export default function ResumenHistoricoPage() {
         consultarResumenesHistoricosAction('2026-06-01', '2026-09-27'),
       ]);
       setEmail(auth.user?.email ?? '');
-      if (listadoError) setError('No se pudo consultar el módulo de resúmenes. Verificá que el SQL esté instalado en pruebas.');
+      if (listadoError) setError('No se pudo consultar el módulo de resúmenes. Verificá la conexión y los permisos de la base de datos.');
       else setLotes((data ?? []) as Lote[]);
       if (archivo.success) setInformesIndividuales(archivo.resumenes.filter((r) => r.tipo !== 'documental'));
     }
@@ -179,12 +179,12 @@ export default function ResumenHistoricoPage() {
         </section>
 
         <section className="space-y-3 border border-[#33465f] bg-[#071426] p-5">
-          <h2 className="font-bold text-white">Informes con carga individual o parcial</h2>
+          <h2 className="font-bold text-white">Informes con carga individual</h2>
           <p className="text-xs text-slate-400">Se muestran junto al archivo semanal para consultar el PDF, sin registrar un segundo resumen ni duplicar las fichas.</p>
           {informesIndividuales.map((informe) => <div key={informe.id} className="flex flex-wrap items-center justify-between gap-3 border-t border-[#26364d] pt-3 text-xs">
             <div>
-              <p className="font-bold text-slate-200">{informe.semana_inicio} al {informe.semana_fin} · {informe.tipo === 'parcial' ? 'Detalle parcial' : 'Carga individual'}</p>
-              <p className="mt-1 text-slate-400">{informe.total_presentado} según PDF · {informe.filas_importadas} fichas importadas{informe.tipo === 'parcial' ? ' · pendiente de conciliación' : ''}</p>
+              <p className="font-bold text-slate-200">{informe.semana_inicio} al {informe.semana_fin} · {informe.tipo === 'parcial' ? 'Detalle parcial' : informe.tipo === 'conciliado' ? 'Detalle conciliado' : 'Carga individual'}</p>
+              <p className="mt-1 text-slate-400">{informe.total_presentado} según PDF · {informe.filas_importadas} fichas importadas{informe.tipo === 'parcial' ? ' · pendiente de conciliación' : informe.tipo === 'conciliado' ? ` · ${informe.duplicados_declarados} duplicados declarados en el informe original` : ''}</p>
             </div>
             <a href={`/api/informes-historicos/${informe.semana_inicio}`} className="font-bold text-[#d5bd82] hover:underline">Descargar PDF</a>
           </div>)}

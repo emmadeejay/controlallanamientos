@@ -8,7 +8,6 @@ const ROLES_CONSULTA = new Set([
   'administrador',
   'supervisor',
   'auditor',
-  'consulta',
 ]);
 
 export default async function BuscarLayout({ children }: { children: ReactNode }) {

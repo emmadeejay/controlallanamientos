@@ -40,6 +40,15 @@ export function obtenerRangoSemanaRendida(fecha = new Date()) {
   };
 }
 
+export function obtenerRangoSemanaEnCurso(fecha = new Date()) {
+  const hoy = fechaArgentina(fecha);
+  const fechaUtc = new Date(`${hoy}T12:00:00Z`);
+  const diaIso = fechaUtc.getUTCDay() || 7;
+  const inicio = sumarDias(hoy, 1 - diaIso);
+
+  return { hoy, inicio, fin: sumarDias(inicio, 6) };
+}
+
 export function validarFechasAllanamiento({
   fechaEjecucion,
   fechaSolicitud,

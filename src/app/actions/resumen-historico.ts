@@ -13,12 +13,13 @@ export type ResumenHistoricoConsulta = {
   archivo_excel: string;
   archivo_pdf: string;
   unidades: Array<{ nombre_fuente: string; total_informado: number | null }>;
-  tipo: 'documental' | 'individual' | 'parcial';
+  tipo: 'documental' | 'individual' | 'parcial' | 'conciliado';
   filas_importadas: number | null;
+  duplicados_declarados: number;
 };
 
 const FECHA_ISO = /^\d{4}-\d{2}-\d{2}$/;
-const ROLES_CONSULTA = new Set(['administrador', 'supervisor', 'auditor', 'consulta']);
+const ROLES_CONSULTA = new Set(['administrador', 'supervisor', 'auditor']);
 
 export async function consultarResumenesHistoricosAction(desde: string, hasta: string): Promise<
   { success: true; resumenes: ResumenHistoricoConsulta[] } |
@@ -85,9 +86,13 @@ export async function consultarResumenesHistoricosAction(desde: string, hasta: s
       })),
       tipo: 'documental',
       filas_importadas: null,
+      duplicados_declarados: 0,
       }));
     const individuales: ResumenHistoricoConsulta[] = especiales.map((informe) => {
       const archivos = (lotes ?? []).filter((lote) => lote.semana_inicio === informe.semana_inicio);
+      const filasImportadas = archivos.reduce((total, lote) => total + Number(lote.filas_importadas || 0), 0);
+      const conciliado = informe.tipo === 'parcial' && !!informe.duplicados_declarados &&
+        filasImportadas === informe.total_informe - informe.duplicados_declarados;
       return {
         id: `informe-${informe.semana_inicio}`,
         semana_inicio: informe.semana_inicio,
@@ -96,8 +101,9 @@ export async function consultarResumenesHistoricosAction(desde: string, hasta: s
         archivo_excel: archivos.map((lote) => lote.archivo_nombre).join(', '),
         archivo_pdf: informe.archivo_pdf,
         unidades: [],
-        tipo: informe.tipo,
-        filas_importadas: archivos.reduce((total, lote) => total + Number(lote.filas_importadas || 0), 0),
+        tipo: conciliado ? 'conciliado' : informe.tipo,
+        filas_importadas: filasImportadas,
+        duplicados_declarados: conciliado ? informe.duplicados_declarados! : 0,
       };
     });
     const resumenes = [...documentales, ...individuales]
