@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { ArrowLeft, Plus, Trash2, Save, Building2, Loader2, Lock } from 'lucide-react'
 import {
+  esVentanaOperativaValida,
   obtenerRangoSemanaRendida,
   sanitizarDetalles,
   sumarDetalles,
@@ -14,31 +15,6 @@ import { perfilTieneAcceso } from '@/lib/usuarios'
 import { JURISDICCIONES_ARGENTINA } from '@/lib/jurisdicciones'
 
 const LOCAL_STORAGE_KEY = 'borrador_nuevo_allanamiento'
-
-// Sincronización precisa con la hora oficial de Argentina (UTC-3)
-// Regla: Desde Lunes 00:00 hs hasta Miércoles 08:00 hs
-function esVentanaOperativaValida(): boolean {
-  const ahora = new Date()
-  
-  const formatterDia = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Argentina/Buenos_Aires', weekday: 'short' })
-  const diaStr = formatterDia.format(ahora)
-  const diasMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
-  const dia = diasMap[diaStr] ?? ahora.getDay()
-  
-  const formatterHora = new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour12: false, hour: 'numeric' })
-  const partes = formatterHora.formatToParts(ahora)
-  const horaPart = partes.find(p => p.type === 'hour')
-  const hora = horaPart ? parseInt(horaPart.value, 10) : ahora.getHours()
-
-  // Lunes (1) completo desde las 00:00 hs
-  if (dia === 1) return true
-  // Martes (2) completo
-  if (dia === 2) return true
-  // Miércoles (3) hasta las 07:59 hs
-  if (dia === 3 && hora < 8) return true
-
-  return false
-}
 
 export default function NuevoAllanamientosPage() {
   const router = useRouter()
@@ -257,7 +233,8 @@ export default function NuevoAllanamientosPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (fueraDeVentana && !esElevado) {
+    if (!esElevado && !esVentanaOperativaValida()) {
+      setFueraDeVentana(true)
       setError('La ventana de carga se encuentra cerrada (Lunes 00:00hs a Miércoles 08:00hs).')
       return
     }
@@ -349,6 +326,28 @@ export default function NuevoAllanamientosPage() {
         cant_solicitada: Number(c.cant_solicitada) || 0,
         cant_afectada: Number(c.cant_afectada) || 0
       }))
+
+      if (!esElevado) {
+        const { inicio } = obtenerRangoSemanaRendida()
+        const { data: rendicion, error: rendicionError } = await supabase
+          .from('rendiciones_allanamientos')
+          .select('estado')
+          .eq('superintendencia_id', targetSuperintendenciaId)
+          .eq('semana_inicio', inicio)
+          .maybeSingle()
+
+        if (rendicionError) {
+          throw new Error('No fue posible verificar el estado del período. No se guardó el registro. Volvé a intentar guardar para reintentar la verificación.')
+        }
+        if (['finalizado', 'bloqueado'].includes(rendicion?.estado)) {
+          throw new Error('La rendición de tu superintendencia está finalizada o bloqueada. No se pueden agregar allanamientos a este período.')
+        }
+        // La consulta puede terminar después del cierre de la ventana.
+        if (!esVentanaOperativaValida()) {
+          setFueraDeVentana(true)
+          throw new Error('La ventana de carga se encuentra cerrada (lunes 00:00 hs a miércoles 08:00 hs).')
+        }
+      }
 
       const { error: guardarError } = await supabase.rpc('crear_allanamiento_completo', {
         p_datos: payloadAllanamiento,

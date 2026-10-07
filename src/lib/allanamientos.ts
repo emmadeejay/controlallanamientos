@@ -5,6 +5,20 @@ export type DetalleSecuestro = {
 
 const ZONA_HORARIA = 'America/Argentina/Buenos_Aires';
 
+// Comprobación de interfaz; PostgreSQL conserva la autoridad sobre la escritura.
+export function esVentanaOperativaValida(fecha = new Date()): boolean {
+  const partes = new Intl.DateTimeFormat('en-US', {
+    timeZone: ZONA_HORARIA,
+    weekday: 'short',
+    hour: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(fecha);
+  const dia = partes.find((parte) => parte.type === 'weekday')?.value;
+  const hora = Number(partes.find((parte) => parte.type === 'hour')?.value ?? 24);
+
+  return dia === 'Mon' || dia === 'Tue' || (dia === 'Wed' && hora < 8);
+}
+
 function fechaArgentina(fecha = new Date()): string {
   const partes = new Intl.DateTimeFormat('en-CA', {
     timeZone: ZONA_HORARIA,

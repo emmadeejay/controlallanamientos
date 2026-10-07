@@ -2,41 +2,14 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Plus, Search, Edit3, Trash2, Lock, Upload, Eye, X, Shield, Calendar, MapPin, FileText, UserCheck, Crosshair, Car, CheckCircle2, Send } from 'lucide-react';
-import { obtenerRangoSemanaEnCurso, obtenerRangoSemanaRendida, obtenerValoresSecuestros } from '@/lib/allanamientos';
+import { esVentanaOperativaValida, obtenerRangoSemanaEnCurso, obtenerRangoSemanaRendida, obtenerValoresSecuestros } from '@/lib/allanamientos';
 import InformeSemanalControls from '@/components/InformeSemanalControls';
 import InstitutionalDialog, { type InstitutionalDialogTone } from '@/components/InstitutionalDialog';
 import { horarioAllanamiento, ubicacionAllanamiento } from '@/lib/jurisdicciones';
-
-// Sincronización precisa con la hora oficial de Argentina (UTC-3)
-function esVentanaHorariaValida(): boolean {
-  const ahora = new Date();
-  const opciones: Intl.DateTimeFormatOptions = {
-    timeZone: 'America/Argentina/Buenos_Aires',
-    weekday: 'narrow',
-    hour: 'numeric',
-    hour12: false
-  };
-  
-  const formatter = new Intl.DateTimeFormat('es-AR', opciones);
-  const partes = formatter.formatToParts(ahora);
-  
-  // Obtenemos día numérico en Argentina: 0 (Dom), 1 (Lun), 2 (Mar), 3 (Mié), etc.
-  const formatterDia = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Argentina/Buenos_Aires', weekday: 'short' });
-  const diaStr = formatterDia.format(ahora);
-  
-  const diasMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-  const dia = diasMap[diaStr] ?? ahora.getDay();
-  
-  const horaPart = partes.find(p => p.type === 'hour');
-  const hora = horaPart ? parseInt(horaPart.value, 10) : ahora.getHours();
-
-  // Lunes (1), Martes (2) todo el día, y Miércoles (3) hasta las 08:00 hs
-  return dia === 1 || dia === 2 || (dia === 3 && hora < 8);
-}
 
 function SemaforoSuperintendencias({
   puedeGestionar,
@@ -576,10 +549,12 @@ function DetalleGrupo({ items }: { items: Array<[string, number]> }) {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const verificacionPeriodoRef = useRef(0);
   const [allanamientos, setAllanamientos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState('');
   const [puedeEditar, setPuedeEditar] = useState(false);
+  const [errorVerificacionPeriodo, setErrorVerificacionPeriodo] = useState<string | null>(null);
   const [esAdministradorOSupervisor, setEsAdministradorOSupervisor] = useState(false);
   const [rolUsuario, setRolUsuario] = useState('');
   const [usuarioId, setUsuarioId] = useState('');
@@ -605,11 +580,13 @@ export default function DashboardPage() {
   }, []);
 
   async function checkPeriodoYUsuario() {
+    const verificacion = ++verificacionPeriodoRef.current;
     setLoading(true);
+    setPuedeEditar(false);
+    setErrorVerificacionPeriodo(null);
     try {
-      const estaEnVentana = esVentanaHorariaValida();
-
       const { data: { session } } = await supabase.auth.getSession();
+      if (verificacion !== verificacionPeriodoRef.current) return;
       if (!session) {
         router.push('/login');
         return;
@@ -620,6 +597,7 @@ export default function DashboardPage() {
         .select('*')
         .eq('id', session.user.id)
         .maybeSingle();
+      if (verificacion !== verificacionPeriodoRef.current) return;
 
       const rawRole = profile?.rol || '';
       const rolNormalizado = String(rawRole).toLowerCase().trim();
@@ -652,28 +630,40 @@ export default function DashboardPage() {
       setRendicionActual(null);
 
       let rendicion: any | null = null;
-      if (rolNormalizadoCompatible === 'operador' && profile?.superintendencia_id) {
+      let periodoVerificado = false;
+      if (rolNormalizadoCompatible === 'operador' && !esElevado && profile?.superintendencia_id) {
         const { inicio } = obtenerRangoSemanaRendida();
-        const { data } = await supabase
+        const { data, error: rendicionError } = await supabase
           .from('rendiciones_allanamientos')
           .select('estado, semana_inicio, semana_fin, cantidad_allanamientos, finalizada_at')
           .eq('superintendencia_id', profile.superintendencia_id)
           .eq('semana_inicio', inicio)
           .maybeSingle();
+        if (verificacion !== verificacionPeriodoRef.current) return;
 
-        rendicion = data ?? null;
-        setRendicionActual(rendicion);
+        if (rendicionError) {
+          setErrorVerificacionPeriodo('No fue posible verificar el estado del período. La carga y edición quedan deshabilitadas hasta completar la verificación.');
+        } else {
+          periodoVerificado = true;
+          rendicion = data ?? null;
+          setRendicionActual(rendicion);
+        }
+      } else if (rolNormalizadoCompatible === 'operador' && !esElevado) {
+        setErrorVerificacionPeriodo('No fue posible verificar el estado del período: no tenés una superintendencia asignada.');
       }
 
       const rendicionCerrada = ['finalizado', 'bloqueado'].includes(rendicion?.estado);
-      setPuedeEditar(esElevado || (rolNormalizadoCompatible === 'operador' && estaEnVentana && !rendicionCerrada));
+      setPuedeEditar(esElevado || (rolNormalizadoCompatible === 'operador' && periodoVerificado && esVentanaOperativaValida() && !rendicionCerrada));
       setPaginaActual(1);
-      await fetchData(rolNormalizadoCompatible, session.user.id, 1, registrosPorPagina, '');
+      await fetchData(rolNormalizadoCompatible, session.user.id, 1, registrosPorPagina, '', verificacion);
     } catch (err) {
+      if (verificacion !== verificacionPeriodoRef.current) return;
       console.error('Error al verificar permisos:', err);
+      setPuedeEditar(false);
+      setErrorVerificacionPeriodo('No fue posible verificar el estado del período. Reintentá la verificación para habilitar las acciones que correspondan.');
       setAllanamientos([]);
     } finally {
-      setLoading(false);
+      if (verificacion === verificacionPeriodoRef.current) setLoading(false);
     }
   }
 
@@ -683,7 +673,9 @@ export default function DashboardPage() {
     pagina = paginaActual,
     porPagina = registrosPorPagina,
     termino = busqueda,
+    verificacion = verificacionPeriodoRef.current,
   ) {
+    if (verificacion !== verificacionPeriodoRef.current) return;
     setLoading(true);
     // El operador trabaja sobre la semana vencida. El tablero de gestión muestra la actual.
     const { inicio, fin } = rol === 'operador'
@@ -713,6 +705,7 @@ export default function DashboardPage() {
     }
 
     const { data, error, count } = await query;
+    if (verificacion !== verificacionPeriodoRef.current) return;
     if (error) {
       console.error('Error al cargar la semana informada:', error);
       setAllanamientos([]);
@@ -869,7 +862,7 @@ export default function DashboardPage() {
             >
               <Plus className="w-4 h-4" /> Nuevo Allanamiento
             </button>
-          ) : !rendicionCerrada ? (
+          ) : !loading && !errorVerificacionPeriodo && !rendicionCerrada ? (
             <div className="flex min-h-10 items-center gap-2 border border-amber-800/60 bg-amber-950/20 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-amber-400">
               <Lock className="w-4 h-4" /> Fuera de período de carga (Lun 00hs a Mié 08hs)
             </div>
@@ -894,6 +887,15 @@ export default function DashboardPage() {
           </div>
         </div>
       </section>
+
+      {errorVerificacionPeriodo && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border border-amber-800/60 bg-amber-950/20 px-4 py-3 text-sm text-amber-200">
+          <p>{errorVerificacionPeriodo}</p>
+          <button type="button" onClick={() => void checkPeriodoYUsuario()} disabled={loading} className="cop-action-secondary disabled:opacity-50">
+            {loading ? 'Verificando...' : 'Reintentar verificación'}
+          </button>
+        </div>
+      )}
 
       {/* 2. BUSCADOR Y TABLA */}
       <section className="space-y-3">

@@ -3,8 +3,9 @@
 import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { ArrowLeft, Plus, Trash2, Save, Loader2, Building2 } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Save, Loader2, Building2, Lock } from 'lucide-react'
 import {
+  esVentanaOperativaValida,
   obtenerRangoSemanaRendida,
   sanitizarDetalles,
   sumarDetalles,
@@ -12,6 +13,18 @@ import {
 } from '@/lib/allanamientos'
 import { perfilTieneAcceso } from '@/lib/usuarios'
 import { JURISDICCIONES_ARGENTINA } from '@/lib/jurisdicciones'
+
+type ContextoEdicion = {
+  usuarioId: string;
+  elevado: boolean;
+  superintendenciaId: string | null;
+}
+
+type RegistroEdicion = {
+  operador_id: string | null;
+  superintendencia_id: string | null;
+  fecha_ejecucion: string | null;
+}
 
 export default function EditarAllanamientoPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
@@ -21,6 +34,7 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [bloqueoEdicion, setBloqueoEdicion] = useState<string | null>(null)
 
   // Permisos y Roles
   const [esElevado, setEsElevado] = useState(false)
@@ -70,46 +84,81 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
   const [detenidos, setDetenidos] = useState<{ subtipo: string; cantidad: number }[]>([])
 
   useEffect(() => {
-    async function init() {
-      if (!id) return
-      await fetchPerfil()
-      await fetchMaestras()
-      await fetchAllanamiento()
-    }
-    init()
+    void inicializarEdicion()
   }, [id])
 
-  async function fetchPerfil() {
+  async function inicializarEdicion() {
+    if (!id) return
+    setLoading(true)
+    setBloqueoEdicion(null)
+    setError(null)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle()
-        // El rol autorizado siempre sale de public.profiles. Los metadatos del
-        // usuario no se usan para elevar permisos porque pueden quedar obsoletos.
-        const rawRole = profile?.rol || profile?.role || ''
-        const rolNormalizado = String(rawRole).toLowerCase().trim()
-        const elevado = 
-          rolNormalizado === 'supervisor' || 
-          rolNormalizado === 'administrador' || 
-          rolNormalizado === 'admin' || 
-          rolNormalizado === 'superadmin' ||
-          profile?.role_id === 2 || 
-          profile?.role_id === 3
-
-        const puedeEditarRegistro = !!profile && perfilTieneAcceso(profile) && (
-          elevado
-          || (rolNormalizado === 'operador' && profile?.modulos_permitidos?.includes('allanamientos'))
-        )
-
-        if (!puedeEditarRegistro) {
-          router.replace('/allanamientos')
-          return
-        }
-
-        setEsElevado(elevado)
-      }
+      const contexto = await fetchPerfil()
+      if (await fetchAllanamiento(contexto)) await fetchMaestras()
     } catch (err) {
-      console.error('Error obteniendo perfil:', err)
+      setBloqueoEdicion(err instanceof Error ? err.message : 'No fue posible verificar los permisos de edición. Reintentá la verificación.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function fetchPerfil(): Promise<ContextoEdicion> {
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) throw new Error('No fue posible verificar una sesión activa. Volvé a ingresar al sistema.')
+
+    const { data: profile, error: profileError } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle()
+    if (profileError || !profile) throw new Error('No fue posible verificar tu perfil. Reintentá la verificación.')
+
+    // Se conserva el criterio de roles elevados existente.
+    const rawRole = profile.rol || profile.role || ''
+    const rolNormalizado = String(rawRole).toLowerCase().trim()
+    const elevado =
+      rolNormalizado === 'supervisor' ||
+      rolNormalizado === 'administrador' ||
+      rolNormalizado === 'admin' ||
+      rolNormalizado === 'superadmin' ||
+      profile.role_id === 2 ||
+      profile.role_id === 3
+
+    if (!perfilTieneAcceso(profile)) throw new Error('Tu cuenta no está habilitada para editar allanamientos.')
+    if (!elevado && (rolNormalizado !== 'operador' || !profile.modulos_permitidos?.includes('allanamientos'))) {
+      throw new Error('Tu perfil no tiene permiso para editar en el módulo Allanamientos.')
+    }
+
+    setEsElevado(elevado)
+    return { usuarioId: user.id, elevado, superintendenciaId: profile.superintendencia_id || null }
+  }
+
+  async function verificarEdicionOperador(contexto: ContextoEdicion, registro: RegistroEdicion) {
+    if (contexto.elevado) return
+    if (registro.operador_id !== contexto.usuarioId) {
+      throw new Error('Sólo podés editar allanamientos registrados por tu usuario.')
+    }
+    if (!contexto.superintendenciaId || registro.superintendencia_id !== contexto.superintendenciaId) {
+      throw new Error('El registro no pertenece a tu superintendencia asignada.')
+    }
+    const { inicio, fin } = obtenerRangoSemanaRendida()
+    // Se verifica la fecha almacenada, antes de cargar o usar la fecha del formulario.
+    if (!registro.fecha_ejecucion || registro.fecha_ejecucion < inicio || registro.fecha_ejecucion > fin) {
+      throw new Error(`El registro pertenece a otro período. Sólo podés editar la semana rendida del ${inicio} al ${fin}.`)
+    }
+    if (!esVentanaOperativaValida()) {
+      throw new Error('La ventana de edición está cerrada. Se habilita de lunes 00:00 hs a miércoles 08:00 hs, hora de Argentina.')
+    }
+
+    const { data: rendicion, error: rendicionError } = await supabase
+      .from('rendiciones_allanamientos')
+      .select('estado')
+      .eq('superintendencia_id', contexto.superintendenciaId)
+      .eq('semana_inicio', inicio)
+      .maybeSingle()
+
+    if (rendicionError) throw new Error('No fue posible verificar el estado del período. La edición permanece deshabilitada. Reintentá la verificación.')
+    if (['finalizado', 'bloqueado'].includes(rendicion?.estado)) {
+      throw new Error('La rendición de tu superintendencia está finalizada o bloqueada. No se permite editar este período.')
+    }
+    if (!esVentanaOperativaValida()) {
+      throw new Error('La ventana de edición cerró durante la verificación. Se habilita de lunes 00:00 hs a miércoles 08:00 hs, hora de Argentina.')
     }
   }
 
@@ -130,9 +179,8 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
     }
   }
 
-  async function fetchAllanamiento() {
+  async function fetchAllanamiento(contexto: ContextoEdicion) {
     try {
-      setLoading(true)
       const { data, error: fetchErr } = await supabase
         .from('allanamientos')
         .select('*')
@@ -141,6 +189,8 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
 
       if (fetchErr) throw new Error(fetchErr.message || 'No se pudo encontrar el registro solicitado.')
       if (!data) throw new Error('No se encontró el registro solicitado.')
+
+      await verificarEdicionOperador(contexto, data)
 
       if (data.horario_ejecucion) {
         const [h, m] = data.horario_ejecucion.split(':')
@@ -272,10 +322,10 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         setColaboraciones([{ especialidad: '', cant_solicitada: 1, cant_afectada: 1 }])
       }
 
-    } catch (err: any) {
-      setError(err.message || 'Error al obtener los datos.')
-    } finally {
-      setLoading(false)
+      return true
+    } catch (err) {
+      setBloqueoEdicion(err instanceof Error ? err.message : 'No fue posible verificar el registro solicitado. Reintentá la verificación.')
+      return false
     }
   }
 
@@ -378,6 +428,25 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         cant_afectada: Number(c.cant_afectada) || 0
       }))
 
+      if (!esElevado) {
+        try {
+          const contexto = await fetchPerfil()
+          const { data: original, error: originalError } = await supabase
+            .from('allanamientos')
+            .select('operador_id, superintendencia_id, fecha_ejecucion')
+            .eq('id', id)
+            .single()
+          if (originalError || !original) throw new Error('No fue posible verificar el registro original. Reintentá la verificación.')
+          if (!contexto.elevado && payloadAllanamiento.superintendencia_id !== contexto.superintendenciaId) {
+            throw new Error('No se puede trasladar el registro a otra superintendencia desde esta edición.')
+          }
+          await verificarEdicionOperador(contexto, original)
+        } catch (err) {
+          setBloqueoEdicion(err instanceof Error ? err.message : 'No fue posible verificar el estado del período. Reintentá la verificación.')
+          return
+        }
+      }
+
       const { error: updateErr } = await supabase.rpc('actualizar_allanamiento_completo', {
         p_id: id,
         p_datos: payloadAllanamiento,
@@ -404,6 +473,25 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
       <div className="flex min-h-[60vh] items-center justify-center gap-3 text-slate-100">
         <Loader2 className="h-5 w-5 animate-spin text-[#c4a35a]" />
         <span className="text-xs font-extrabold uppercase tracking-[0.08em] text-slate-400">Cargando registro...</span>
+      </div>
+    )
+  }
+
+  if (bloqueoEdicion) {
+    return (
+      <div className="cop-form-page flex min-h-[62vh] items-center justify-center py-10 text-center">
+        <section role="alert" className="w-full max-w-xl border border-[#26364d] border-l-4 border-l-amber-600 bg-[#071426] px-5 py-8 sm:px-8">
+          <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center border border-amber-800/70 bg-amber-950/30 text-amber-400">
+            <Lock className="h-6 w-6" />
+          </div>
+          <p className="cop-kicker mb-2">Rectificación controlada</p>
+          <h1 className="text-lg font-extrabold uppercase tracking-[0.04em] text-white">Edición no habilitada</h1>
+          <p className="mb-6 mt-3 text-sm leading-relaxed text-slate-400">{bloqueoEdicion}</p>
+          <div className="flex flex-wrap justify-center gap-3">
+            <button type="button" onClick={() => router.push('/allanamientos')} className="cop-action-secondary">Volver a allanamientos</button>
+            <button type="button" onClick={() => void inicializarEdicion()} className="cop-action-secondary">Reintentar verificación</button>
+          </div>
+        </section>
       </div>
     )
   }
