@@ -158,6 +158,7 @@ export default function BuscarAllanamientosPage() {
         .select('*, superintendencias(nombre)', { count: 'exact' })
         .order('fecha_ejecucion', { ascending: false })
         .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
         .range(indiceDesde, indiceDesde + porPagina - 1)
 
       query = aplicarFiltrosConsulta(query, filtros)
@@ -234,6 +235,7 @@ export default function BuscarAllanamientosPage() {
         .select('*, superintendencias(nombre)', { count: desde === 0 ? 'exact' : undefined })
         .order('fecha_ejecucion', { ascending: false })
         .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
         .range(desde, desde + lote - 1)
 
       query = aplicarFiltrosConsulta(query, filtrosAplicados)
@@ -438,32 +440,24 @@ export default function BuscarAllanamientosPage() {
 
         {mensajeError && <div className="border border-red-800 bg-red-950/30 px-4 py-3 text-xs text-red-300">{mensajeError}</div>}
 
-        <details className="group border border-[#806c3f] bg-[#071426]/80">
-          <summary className="cursor-pointer px-4 py-3 text-xs font-bold uppercase tracking-wide text-[#d5bd82] sm:px-5">
-            Archivo documental · resúmenes y PDF <span className="ml-2 text-slate-400 normal-case group-open:hidden">Mostrar</span>
-          </summary>
-          <div className="space-y-3 border-t border-[#26364d] p-3 sm:p-4">
-        <section aria-label="Archivo histórico semanal" className="border border-[#806c3f] bg-[#071426]/80">
+        <section aria-label="Totales históricos documentales" className="border border-[#806c3f] bg-[#071426]/80">
           <div className="border-b border-[#26364d] bg-[#050e1c] px-4 py-3 sm:px-5">
-            <h2 className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#d5bd82]">Archivo histórico semanal</h2>
-            <p className="mt-1 text-[10px] text-slate-400">Cifras de informes presentados antes de la carga periódica. Los resúmenes documentales se mantienen separados de las fichas individuales; en semanas con importación individual, el PDF es el respaldo de esas fichas y no se suma otra vez.</p>
+            <h2 className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#d5bd82]">Totales históricos documentales</h2>
+            <p className="mt-1 text-[10px] text-slate-400">Cifras de informes presentados antes de la carga periódica. No se comprobó su correspondencia allanamiento por allanamiento. No son fichas individuales ni integran indicadores por procedimiento.</p>
           </div>
           <div className="space-y-3 px-4 py-4 text-xs sm:px-5">
             {errorResumenes && <p role="alert" className="text-red-300">{errorResumenes}</p>}
             {resumenesOmitidos && <p className="text-amber-300">Los totales semanales no admiten filtros de partido, provincia, superintendencia ni contenido de cada procedimiento. Quitá esos filtros para verlos por semana.</p>}
             {!loading && !resumenesOmitidos && !errorResumenes && resumenes.length === 0 &&
-              <p className="text-slate-400">Sin semanas históricas para este período.</p>}
+              <p className="text-slate-400">Sin resúmenes documentales vigentes para este período.</p>}
             {!resumenesOmitidos && resumenes.map((resumen) => (
-              <div key={resumen.id} className={`border-l-2 bg-[#050e1c] px-4 py-3 ${resumen.tipo === 'parcial' ? 'border-orange-500' : resumen.tipo === 'individual' || resumen.tipo === 'conciliado' ? 'border-sky-500' : 'border-[#c4a35a]'}`}>
+              <div key={resumen.id} className="border-l-2 border-[#c4a35a] bg-[#050e1c] px-4 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <strong className="text-white">Semana {resumen.semana_inicio} al {resumen.semana_fin} · {resumen.tipo === 'parcial' ? 'detalle parcial' : resumen.tipo === 'conciliado' ? 'detalle conciliado' : resumen.tipo === 'individual' ? 'carga individual' : 'resumen documental'}</strong>
-                  <span className="font-mono text-sm font-bold text-[#d5bd82]">{resumen.total_presentado} según informe</span>
+                  <strong className="text-white">Semana {resumen.semana_inicio} al {resumen.semana_fin}</strong>
+                  <span className="font-mono text-sm font-bold text-[#d5bd82]">{resumen.total_presentado} informados</span>
                 </div>
-                <p className="mt-1 break-words text-[10px] text-slate-400">Respaldo: {resumen.archivo_excel ? `${resumen.archivo_excel} · ` : ''}{resumen.archivo_pdf}</p>
-                {resumen.tipo === 'documental' && resumen.unidades.length===0 && <p className="mt-1 text-[10px] text-amber-300">Total documental sin desglose verificable por superintendencia.</p>}
-                {resumen.tipo === 'individual' && <p className="mt-1 text-[10px] text-sky-300">{resumen.filas_importadas} fichas importadas. El total del PDF no se suma a las fichas.</p>}
-                {resumen.tipo === 'conciliado' && <p className="mt-1 text-[10px] text-sky-300">{resumen.filas_importadas} fichas únicas importadas + {resumen.duplicados_declarados} duplicados declarados = {resumen.total_presentado} registros del informe original. Los duplicados no figuran en Buscar ni se suman a las métricas.</p>}
-                {resumen.tipo === 'parcial' && <p className="mt-1 text-[10px] text-orange-300">{resumen.filas_importadas} fichas importadas; diferencia pendiente de conciliación.</p>}
+                <p className="mt-1 break-words text-[10px] text-slate-400">Respaldo: {resumen.archivo_excel} · {resumen.archivo_pdf}</p>
+                {resumen.unidades.length===0 && <p className="mt-1 text-[10px] text-amber-300">Total documental sin desglose verificable por superintendencia.</p>}
                 {((filtrosAplicados.desde && filtrosAplicados.desde > resumen.semana_inicio) ||
                   (filtrosAplicados.hasta && filtrosAplicados.hasta < resumen.semana_fin)) &&
                   <p className="mt-1 text-[10px] text-amber-300">El filtro abarca sólo parte de la semana. La cifra corresponde a la semana completa.</p>}
@@ -482,14 +476,11 @@ export default function BuscarAllanamientosPage() {
               (!filtrosAplicados.desde || item.semana_fin >= filtrosAplicados.desde) &&
               (!filtrosAplicados.hasta || item.semana_inicio <= filtrosAplicados.hasta)
             ).map((item) => <div key={item.semana_inicio} className="flex items-center justify-between gap-3 border border-[#26364d] p-3">
-              <span>{item.semana_inicio} al {item.semana_fin}<br /><small className="text-slate-400">{item.duplicados_declarados ? `${item.duplicados_declarados} duplicados declarados en el informe` : item.tipo === 'individual' ? 'Semana de carga individual' : 'Total documental'}</small></span>
+              <span>{item.semana_inicio} al {item.semana_fin}<br /><small className="text-slate-400">{item.tipo === 'parcial' ? 'Detalle individual parcial' : item.tipo === 'individual' ? 'Detalle individual cargado' : 'Total documental'}</small></span>
               <a href={`/api/informes-historicos/${item.semana_inicio}`} className="shrink-0 font-bold text-[#d5bd82] hover:underline">Descargar PDF</a>
             </div>)}
           </div>
         </section>}
-
-          </div>
-        </details>
 
         <section className="overflow-hidden border border-[#26364d] bg-[#071426]/80">
           <div className="flex items-center justify-between gap-3 border-b border-[#26364d] bg-[#050e1c] px-4 py-3 sm:px-5">

@@ -21,6 +21,7 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [registroNoDisponible, setRegistroNoDisponible] = useState(false)
 
   // Permisos y Roles
   const [esElevado, setEsElevado] = useState(false)
@@ -29,12 +30,11 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
   const [partidosList, setPartidosList] = useState<string[]>([])
   const [partidosError, setPartidosError] = useState(false)
   const [especialidadesList, setEspecialidadesList] = useState<string[]>([])
-  const [especialidadesError, setEspecialidadesError] = useState(false)
   const [superintendenciasList, setSuperintendenciasList] = useState<{ id: string; nombre: string }[]>([])
 
   // Horario en formato 24hs
-  const [horaEjecucion, setHoraEjecucion] = useState('')
-  const [minutoEjecucion, setMinutoEjecucion] = useState('')
+  const [horaEjecucion, setHoraEjecucion] = useState('12')
+  const [minutoEjecucion, setMinutoEjecucion] = useState('00')
   const [enElActo, setEnElActo] = useState(false)
 
   // Estado del formulario
@@ -79,6 +79,12 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
     init()
   }, [id])
 
+  useEffect(() => {
+    if (!registroNoDisponible) return
+    const timeout = window.setTimeout(() => router.replace('/allanamientos'), 3000)
+    return () => window.clearTimeout(timeout)
+  }, [registroNoDisponible, router])
+
   async function fetchPerfil() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -119,9 +125,8 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
       if (partData) setPartidosList(partData.map(p => p.nombre))
       setPartidosError(Boolean(partError || !partData?.length))
 
-      const { data: espData, error: espError } = await supabase.from('especialidades').select('nombre').order('nombre')
-      setEspecialidadesList(espData?.map(e => e.nombre) ?? [])
-      setEspecialidadesError(Boolean(espError || !espData?.length))
+      const { data: espData } = await supabase.from('especialidades').select('nombre').order('nombre')
+      if (espData) setEspecialidadesList(espData.map(e => e.nombre))
 
       const { data: superData } = await supabase.from('superintendencias').select('id, nombre').order('nombre')
       if (superData) setSuperintendenciasList(superData)
@@ -137,10 +142,12 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         .from('allanamientos')
         .select('*')
         .eq('id', id)
-        .single()
+        .maybeSingle()
 
-      if (fetchErr) throw new Error(fetchErr.message || 'No se pudo encontrar el registro solicitado.')
-      if (!data) throw new Error('No se encontró el registro solicitado.')
+      if (fetchErr || !data) {
+        setRegistroNoDisponible(true)
+        return
+      }
 
       if (data.horario_ejecucion) {
         const [h, m] = data.horario_ejecucion.split(':')
@@ -302,11 +309,6 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const requiereHorario = formData.fecha_ejecucion >= '2026-09-28'
-    if (requiereHorario && (!/^([01]\d|2[0-3])$/.test(horaEjecucion) || !/^[0-5]\d$/.test(minutoEjecucion))) {
-      setError('Indicá la hora y los minutos de ejecución.')
-      return
-    }
     const errorFechas = validarFechasAllanamiento({
       fechaEjecucion: formData.fecha_ejecucion,
       fechaSolicitud: formData.fecha_solicitud,
@@ -322,9 +324,7 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
     setError(null)
 
     try {
-      const enElActoHistorico = !requiereHorario && enElActo
-      const horarioFinal = enElActoHistorico || !horaEjecucion || !minutoEjecucion
-        ? null : `${horaEjecucion}:${minutoEjecucion}`
+      const horarioFinal = enElActo ? null : `${horaEjecucion}:${minutoEjecucion}`
       const provincia = formData.es_exhorto ? formData.provincia : 'Buenos Aires'
       if (!provincia || (provincia === 'Buenos Aires' ? !formData.partido : !formData.localidad.trim())) {
         throw new Error('Indicá el partido o la localidad de destino del exhorto.')
@@ -346,7 +346,7 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         fecha_solicitud: formData.fecha_solicitud || null,
         fecha_ejecucion: formData.fecha_ejecucion,
         horario_ejecucion: horarioFinal,
-        en_el_acto: enElActoHistorico,
+        en_el_acto: enElActo,
         es_exhorto: formData.es_exhorto,
         provincia,
         localidad: provincia === 'Buenos Aires' ? null : formData.localidad.trim(),
@@ -404,6 +404,17 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
       <div className="flex min-h-[60vh] items-center justify-center gap-3 text-slate-100">
         <Loader2 className="h-5 w-5 animate-spin text-[#c4a35a]" />
         <span className="text-xs font-extrabold uppercase tracking-[0.08em] text-slate-400">Cargando registro...</span>
+      </div>
+    )
+  }
+
+  if (registroNoDisponible) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center text-slate-100" role="alert">
+        <p className="text-sm font-semibold">No tenés permisos para acceder a este registro o el registro no existe.</p>
+        <button type="button" onClick={() => router.replace('/allanamientos')} className="text-sm font-bold text-[#c4a35a] underline">
+          Volver al listado de Allanamientos
+        </button>
       </div>
     )
   }
@@ -637,21 +648,18 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
 
               <div>
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-medium text-slate-400">Hora de ejecución (24 h){formData.fecha_ejecucion >= '2026-09-28' ? ' *' : ''}</span>
-                  {formData.fecha_ejecucion < '2026-09-28' && <label className="flex items-center gap-2 text-xs text-slate-200">
-                    <input type="checkbox" checked={enElActo} onChange={e => setEnElActo(e.target.checked)} className="h-4 w-4 accent-blue-500" /> En el acto (histórico)
-                  </label>}
+                  <span className="text-xs font-medium text-slate-400">Horario de Ejecución (24hs)</span>
+                  <label className="flex items-center gap-2 text-xs text-slate-200">
+                    <input type="checkbox" checked={enElActo} onChange={e => setEnElActo(e.target.checked)} className="h-4 w-4 accent-blue-500" /> En el acto
+                  </label>
                 </div>
-                <div className={`flex items-center gap-2 transition-opacity ${formData.fecha_ejecucion < '2026-09-28' && enElActo ? 'opacity-40' : ''}`}>
+                <div className={`flex items-center gap-2 transition-opacity ${enElActo ? 'opacity-40' : ''}`}>
                   <select
-                    disabled={formData.fecha_ejecucion < '2026-09-28' && enElActo}
-                    required={formData.fecha_ejecucion >= '2026-09-28'}
-                    aria-label="Hora de ejecución"
+                    disabled={enElActo}
                     value={horaEjecucion}
                     onChange={(e) => setHoraEjecucion(e.target.value)}
                     className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer text-center disabled:cursor-not-allowed"
                   >
-                    <option value="">Hora</option>
                     {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map((h) => (
                       <option key={h} value={h} className="bg-slate-900 text-white">
                         {h} hs
@@ -660,14 +668,11 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
                   </select>
                   <span className="text-white font-bold">:</span>
                   <select
-                    disabled={formData.fecha_ejecucion < '2026-09-28' && enElActo}
-                    required={formData.fecha_ejecucion >= '2026-09-28'}
-                    aria-label="Minutos de ejecución"
+                    disabled={enElActo}
                     value={minutoEjecucion}
                     onChange={(e) => setMinutoEjecucion(e.target.value)}
                     className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer text-center disabled:cursor-not-allowed"
                   >
-                    <option value="">Minuto</option>
                     {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')).map((m) => (
                       <option key={m} value={m} className="bg-slate-900 text-white">
                         {m} min
@@ -753,11 +758,6 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
             </div>
 
             <div className="space-y-3">
-              {especialidadesError && (
-                <p role="alert" className="border border-amber-700/60 bg-amber-950/30 px-4 py-3 text-xs text-amber-300">
-                  No hay especialidades disponibles en este entorno. Revisá el catálogo y tu acceso antes de modificar personal en colaboración.
-                </p>
-              )}
               {colaboraciones.map((colab, index) => (
                 <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center bg-slate-950/40 p-3 rounded-xl border border-slate-800/60">
                   <div className="md:col-span-6">

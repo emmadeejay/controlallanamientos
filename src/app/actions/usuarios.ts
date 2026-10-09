@@ -148,11 +148,10 @@ async function obtenerActorAutorizado(): Promise<PerfilActor> {
   } = await supabaseSesion.auth.getUser();
   if (userError || !user) throw new ErrorDeAccion('La sesión no es válida. Volvé a iniciar sesión.');
 
-  const supabaseAdmin = createAdminClient();
-  const { data: perfil, error } = await supabaseAdmin
+  const { data: perfil, error } = await supabaseSesion
     .from('profiles')
     .select(
-      'id, email, rol, activo, estado_cuenta, superintendencia_id, vigencia_institucional_hasta',
+      'id, email, rol, activo, estado_cuenta, superintendencia_id, vigencia_institucional_hasta, requiere_cambio_clave',
     )
     .eq('id', user.id)
     .maybeSingle();
@@ -161,7 +160,11 @@ async function obtenerActorAutorizado(): Promise<PerfilActor> {
   const rol = normalizarRol(perfil.rol);
   if (!rol) throw new ErrorDeAccion('El rol de la cuenta no es válido.');
 
-  if (!perfilTieneAcceso(perfil)) {
+  if (perfil.requiere_cambio_clave !== false) {
+    throw new ErrorDeAccion('Completá el cambio de contraseña antes de gestionar usuarios.');
+  }
+
+  if (perfil.activo !== true || perfil.estado_cuenta !== 'activo' || !perfilTieneAcceso(perfil)) {
     throw new ErrorDeAccion('La cuenta no está habilitada o su validación institucional venció.');
   }
 
@@ -187,6 +190,15 @@ function exigirGestor(actor: PerfilActor) {
   if (!ROLES_GESTION.has(actor.rol)) {
     throw new ErrorDeAccion('No tenés permisos para gestionar usuarios.');
   }
+}
+
+async function reautorizarActorParaAuth(actorInicial: PerfilActor): Promise<PerfilActor> {
+  const actorActual = await obtenerActorAutorizado();
+  if (actorActual.id !== actorInicial.id) {
+    throw new ErrorDeAccion('La identidad de la sesión cambió. Volvé a iniciar la operación.');
+  }
+  exigirGestor(actorActual);
+  return actorActual;
 }
 
 async function obtenerPerfilObjetivo(userId: string): Promise<PerfilObjetivo> {
@@ -293,6 +305,10 @@ export async function crearUsuarioAction(
     const passwordTemporal = generarPasswordTemporal();
     const nombreCompleto = `${nombre} ${apellido}`.trim();
     const supabaseAdmin = createAdminClient();
+    const actorActual = await reautorizarActorParaAuth(actor);
+    if (actorActual.rol === 'supervisor' && !ROLES_GESTIONABLES_POR_SUPERVISOR.has(rol)) {
+      throw new ErrorDeAccion('Un supervisor sólo puede crear Auditor, Operador o Consulta.');
+    }
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password: passwordTemporal,
@@ -523,6 +539,9 @@ export async function cambiarEstadoUsuarioAction(
     }
 
     const temporaryPassword = estado === 'activo' ? generarPasswordTemporal() : undefined;
+    const objetivoActual = await obtenerPerfilObjetivo(userId);
+    const actorActual = await reautorizarActorParaAuth(actor);
+    exigirPuedeGestionarObjetivo(actorActual, objetivoActual);
     let authError: Error | null = null;
     try {
       const resultadoAuth = await supabaseAdmin.auth.admin.updateUserById(userId,
@@ -537,7 +556,7 @@ export async function cambiarEstadoUsuarioAction(
 
     const { data: vigenciaHasta, error: finalError } = await supabaseAdmin.rpc(
       'finalizar_cambio_estado_usuario',
-      { p_operacion_id: operacionId, p_auth_confirmada: !authError },
+      { p_operacion_id: operacionId, p_auth_confirmada: !authError, p_actor_actual_id: actor.id },
     );
     if (finalError) {
       console.error('Cambio de estado pendiente de conciliación.', {
@@ -577,7 +596,7 @@ export async function conciliarCambioEstadoUsuarioAction(
     }
     const supabaseAdmin = createAdminClient();
     const { data: operacion, error: consultaError } = await supabaseAdmin.rpc(
-      'obtener_cambio_estado_pendiente', { p_operacion_id: operacionId },
+      'obtener_cambio_estado_pendiente', { p_operacion_id: operacionId, p_actor_actual_id: actor.id },
     );
     if (consultaError || !operacion?.usuario_id) {
       throw new ErrorDeAccion('No se encontró una operación pendiente con ese código.');
@@ -585,6 +604,10 @@ export async function conciliarCambioEstadoUsuarioAction(
     const estado = String(operacion.estado_nuevo);
     const usuarioId = String(operacion.usuario_id);
     const temporaryPassword = estado === 'activo' ? generarPasswordTemporal() : undefined;
+    const actorActual = await reautorizarActorParaAuth(actor);
+    if (actorActual.rol !== 'administrador') {
+      throw new ErrorDeAccion('Sólo el administrador puede conciliar operaciones pendientes.');
+    }
     const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(usuarioId,
       estado === 'activo'
         ? { password: temporaryPassword!, ban_duration: 'none' }
@@ -596,7 +619,7 @@ export async function conciliarCambioEstadoUsuarioAction(
     }
     const { data: vigenciaHasta, error: finalError } = await supabaseAdmin.rpc(
       'finalizar_cambio_estado_usuario',
-      { p_operacion_id: operacionId, p_auth_confirmada: true },
+      { p_operacion_id: operacionId, p_auth_confirmada: true, p_actor_actual_id: actor.id },
     );
     if (finalError) {
       console.error('No se pudo confirmar la conciliación.', { operacionId, usuarioId, error: finalError.message });
@@ -627,6 +650,9 @@ export async function resetearPasswordAction(
     });
     if (inicioError) throw inicioError;
 
+    const objetivoActual = await obtenerPerfilObjetivo(userId);
+    const actorActual = await reautorizarActorParaAuth(actor);
+    exigirPuedeGestionarObjetivo(actorActual, objetivoActual);
     const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
       password: passwordTemporal,
     });
@@ -636,6 +662,7 @@ export async function resetearPasswordAction(
     }
     const { error: finalError } = await supabaseAdmin.rpc('finalizar_reset_clave_usuario', {
       p_operacion_id: operacionId,
+      p_actor_actual_id: actor.id,
     });
     if (finalError) {
       console.error('No se pudo confirmar el restablecimiento.', { operacionId, userId, error: finalError.message });
@@ -660,13 +687,17 @@ export async function conciliarResetClaveUsuarioAction(formData: FormData): Prom
     }
     const supabaseAdmin = createAdminClient();
     const { data: op, error: consultaError } = await supabaseAdmin.rpc(
-      'obtener_reset_clave_pendiente', { p_operacion_id: operacionId },
+      'obtener_reset_clave_pendiente', { p_operacion_id: operacionId, p_actor_actual_id: actor.id },
     );
     if (consultaError || !op?.usuario_id) {
       throw new ErrorDeAccion('No se encontró un restablecimiento pendiente con ese código.');
     }
     const userId = String(op.usuario_id);
     const passwordTemporal = generarPasswordTemporal();
+    const actorActual = await reautorizarActorParaAuth(actor);
+    if (actorActual.rol !== 'administrador') {
+      throw new ErrorDeAccion('Sólo el administrador puede conciliar operaciones pendientes.');
+    }
     const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
       password: passwordTemporal,
     });
@@ -676,6 +707,7 @@ export async function conciliarResetClaveUsuarioAction(formData: FormData): Prom
     }
     const { error: finalError } = await supabaseAdmin.rpc('finalizar_reset_clave_usuario', {
       p_operacion_id: operacionId,
+      p_actor_actual_id: actor.id,
     });
     if (finalError) {
       console.error('No se pudo finalizar la clave conciliada.', { operacionId, userId, error: finalError.message });

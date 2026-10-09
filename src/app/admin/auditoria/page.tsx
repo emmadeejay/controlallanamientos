@@ -150,6 +150,7 @@ export default function AuditoriaPage() {
     const desdeFila = (paginaDestino - 1) * POR_PAGINA;
     const { data, count, error: queryError } = await query
       .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
       .range(desdeFila, desdeFila + POR_PAGINA - 1);
 
     if (queryError) {

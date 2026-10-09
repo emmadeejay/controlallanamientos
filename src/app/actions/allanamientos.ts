@@ -50,11 +50,11 @@ export async function autorizarExportacionAllanamientosAction(
     const supabaseAdmin = createAdminClient();
     const { data: perfil, error: perfilError } = await supabaseAdmin
       .from('profiles')
-      .select('rol, activo, estado_cuenta, vigencia_institucional_hasta, email')
+      .select('rol, activo, estado_cuenta, vigencia_institucional_hasta, requiere_cambio_clave, email')
       .eq('id', user.id)
       .maybeSingle();
 
-    if (perfilError || !perfil || !perfilTieneAcceso(perfil)) {
+    if (perfilError || !perfil || !perfilTieneAcceso(perfil) || perfil.requiere_cambio_clave !== false) {
       return { success: false as const, error: 'La cuenta no está habilitada.' };
     }
 

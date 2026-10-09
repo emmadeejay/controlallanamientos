@@ -423,7 +423,7 @@ body {
 
 .cop-operational-form label {
   color: #8c9bb0 !important;
-  font-size: 0.75rem !important;
+  font-size: 0.625rem !important;
   font-weight: 800 !important;
   letter-spacing: 0.045em;
   text-transform: uppercase;
@@ -436,11 +436,6 @@ body {
   border-radius: 0.25rem !important;
   background: #050e1c !important;
   color: #f8fafc;
-}
-
-.cop-operational-form select {
-  min-height: 2.5rem;
-  font-size: 0.875rem;
 }
 
 .cop-operational-form input:not([type="checkbox"]):not([type="radio"]):focus,

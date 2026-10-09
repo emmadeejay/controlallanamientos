@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Plus, Search, Edit3, Trash2, Lock, Upload, Eye, X, Shield, Calendar, MapPin, FileText, UserCheck, Crosshair, Car, CheckCircle2, Send } from 'lucide-react';
-import { obtenerRangoSemanaEnCurso, obtenerRangoSemanaRendida, obtenerValoresSecuestros } from '@/lib/allanamientos';
+import { obtenerRangoSemanaRendida, obtenerValoresSecuestros } from '@/lib/allanamientos';
 import InformeSemanalControls from '@/components/InformeSemanalControls';
 import InstitutionalDialog, { type InstitutionalDialogTone } from '@/components/InstitutionalDialog';
 import { horarioAllanamiento, ubicacionAllanamiento } from '@/lib/jurisdicciones';
@@ -46,7 +46,6 @@ function SemaforoSuperintendencias({
   const [resumen, setResumen] = useState<any[]>([]);
   const [desplegado, setDesplegado] = useState(true);
   const [cargandoSupers, setCargandoSupers] = useState(true);
-  const [errorResumen, setErrorResumen] = useState(false);
   const [accionGestion, setAccionGestion] = useState<{
     tipo: 'finalizar' | 'reabrir';
     superintendencia: any;
@@ -61,8 +60,6 @@ function SemaforoSuperintendencias({
   }, []);
 
   async function obtenerSuperintendencias() {
-    setCargandoSupers(true);
-    setErrorResumen(false);
     try {
       const { inicio } = obtenerRangoSemanaRendida();
       const { data, error } = await supabase.rpc('resumen_presentacion_allanamientos', {
@@ -75,7 +72,6 @@ function SemaforoSuperintendencias({
       setResumen(data ?? []);
     } catch (err) {
       console.error('Error al cargar superintendencias:', err);
-      setErrorResumen(true);
     } finally {
       setCargandoSupers(false);
     }
@@ -127,13 +123,6 @@ function SemaforoSuperintendencias({
   const pendientes = resumen.length - finalizadas - enCarga;
 
   if (cargandoSupers) return null;
-
-  if (errorResumen) return (
-    <section className="cop-data-panel p-4" role="alert">
-      <p className="text-xs text-red-300">No se pudo consultar el estado de presentación semanal.</p>
-      <button type="button" onClick={() => void obtenerSuperintendencias()} className="cop-action-secondary mt-3">Reintentar</button>
-    </section>
-  );
 
   return (
     <section className="cop-data-panel">
@@ -685,10 +674,7 @@ export default function DashboardPage() {
     termino = busqueda,
   ) {
     setLoading(true);
-    // El operador trabaja sobre la semana vencida. El tablero de gestión muestra la actual.
-    const { inicio, fin } = rol === 'operador'
-      ? obtenerRangoSemanaRendida()
-      : obtenerRangoSemanaEnCurso();
+    const { inicio, fin } = obtenerRangoSemanaRendida();
     const desde = (pagina - 1) * porPagina;
     const hasta = desde + porPagina - 1;
 
@@ -699,6 +685,7 @@ export default function DashboardPage() {
       .lte('fecha_ejecucion', fin)
       .order('fecha_ejecucion', { ascending: false })
       .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
       .range(desde, hasta);
 
     if (rol === 'operador') {
@@ -816,7 +803,6 @@ export default function DashboardPage() {
 
   const esOperador = rolUsuario === 'operador';
   const rangoSemanaRendida = obtenerRangoSemanaRendida();
-  const rangoSemanaEnCurso = obtenerRangoSemanaEnCurso();
   const rendicionCerrada = ['finalizado', 'bloqueado'].includes(rendicionActual?.estado);
 
   const totalPaginas = Math.ceil(totalRegistros / registrosPorPagina);
@@ -832,23 +818,15 @@ export default function DashboardPage() {
             <span className="cop-module-index mt-1 hidden sm:block">01 / OPERACIONES</span>
             <span className="hidden h-12 w-px bg-[#26364d] sm:block" />
             <div>
-              <p className="cop-kicker mb-2">{esOperador ? 'Rendición semanal' : 'Semana en curso'}</p>
+              <p className="cop-kicker mb-2">Semana operativa</p>
               <h1 className="text-xl font-black uppercase tracking-[0.035em] text-white sm:text-2xl">
             {esOperador ? 'Rendición semanal de Allanamientos' : 'Control de Allanamientos'}
               </h1>
-              {esOperador ? (
-                <p className="mt-2 text-xs text-slate-400">
-                  Período a rendir: <span className="font-mono text-slate-200">{rangoSemanaRendida.inicio}</span> al{' '}
-                  <span className="font-mono text-slate-200">{rangoSemanaRendida.fin}</span>
-                </p>
-              ) : !loading && totalRegistros > 0 ? (
-                <p className="mt-2 text-xs text-slate-400">
-                  Actividad en curso: <span className="font-mono text-slate-200">{rangoSemanaEnCurso.inicio}</span> al{' '}
-                  <span className="font-mono text-slate-200">{rangoSemanaEnCurso.fin}</span> · El historial se consulta desde Buscar
-                </p>
-              ) : !loading ? (
-                <p className="mt-2 text-xs text-slate-400">{busqueda.trim() ? 'Sin resultados para esta búsqueda en la semana en curso' : 'Sin actividad registrada en la semana en curso'} · El historial se consulta desde Buscar</p>
-              ) : null}
+              <p className="mt-2 text-xs text-slate-400">
+                Período informado: <span className="font-mono text-slate-200">{rangoSemanaRendida.inicio}</span> al{' '}
+                <span className="font-mono text-slate-200">{rangoSemanaRendida.fin}</span>
+                {!esOperador && ' · El historial se consulta desde Buscar'}
+              </p>
             </div>
           </div>
 
@@ -944,7 +922,7 @@ export default function DashboardPage() {
                 ) : allanamientos.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-8 text-center text-slate-500">
-                      {esOperador ? 'No se encontraron allanamientos del período a rendir.' : busqueda.trim() ? 'No hay resultados para esta búsqueda en la semana en curso.' : 'Sin actividad registrada en la semana en curso.'}
+                      No se encontraron allanamientos.
                     </td>
                   </tr>
                 ) : (

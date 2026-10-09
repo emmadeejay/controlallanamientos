@@ -28,7 +28,7 @@ export async function GET(
     const { data: perfil, error: perfilError } = await admin.from('profiles')
       .select('rol, activo, estado_cuenta, vigencia_institucional_hasta, requiere_cambio_clave, modulos_permitidos, email')
       .eq('id', user.id).maybeSingle();
-    if (perfilError || !perfil || !perfilTieneAcceso(perfil) || perfil.requiere_cambio_clave === true) {
+    if (perfilError || !perfil || !perfilTieneAcceso(perfil) || perfil.requiere_cambio_clave !== false) {
       return errorJson(403, 'Tu cuenta no está habilitada para descargar este informe.');
     }
     const rol = normalizarRolUsuario(perfil.rol);

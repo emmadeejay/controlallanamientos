@@ -2,6 +2,7 @@ import 'server-only';
 
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { AuthSessionMissingError } from '@supabase/supabase-js';
 
 export async function createClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -13,7 +14,7 @@ export async function createClient() {
 
   const cookieStore = await cookies();
 
-  return createServerClient(supabaseUrl, supabaseAnonKey, {
+  const client = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -30,4 +31,15 @@ export async function createClient() {
       },
     },
   });
+  const getUser = client.auth.getUser.bind(client.auth);
+  client.auth.getUser = async (jwt?: string) => {
+    const result = await getUser(jwt);
+    if (!result.data.user || result.error) return result;
+    const { data, error } = await client.rpc('estado_sesion_actual');
+    if (error || data?.vigente !== true) {
+      return { data: { user: null }, error: new AuthSessionMissingError() };
+    }
+    return result;
+  };
+  return client;
 }

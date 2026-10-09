@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { obtenerRangoSemanaEnCurso, obtenerRangoSemanaRendida } from '@/lib/allanamientos';
+import { obtenerRangoSemanaRendida } from '@/lib/allanamientos';
 import { consultarResumenesHistoricosAction, type ResumenHistoricoConsulta } from '@/app/actions/resumen-historico';
+import { informeHistoricoPorSemana } from '@/lib/informes-historicos';
 import { 
-  BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
 } from 'recharts';
 import { Calendar, ShieldCheck, ShieldAlert, Car, Shield, UserCheck, TrendingUp, Radio, Lock, BarChart3, RefreshCw } from 'lucide-react';
 
@@ -30,6 +31,20 @@ type DesglosePersonas = {
   'Aprehendido': number;
 };
 
+type RankingAgregado = { name: string; total: number };
+type MetricasAgregadas = {
+  semana_desde?: string; semana_hasta?: string;
+  rendicion_semanal?: number; total_mensual?: number; efectividad?: number;
+  resultados_informados?: number; resultados_sin_informar?: number;
+  armas_semana?: number; vehiculos_semana?: number; personas_semana?: number;
+  armas_mes?: number; vehiculos_mes?: number; personas_mes?: number;
+  desglose_armas?: Partial<DesgloseArmas>;
+  desglose_vehiculos?: Partial<DesgloseVehiculos>;
+  desglose_personas?: Partial<DesglosePersonas>;
+  evolucion?: RankingAgregado[]; partidos?: RankingAgregado[];
+  superintendencias?: RankingAgregado[]; especialidades?: RankingAgregado[];
+};
+
 const ROLES_PERMITIDOS = ['AUDITOR', 'CONSULTA', 'ADMINISTRADOR', 'SUPERVISOR'];
 
 const supabase = createClient();
@@ -39,12 +54,11 @@ export default function MetricasPage() {
   const [loading, setLoading] = useState(true);
   const [autorizado, setAutorizado] = useState<boolean | null>(null);
   const [puedeDescargarInformes, setPuedeDescargarInformes] = useState(false);
+  const [esRolConsulta, setEsRolConsulta] = useState(false);
   const [ultimaActualizacion, setUltimaActualizacion] = useState<string>('');
   const [errorCarga, setErrorCarga] = useState('');
   const [semanaDesde, setSemanaDesde] = useState('');
   const [semanaHasta, setSemanaHasta] = useState('');
-  const [semanaVencida, setSemanaVencida] = useState<{ inicio: string; fin: string; total: number } | null>(null);
-  const [errorSemanaVencida, setErrorSemanaVencida] = useState(false);
   
   const [rendicionSemanal, setRendicionSemanal] = useState(0);
   const [totalMensual, setTotalMensual] = useState(0);
@@ -70,10 +84,10 @@ export default function MetricasPage() {
     'Detenido': 0, 'Aprehendido': 0
   });
 
-  const [datosEvolucion, setDatosEvolucion] = useState<any[]>([]);
-  const [datosPartidos, setDatosPartidos] = useState<any[]>([]);
-  const [datosSuperintendencias, setDatosSuperintendencias] = useState<any[]>([]);
-  const [datosEspecialidades, setDatosEspecialidades] = useState<any[]>([]);
+  const [datosEvolucion, setDatosEvolucion] = useState<RankingAgregado[]>([]);
+  const [datosPartidos, setDatosPartidos] = useState<RankingAgregado[]>([]);
+  const [datosSuperintendencias, setDatosSuperintendencias] = useState<RankingAgregado[]>([]);
+  const [datosEspecialidades, setDatosEspecialidades] = useState<RankingAgregado[]>([]);
   const [resumenesHistoricos, setResumenesHistoricos] = useState<ResumenHistoricoConsulta[]>([]);
   const [historicoId, setHistoricoId] = useState('');
   const [cargandoHistoricos, setCargandoHistoricos] = useState(false);
@@ -96,6 +110,7 @@ export default function MetricasPage() {
         .maybeSingle();
 
       const rolTabla = String(perfil?.rol ?? '').toUpperCase();
+      setEsRolConsulta(rolTabla === 'CONSULTA');
       setAutorizado(ROLES_PERMITIDOS.includes(rolTabla));
       setPuedeDescargarInformes(['ADMIN', 'ADMINISTRADOR', 'SUPERVISOR', 'AUDITOR'].includes(rolTabla));
     }
@@ -107,6 +122,7 @@ export default function MetricasPage() {
     if (!autorizado) return;
 
     void cargarMetricas();
+    void cargarHistoricos();
 
     let temporizador: ReturnType<typeof setTimeout> | undefined;
     const solicitarActualizacion = () => {
@@ -116,7 +132,8 @@ export default function MetricasPage() {
 
     const intervalId = setInterval(() => void cargarMetricas(), 60000);
 
-    const canalRealtime = supabase
+    // Consulta actualiza agregados por RPC; no se suscribe a filas operativas.
+    const canalRealtime = esRolConsulta ? null : supabase
       .channel('metricas-allanamientos')
       .on(
         'postgres_changes',
@@ -133,34 +150,22 @@ export default function MetricasPage() {
     return () => {
       clearInterval(intervalId);
       if (temporizador) clearTimeout(temporizador);
-      supabase.removeChannel(canalRealtime);
+      if (canalRealtime) supabase.removeChannel(canalRealtime);
     };
-  }, [autorizado]);
-
-  useEffect(() => {
-    if (autorizado && puedeDescargarInformes) void cargarHistoricos();
-  }, [autorizado, puedeDescargarInformes]);
+  }, [autorizado, esRolConsulta]);
 
   async function cargarMetricas() {
     try {
-      const { inicio } = obtenerRangoSemanaEnCurso();
-      const vencida = obtenerRangoSemanaRendida();
-      const [{ data, error }, { data: datosVencidos, error: errorVencidos }] = await Promise.all([
-        supabase.rpc('metricas_allanamientos_semana', { p_semana_inicio: inicio }),
-        supabase.rpc('metricas_allanamientos_semana', { p_semana_inicio: vencida.inicio }),
-      ]);
+      const { inicio } = obtenerRangoSemanaRendida();
+      const { data, error } = await supabase.rpc('metricas_allanamientos_semana', {
+        p_semana_inicio: inicio,
+      });
 
       if (error) {
         throw error;
       }
 
-      const metricas = (data ?? {}) as Record<string, any>;
-      setSemanaVencida(errorVencidos ? null : {
-        inicio: vencida.inicio,
-        fin: vencida.fin,
-        total: Number((datosVencidos as Record<string, unknown> | null)?.rendicion_semanal) || 0,
-      });
-      setErrorSemanaVencida(Boolean(errorVencidos));
+      const metricas = (data ?? {}) as MetricasAgregadas;
       setErrorCarga('');
       setSemanaDesde(String(metricas.semana_desde ?? inicio));
       setSemanaHasta(String(metricas.semana_hasta ?? ''));
@@ -232,11 +237,9 @@ export default function MetricasPage() {
   }
 
   const historicoSeleccionado = resumenesHistoricos.find((r) => r.id === historicoId);
-  const serieHistorica = [...resumenesHistoricos].reverse().map((informe) => ({
-    name: `${informe.semana_inicio.slice(8, 10)}/${informe.semana_inicio.slice(5, 7)}`,
-    total: informe.total_presentado,
-    tipo: informe.tipo,
-    semana: informe.semana_inicio,
+  const serieHistorica = resumenesHistoricos.slice(0, 12).reverse().map((r) => ({
+    name: `${r.semana_inicio.slice(8, 10)}/${r.semana_inicio.slice(5, 7)}`,
+    total: r.total_presentado,
   }));
 
   if (autorizado === false) {
@@ -276,7 +279,7 @@ export default function MetricasPage() {
             <p className="cop-kicker">Control ejecutivo · OP-03</p>
             <h1 className="mt-1 text-xl font-extrabold uppercase tracking-[0.035em] text-white sm:text-2xl">Tablero de indicadores</h1>
             <p className="mt-1 text-xs text-slate-400">
-              {rendicionSemanal > 0 ? <>Semana en curso: <span className="font-mono text-slate-200">{formatearFecha(semanaDesde)} al {formatearFecha(semanaHasta)}</span></> : 'Sin actividad registrada en la semana en curso'}
+              Semana informada: <span className="font-mono text-slate-200">{formatearFecha(semanaDesde)} al {formatearFecha(semanaHasta)}</span>
             </p>
           </div>
           <div className="flex flex-col gap-2 border-l-2 border-l-emerald-600 pl-3 sm:items-end">
@@ -297,9 +300,6 @@ export default function MetricasPage() {
         </div>
       )}
 
-      {errorSemanaVencida && !errorCarga &&
-        <p role="alert" className="text-xs text-amber-300">No se pudo consultar el total de la semana vencida.</p>}
-
       <section className="overflow-hidden border border-[#26364d] bg-[#071426]/80">
         <div className="flex items-center gap-3 border-b border-[#26364d] bg-[#050e1c] px-4 py-3 sm:px-5">
           <span className="cop-form-section-index">01</span>
@@ -309,7 +309,7 @@ export default function MetricasPage() {
           </div>
         </div>
         <div className="grid grid-cols-1 divide-y divide-[#26364d] md:grid-cols-3 md:divide-x md:divide-y-0">
-          <IndicadorPrincipal icono={<Calendar className="h-4 w-4" />} etiqueta="Actividad de la semana en curso" valor={rendicionSemanal} detalle={rendicionSemanal > 0 ? `${formatearFecha(semanaDesde)} al ${formatearFecha(semanaHasta)}` : 'Sin registros todavía'} />
+          <IndicadorPrincipal icono={<Calendar className="h-4 w-4" />} etiqueta="Rendición semanal" valor={rendicionSemanal} detalle={`${formatearFecha(semanaDesde)} al ${formatearFecha(semanaHasta)}`} />
           <IndicadorPrincipal icono={<ShieldCheck className="h-4 w-4" />} etiqueta="Total mensual" valor={totalMensual} detalle="Acumulado del mes actual" />
           <IndicadorPrincipal
             icono={<TrendingUp className="h-4 w-4" />}
@@ -324,18 +324,12 @@ export default function MetricasPage() {
         </div>
       </section>
 
-      {semanaVencida && semanaVencida.total > 0 &&
-        <div className="border-l-2 border-[#c4a35a] bg-[#071426]/80 px-4 py-3 text-xs text-slate-300">
-          Semana vencida, en rendición: <strong className="text-white">{formatearFecha(semanaVencida.inicio)} al {formatearFecha(semanaVencida.fin)}</strong>
-          {' · '}{semanaVencida.total.toLocaleString('es-AR')} fichas registradas. El estado de presentación de las unidades se controla en Allanamientos.
-        </div>}
-
       <section className="overflow-hidden border border-[#26364d] bg-[#071426]/80">
         <div className="flex items-center gap-3 border-b border-[#26364d] bg-[#050e1c] px-4 py-3 sm:px-5">
           <span className="cop-form-section-index">02</span>
           <div>
             <h2 className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-white">Resultados informados</h2>
-            <p className="mt-0.5 text-[10px] text-slate-500">Elementos y personas registrados durante la semana en curso.</p>
+            <p className="mt-0.5 text-[10px] text-slate-500">Elementos y personas registrados durante la semana informada.</p>
           </div>
         </div>
         <div className="grid grid-cols-1 divide-y divide-[#26364d] md:grid-cols-3 md:divide-x md:divide-y-0">
@@ -395,13 +389,13 @@ export default function MetricasPage() {
             </div>
           </article>
 
-          <RankingInstitucional codigo="G-02" icono={<Shield className="h-4 w-4" />} titulo="Partidos con más registros" subtitulo="Top 5 · semana en curso" datos={datosPartidos} unidad="registros" />
+          <RankingInstitucional codigo="G-02" icono={<Shield className="h-4 w-4" />} titulo="Partidos con más registros" subtitulo="Top 5 · semana informada" datos={datosPartidos} unidad="registros" />
           <RankingInstitucional codigo="G-03" icono={<ShieldCheck className="h-4 w-4" />} titulo="Principales superintendencias" subtitulo="Top 5 · procedimientos informados" datos={datosSuperintendencias} unidad="procedimientos" />
           <RankingInstitucional codigo="G-04" icono={<BarChart3 className="h-4 w-4" />} titulo="Especialidades intervinientes" subtitulo="Top 5 · personal afectado" datos={datosEspecialidades} unidad="efectivos" />
         </div>
       </section>
 
-      {puedeDescargarInformes && <section aria-label="Archivo estadístico documental" className="border border-[#806c3f] bg-[#071426]/80">
+      <section aria-label="Archivo estadístico documental" className="border border-[#806c3f] bg-[#071426]/80">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#26364d] bg-[#050e1c] px-4 py-3 sm:px-5">
           <div>
             <h2 className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#d5bd82]">Archivo estadístico documental</h2>
@@ -419,54 +413,44 @@ export default function MetricasPage() {
             <div className="flex flex-wrap items-end justify-between gap-4">
               <label className="space-y-2 text-xs text-slate-300">Semana documentada
                 <select value={historicoId} onChange={(e) => setHistoricoId(e.target.value)} className="block w-full border border-[#33465f] bg-[#050e1c] px-3 py-2 text-white">
-                  {resumenesHistoricos.map((r) => <option key={r.id} value={r.id}>{formatearFecha(r.semana_inicio)} al {formatearFecha(r.semana_fin)}{r.tipo === 'conciliado' ? ' · detalle conciliado' : r.tipo === 'individual' ? ' · detalle individual' : r.tipo === 'parcial' ? ' · detalle parcial' : ''}</option>)}
+                  {resumenesHistoricos.map((r) => <option key={r.id} value={r.id}>{formatearFecha(r.semana_inicio)} al {formatearFecha(r.semana_fin)}</option>)}
                 </select>
               </label>
-              <p className="font-mono text-3xl font-bold text-[#d5bd82]">{historicoSeleccionado.total_presentado} <span className="text-xs font-normal text-slate-400">informados {historicoSeleccionado.tipo === 'documental' ? '' : 'según PDF'}</span></p>
+              <p className="font-mono text-3xl font-bold text-[#d5bd82]">{historicoSeleccionado.total_presentado} <span className="text-xs font-normal text-slate-400">informados</span></p>
             </div>
-            <p className="break-words text-[10px] text-slate-400">Respaldo: {historicoSeleccionado.archivo_excel ? `${historicoSeleccionado.archivo_excel} · ` : ''}{historicoSeleccionado.archivo_pdf}</p>
-            {historicoSeleccionado.archivo_pdf &&
+            {puedeDescargarInformes && <p className="break-words text-[10px] text-slate-400">Respaldo: {historicoSeleccionado.archivo_excel} · {historicoSeleccionado.archivo_pdf}</p>}
+            {puedeDescargarInformes && informeHistoricoPorSemana(historicoSeleccionado.semana_inicio) &&
               <a href={`/api/informes-historicos/${historicoSeleccionado.semana_inicio}`} className="inline-block text-xs font-bold text-[#d5bd82] hover:underline">Descargar informe presentado (PDF)</a>}
-            {historicoSeleccionado.tipo === 'documental' && <p className="text-[10px] text-amber-300">Este resumen no contiene IPP, partido, secuestros ni resultados individuales. No se utiliza para calcular tasas de efectividad.</p>}
-            {historicoSeleccionado.tipo === 'individual' && <p className="text-[10px] text-sky-300">Semana con carga individual: {historicoSeleccionado.filas_importadas} fichas importadas de {historicoSeleccionado.total_presentado} informadas en el PDF. El detalle está disponible en Buscar según los permisos del rol. No se registra otro resumen para esta semana.</p>}
-            {historicoSeleccionado.tipo === 'conciliado' && <p className="text-[10px] text-sky-300">Semana conciliada: {historicoSeleccionado.filas_importadas} fichas únicas importadas + {historicoSeleccionado.duplicados_declarados} duplicados declarados = {historicoSeleccionado.total_presentado} registros del informe original. Los duplicados no se suman a los indicadores operativos.</p>}
-            {historicoSeleccionado.tipo === 'parcial' && <p className="text-[10px] text-orange-300">Semana parcial: el PDF informa {historicoSeleccionado.total_presentado}; hay {historicoSeleccionado.filas_importadas} fichas importadas. La diferencia permanece pendiente de conciliación y no se completa con registros ficticios.</p>}
-            <div className="space-y-5">
+            <p className="text-[10px] text-amber-300">Este resumen no contiene IPP, partido, secuestros ni resultados individuales. No se utiliza para calcular tasas de efectividad.</p>
+            <div className="grid gap-5 lg:grid-cols-2">
               <div>
-                <h3 className="mb-1 text-xs font-bold text-white">Evolución de informes presentados · 17 semanas</h3>
-                <p className="mb-3 text-[10px] text-slate-400">Cifras de los PDF originales; incluyen los duplicados declarados del 01/06. Las barras no alimentan los indicadores operativos.</p>
-                <div className="overflow-x-auto" role="region" aria-label="Evolución de los 17 informes semanales">
-                  <div className="h-64 min-w-[900px]">
+                <h3 className="mb-3 text-xs font-bold text-white">Evolución de totales documentales</h3>
+                <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={serieHistorica} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="2 4" stroke="#17263a" vertical={false} />
-                      <XAxis dataKey="name" interval={0} stroke="#718198" fontSize={10} tickLine={false} axisLine={{ stroke: '#26364d' }} />
+                      <XAxis dataKey="name" stroke="#718198" fontSize={10} tickLine={false} axisLine={{ stroke: '#26364d' }} />
                       <YAxis stroke="#718198" fontSize={10} allowDecimals={false} tickLine={false} axisLine={false} />
                       <Tooltip contentStyle={{ backgroundColor: '#050e1c', borderColor: '#806c3f', borderRadius: 0, fontSize: '11px' }} />
-                      <Bar dataKey="total" name="Total presentado según PDF" maxBarSize={40}>
-                        {serieHistorica.map((item) => <Cell key={item.semana} fill={item.tipo === 'parcial' ? '#d97757' : item.tipo === 'individual' || item.tipo === 'conciliado' ? '#7894b7' : '#c4a35a'} />)}
-                      </Bar>
+                      <Bar dataKey="total" fill="#c4a35a" name="Total documental" />
                     </BarChart>
                   </ResponsiveContainer>
-                  </div>
                 </div>
-                <p className="mt-2 text-[10px] text-slate-400">Dorado: resumen documental · Azul: PDF de semana con carga individual o conciliada · Terracota: semana con diferencia pendiente.</p>
               </div>
               <div>
                 <h3 className="mb-3 text-xs font-bold text-white">Desglose por superintendencia</h3>
-                {historicoSeleccionado.tipo === 'documental' && historicoSeleccionado.unidades.length===0 && <p className="border border-amber-800/50 p-3 text-xs text-amber-300">Sin desglose verificable por superintendencia. El total documental se mantiene separado de las métricas individuales.</p>}
-                {historicoSeleccionado.tipo !== 'documental' && <p className="border border-[#26364d] p-3 text-xs text-slate-300">El informe PDF no contiene un desglose validado en este panel. Las fichas individuales se consultan en Buscar según los permisos del rol.</p>}
-                {historicoSeleccionado.unidades.length>0 && <div className="max-h-64 overflow-y-auto border border-[#26364d]">
+                {historicoSeleccionado.unidades.length===0 && <p className="border border-amber-800/50 p-3 text-xs text-amber-300">Sin desglose verificable por superintendencia. El total documental se mantiene separado de las métricas individuales.</p>}
+                <div className="max-h-64 overflow-y-auto border border-[#26364d]">
                   {historicoSeleccionado.unidades.map((u) => <div key={u.nombre_fuente} className="flex justify-between gap-3 border-b border-[#17263a] px-3 py-2 text-[10px] text-slate-300">
                     <span>{u.nombre_fuente}</span><strong className={u.total_informado === null ? 'text-amber-300' : 'text-white'}>{u.total_informado === null ? 'Sin informar' : u.total_informado}</strong>
                   </div>)}
-                </div>}
-                {historicoSeleccionado.tipo === 'documental' && historicoSeleccionado.unidades.length>0 && <p className="mt-2 text-[10px] text-slate-500">{historicoSeleccionado.unidades.length} unidades; los casilleros sin informar se conservan como tales.</p>}
+                </div>
+                {historicoSeleccionado.unidades.length>0 && <p className="mt-2 text-[10px] text-slate-500">{historicoSeleccionado.unidades.length} unidades; los casilleros sin informar se conservan como tales.</p>}
               </div>
             </div>
           </>}
         </div>
-      </section>}
+      </section>
     </main>
   );
 }
@@ -531,7 +515,7 @@ function EncabezadoPanel({ codigo, icono, titulo, subtitulo }: { codigo: string;
   );
 }
 
-function RankingInstitucional({ codigo, icono, titulo, subtitulo, datos, unidad }: { codigo: string; icono: ReactNode; titulo: string; subtitulo: string; datos: any[]; unidad: string }) {
+function RankingInstitucional({ codigo, icono, titulo, subtitulo, datos, unidad }: { codigo: string; icono: ReactNode; titulo: string; subtitulo: string; datos: RankingAgregado[]; unidad: string }) {
   const visibles = datos.slice(0, 5);
   const maximo = Math.max(1, ...visibles.map((item) => Number(item.total) || 0));
 

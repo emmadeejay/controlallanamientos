@@ -13,7 +13,6 @@ import {
 import { perfilTieneAcceso } from '@/lib/usuarios'
 import { JURISDICCIONES_ARGENTINA } from '@/lib/jurisdicciones'
 
-const LOCAL_STORAGE_KEY = 'borrador_nuevo_allanamiento'
 
 // Sincronización precisa con la hora oficial de Argentina (UTC-3)
 // Regla: Desde Lunes 00:00 hs hasta Miércoles 08:00 hs
@@ -40,6 +39,19 @@ function esVentanaOperativaValida(): boolean {
   return false
 }
 
+async function rendicionOperadorCerrada(superintendenciaId: string): Promise<boolean> {
+  const { inicio } = obtenerRangoSemanaRendida()
+  const { data, error } = await supabase
+    .from('rendiciones_allanamientos')
+    .select('estado')
+    .eq('superintendencia_id', superintendenciaId)
+    .eq('semana_inicio', inicio)
+    .maybeSingle()
+
+  if (error) throw error
+  return ['finalizado', 'bloqueado'].includes(data?.estado)
+}
+
 export default function NuevoAllanamientosPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -51,7 +63,7 @@ export default function NuevoAllanamientosPage() {
 
   // Control de Ventana Operativa (Lunes 00:00 hs a Miércoles 08:00 hs)
   const [fueraDeVentana, setFueraDeVentana] = useState(false)
-  const [datosInicializados, setDatosInicializados] = useState(false)
+  const [estadoRendicion, setEstadoRendicion] = useState<'verificando' | 'abierta' | 'finalizada' | 'error'>('verificando')
 
   // Rol y Permisos del Usuario Logueado
   const [esElevado, setEsElevado] = useState(false)
@@ -61,15 +73,15 @@ export default function NuevoAllanamientosPage() {
   const [partidosList, setPartidosList] = useState<string[]>([])
   const [partidosError, setPartidosError] = useState(false)
   const [especialidadesList, setEspecialidadesList] = useState<string[]>([])
-  const [especialidadesError, setEspecialidadesError] = useState(false)
   const [superintendenciasList, setSuperintendenciasList] = useState<{ id: string; nombre: string }[]>([])
 
   // Estado para la superintendencia seleccionada manualmente (Admin/Supervisor)
   const [superintendenciaSeleccionada, setSuperintendenciaSeleccionada] = useState<string>('')
 
   // Estados separados para hora y minuto en formato 24hs
-  const [horaEjecucion, setHoraEjecucion] = useState('')
-  const [minutoEjecucion, setMinutoEjecucion] = useState('')
+  const [horaEjecucion, setHoraEjecucion] = useState('12')
+  const [minutoEjecucion, setMinutoEjecucion] = useState('00')
+  const [enElActo, setEnElActo] = useState(false)
 
   // Estado del formulario principal
   const [formData, setFormData] = useState({
@@ -85,9 +97,9 @@ export default function NuevoAllanamientosPage() {
     dependencia: '',
     fecha_ejecucion: '',
     personal_propio: 1,
-    resultado_medida: '',
+    resultado_medida: 'Positivo',
     objetivos: 1,
-    resultado_secuestros: '',
+    resultado_secuestros: 'Negativo',
     numero_parte_urgente: '',
     orden_servicio_propia: '',
     orden_servicio_cop: '',
@@ -95,7 +107,9 @@ export default function NuevoAllanamientosPage() {
   })
 
   // Tarjeta 4: Personal en colaboración
-  const [colaboraciones, setColaboraciones] = useState<{ especialidad: string; cant_solicitada: number; cant_afectada: number }[]>([])
+  const [colaboraciones, setColaboraciones] = useState([
+    { especialidad: '', cant_solicitada: 1, cant_afectada: 1 }
+  ])
 
   // Tarjeta 5: Secuestros detallados
   const [armas, setArmas] = useState<{ subtipo: string; cantidad: number }[]>([])
@@ -107,55 +121,6 @@ export default function NuevoAllanamientosPage() {
     setFueraDeVentana(!enVentana)
     inicializarDatos()
   }, [])
-
-  // Carga de borradores locales al iniciar
-  const cargarBorrador = (superintendenciasActivas: { id: string; nombre: string }[]) => {
-    try {
-      const borrador = localStorage.getItem(LOCAL_STORAGE_KEY)
-      if (borrador) {
-        const parsed = JSON.parse(borrador)
-        if (parsed.formData) setFormData(prev => ({
-          ...prev, ...parsed.formData,
-          resultado_medida: parsed.schemaVersion === 2 ? parsed.formData.resultado_medida || '' : '',
-          resultado_secuestros: parsed.schemaVersion === 2 ? parsed.formData.resultado_secuestros || '' : '',
-          es_exhorto: parsed.formData.es_exhorto === true,
-          provincia: parsed.formData.provincia || 'Buenos Aires',
-          localidad: parsed.formData.localidad || '',
-        }))
-        if (Array.isArray(parsed.colaboraciones)) setColaboraciones(parsed.colaboraciones.filter((c: { especialidad?: string }) => c?.especialidad))
-        if (parsed.armas) setArmas(parsed.armas)
-        if (parsed.vehiculos) setVehiculos(parsed.vehiculos)
-        if (parsed.detenidos) setDetenidos(parsed.detenidos)
-        // Borradores anteriores podían guardar una hora predeterminada o «En el acto».
-        // Sólo se restaura el horario que fue elegido con el formulario nuevo.
-        if (parsed.schemaVersion === 2 && /^([01]\d|2[0-3])$/.test(parsed.horaEjecucion)) setHoraEjecucion(parsed.horaEjecucion)
-        if (parsed.schemaVersion === 2 && /^[0-5]\d$/.test(parsed.minutoEjecucion)) setMinutoEjecucion(parsed.minutoEjecucion)
-        if (superintendenciasActivas.some((sup) => sup.id === parsed.superintendenciaSeleccionada)) {
-          setSuperintendenciaSeleccionada(parsed.superintendenciaSeleccionada)
-        }
-      }
-    } catch (e) {
-      console.warn('No se pudo recuperar el borrador local:', e)
-    }
-  }
-
-  // Guardar borrador local automáticamente ante cambios
-  useEffect(() => {
-    if (datosInicializados && (!fueraDeVentana || esElevado)) {
-      const estadoCompleto = {
-        schemaVersion: 2,
-        formData,
-        colaboraciones,
-        armas,
-        vehiculos,
-        detenidos,
-        horaEjecucion,
-        minutoEjecucion,
-        superintendenciaSeleccionada
-      }
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(estadoCompleto))
-    }
-  }, [datosInicializados, formData, colaboraciones, armas, vehiculos, detenidos, horaEjecucion, minutoEjecucion, superintendenciaSeleccionada, fueraDeVentana, esElevado])
 
   async function inicializarDatos() {
     try {
@@ -191,10 +156,24 @@ export default function NuevoAllanamientosPage() {
           return
         }
 
+        if (!elevado) {
+          if (!profile.superintendencia_id) {
+            setEstadoRendicion('error')
+            return
+          }
+          const cerrada = await rendicionOperadorCerrada(profile.superintendencia_id)
+          setEstadoRendicion(cerrada ? 'finalizada' : 'abierta')
+          if (cerrada) return
+        } else {
+          setEstadoRendicion('abierta')
+        }
+
         setEsElevado(elevado)
         setSuperintendenciaUsuario(profile?.superintendencia_id || null)
 
-        if (!elevado && profile?.superintendencia_id) {
+        if (superintendenciaUrl && superintendenciaUrl !== 'TODAS') {
+          setSuperintendenciaSeleccionada(superintendenciaUrl)
+        } else if (profile?.superintendencia_id) {
           setSuperintendenciaSeleccionada(profile.superintendencia_id)
         }
       }
@@ -204,22 +183,16 @@ export default function NuevoAllanamientosPage() {
       if (partData) setPartidosList(partData.map(p => p.nombre))
       setPartidosError(Boolean(partError || !partData?.length))
 
-      const { data: espData, error: espError } = await supabase.from('especialidades').select('nombre').order('nombre')
-      setEspecialidadesList(espData?.map(e => e.nombre) ?? [])
-      setEspecialidadesError(Boolean(espError || !espData?.length))
+      const { data: espData } = await supabase.from('especialidades').select('nombre').order('nombre')
+      if (espData) setEspecialidadesList(espData.map(e => e.nombre))
 
-      const { data: superData } = await supabase.from('superintendencias').select('id, nombre').eq('activa', true).order('nombre')
+      const { data: superData } = await supabase.from('superintendencias').select('id, nombre').order('nombre')
       if (superData) setSuperintendenciasList(superData)
 
-      cargarBorrador(superData ?? [])
-      if (superintendenciaUrl && superData?.some((sup) => sup.id === superintendenciaUrl)) {
-        setSuperintendenciaSeleccionada(superintendenciaUrl)
-      }
 
     } catch (err) {
       console.error('Error inicializando datos:', err)
-    } finally {
-      setDatosInicializados(true)
+      setEstadoRendicion('error')
     }
   }
 
@@ -230,7 +203,7 @@ export default function NuevoAllanamientosPage() {
 
   // Manejadores para Colaboraciones
   const addColaboracion = () => {
-    setColaboraciones(prev => [...prev, { especialidad: '', cant_solicitada: 0, cant_afectada: 0 }])
+    setColaboraciones(prev => [...prev, { especialidad: '', cant_solicitada: 1, cant_afectada: 1 }])
   }
   const removeColaboracion = (index: number) => {
     setColaboraciones(prev => prev.filter((_, i) => i !== index))
@@ -287,15 +260,20 @@ export default function NuevoAllanamientosPage() {
       if (!targetSuperintendenciaId) {
         throw new Error('Debe seleccionar o tener asignada una Superintendencia válida.')
       }
-      if (esElevado && !superintendenciasList.some((sup) => sup.id === targetSuperintendenciaId)) {
-        throw new Error('Elegí una superintendencia activa antes de guardar.')
+
+      if (!esElevado) {
+        try {
+          if (await rendicionOperadorCerrada(targetSuperintendenciaId)) {
+            setEstadoRendicion('finalizada')
+            return
+          }
+        } catch {
+          setEstadoRendicion('error')
+          return
+        }
       }
 
-      if (!/^([01]\d|2[0-3])$/.test(horaEjecucion) || !/^[0-5]\d$/.test(minutoEjecucion)) {
-        throw new Error('Indicá la hora y los minutos de ejecución.')
-      }
-
-      const horarioFinal = `${horaEjecucion}:${minutoEjecucion}`
+      const horarioFinal = enElActo ? null : `${horaEjecucion}:${minutoEjecucion}`
       const provincia = formData.es_exhorto ? formData.provincia : 'Buenos Aires'
       if (!provincia || (provincia === 'Buenos Aires' ? !formData.partido : !formData.localidad.trim())) {
         throw new Error('Indicá el partido o la localidad de destino del exhorto.')
@@ -318,7 +296,7 @@ export default function NuevoAllanamientosPage() {
         fecha_solicitud: formData.fecha_solicitud || null,
         fecha_ejecucion: formData.fecha_ejecucion,
         horario_ejecucion: horarioFinal,
-        en_el_acto: false,
+        en_el_acto: enElActo,
         es_exhorto: formData.es_exhorto,
         provincia,
         localidad: provincia === 'Buenos Aires' ? null : formData.localidad.trim(),
@@ -357,9 +335,6 @@ export default function NuevoAllanamientosPage() {
 
       if (guardarError) throw guardarError
 
-      // Vaciar borrador tras guardar correctamente
-      localStorage.removeItem(LOCAL_STORAGE_KEY)
-
       router.push('/allanamientos')
 
     } catch (err: any) {
@@ -371,6 +346,28 @@ export default function NuevoAllanamientosPage() {
   }
 
   const rangoSemanaRendida = obtenerRangoSemanaRendida()
+
+  if (estadoRendicion === 'verificando') {
+    return <div className="flex min-h-[60vh] items-center justify-center gap-3 text-slate-100"><Loader2 className="h-5 w-5 animate-spin" /> Verificando rendición...</div>
+  }
+
+  if (estadoRendicion === 'finalizada' || estadoRendicion === 'error') {
+    return (
+      <div className="cop-form-page flex min-h-[62vh] items-center justify-center py-10 text-center">
+        <section className="w-full max-w-xl border border-[#26364d] border-l-4 border-l-amber-600 bg-[#071426] px-5 py-8 sm:px-8" role="alert">
+          <Lock className="mx-auto mb-5 h-6 w-6 text-amber-400" />
+          <p className="text-sm text-slate-100">
+            {estadoRendicion === 'finalizada'
+              ? 'La rendición de esta semana ya fue finalizada. No se pueden cargar nuevos allanamientos.'
+              : 'No se pudo verificar el estado de la rendición. Volvé a intentar desde el listado.'}
+          </p>
+          <button type="button" onClick={() => router.replace('/allanamientos')} className="cop-action-secondary mt-6">
+            Volver a allanamientos
+          </button>
+        </section>
+      </div>
+    )
+  }
 
   if (fueraDeVentana && !esElevado) {
     return (
@@ -546,7 +543,7 @@ export default function NuevoAllanamientosPage() {
                     ))}
                   </select>
                   <p className="text-[11px] text-slate-400 mt-1">
-                    Elegí la unidad que presentó la rendición. No se asigna automáticamente a tu destino.
+                    Como usuario supervisor/administrador, debe especificar a qué área pertenece el registro.
                   </p>
                 </div>
               )}
@@ -630,16 +627,19 @@ export default function NuevoAllanamientosPage() {
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-400">Hora de ejecución (24 h) *</label>
-                <div className="flex items-center gap-2">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-slate-400">Horario de Ejecución (24hs)</span>
+                  <label className="flex items-center gap-2 text-xs text-slate-200">
+                    <input type="checkbox" checked={enElActo} onChange={e => setEnElActo(e.target.checked)} className="h-4 w-4 accent-blue-500" /> En el acto
+                  </label>
+                </div>
+                <div className={`flex items-center gap-2 transition-opacity ${enElActo ? 'opacity-40' : ''}`}>
                   <select
-                    required
-                    aria-label="Hora de ejecución"
+                    disabled={enElActo}
                     value={horaEjecucion}
                     onChange={(e) => setHoraEjecucion(e.target.value)}
-                    className="min-w-0 flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer text-center"
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer text-center disabled:cursor-not-allowed"
                   >
-                    <option value="">Hora</option>
                     {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map((h) => (
                       <option key={h} value={h} className="bg-slate-900 text-white">
                         {h} hs
@@ -648,13 +648,11 @@ export default function NuevoAllanamientosPage() {
                   </select>
                   <span className="text-white font-bold">:</span>
                   <select
-                    required
-                    aria-label="Minutos de ejecución"
+                    disabled={enElActo}
                     value={minutoEjecucion}
                     onChange={(e) => setMinutoEjecucion(e.target.value)}
-                    className="min-w-0 flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer text-center"
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer text-center disabled:cursor-not-allowed"
                   >
-                    <option value="">Minuto</option>
                     {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')).map((m) => (
                       <option key={m} value={m} className="bg-slate-900 text-white">
                         {m} min
@@ -695,12 +693,10 @@ export default function NuevoAllanamientosPage() {
                 <label className="block text-xs font-medium text-slate-400 mb-1">Resultado de la Medida *</label>
                 <select 
                   name="resultado_medida" 
-                  required
                   value={formData.resultado_medida} 
                   onChange={handleChange}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer"
                 >
-                  <option value="">Seleccioná el resultado...</option>
                   <option value="Positivo">Positivo</option>
                   <option value="Negativo">Negativo</option>
                   <option value="Suspendido">Suspendido</option>
@@ -742,16 +738,6 @@ export default function NuevoAllanamientosPage() {
             </div>
 
             <div className="space-y-3">
-              {especialidadesError && (
-                <p role="alert" className="border border-amber-700/60 bg-amber-950/30 px-4 py-3 text-xs text-amber-300">
-                  No hay especialidades disponibles en este entorno. Revisá el catálogo y tu acceso antes de agregar personal en colaboración.
-                </p>
-              )}
-              {colaboraciones.length === 0 && (
-                <p className="border border-dashed border-[#26364d] px-4 py-3 text-xs text-slate-400">
-                  Sin personal en colaboración. Agregá una especialidad sólo si intervino otra unidad.
-                </p>
-              )}
               {colaboraciones.map((colab, index) => (
                 <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center bg-slate-950/40 p-3 rounded-xl border border-slate-800/60">
                   <div className="md:col-span-6">
@@ -796,11 +782,10 @@ export default function NuevoAllanamientosPage() {
                     </select>
                   </div>
                   <div className="md:col-span-1 flex justify-end items-end h-full pt-4">
-                    {colaboraciones.length > 0 && (
+                    {colaboraciones.length > 1 && (
                       <button 
                         type="button" 
                         onClick={() => removeColaboracion(index)}
-                        aria-label={`Quitar colaboración ${index + 1}`}
                         className="p-2 text-red-400 hover:bg-red-950/30 rounded-lg transition cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -826,12 +811,10 @@ export default function NuevoAllanamientosPage() {
                 <label className="block text-xs font-medium text-slate-400 mb-1">Resultado de Secuestros *</label>
                 <select 
                   name="resultado_secuestros" 
-                  required
                   value={formData.resultado_secuestros} 
                   onChange={handleChange}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer"
                 >
-                  <option value="">Seleccioná el resultado...</option>
                   <option value="Negativo">Negativo</option>
                   <option value="Positivo">Positivo</option>
                 </select>

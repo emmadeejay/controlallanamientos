@@ -1,5 +1,6 @@
 import './globals.css';
 import type { Viewport } from 'next';
+import IdleTimer from '@/components/IdleTimer';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -15,6 +16,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className="cop-institutional-ui overflow-x-hidden bg-[#07090e] antialiased">
+        <IdleTimer />
         {children}
       </body>
     </html>

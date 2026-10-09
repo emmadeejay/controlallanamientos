@@ -41,6 +41,23 @@ export async function proxy(request: NextRequest) {
     request.nextUrl.pathname.startsWith('/auth/mfa') ||
     request.nextUrl.pathname.startsWith('/select-app');
 
+  if (user) {
+    const { data: estado, error: sesionError } = await supabase.rpc('estado_sesion_actual');
+    if (sesionError || estado?.vigente !== true) {
+      // Un JWT aún firmado no habilita una sesión vencida o revocada.
+      if (!sesionError) await supabase.auth.signOut({ scope: 'local' });
+      if (isProtectedRoute) {
+        const url = request.nextUrl.clone();
+        url.pathname = '/login';
+        url.search = '?motivo=sesion-vencida';
+        const response = NextResponse.redirect(url);
+        supabaseResponse.cookies.getAll().forEach(cookie => response.cookies.set(cookie));
+        return response;
+      }
+      return supabaseResponse;
+    }
+  }
+
   // Si intenta acceder a una ruta protegida sin sesión real, se expulsa
   if (!user && isProtectedRoute) {
     const url = request.nextUrl.clone();
@@ -65,7 +82,7 @@ export async function proxy(request: NextRequest) {
     }
 
     const debeQuedarEnSelector =
-      !perfilTieneAcceso(perfil) || perfil.requiere_cambio_clave === true;
+      !perfilTieneAcceso(perfil) || perfil.requiere_cambio_clave !== false;
     const estaEnSelector = request.nextUrl.pathname.startsWith('/select-app');
 
     if (debeQuedarEnSelector && !estaEnSelector) {

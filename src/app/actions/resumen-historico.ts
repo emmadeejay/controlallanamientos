@@ -2,7 +2,6 @@
 
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import { INFORMES_HISTORICOS } from '@/lib/informes-historicos';
 import { normalizarRolUsuario, perfilTieneAcceso } from '@/lib/usuarios';
 
 export type ResumenHistoricoConsulta = {
@@ -13,13 +12,10 @@ export type ResumenHistoricoConsulta = {
   archivo_excel: string;
   archivo_pdf: string;
   unidades: Array<{ nombre_fuente: string; total_informado: number | null }>;
-  tipo: 'documental' | 'individual' | 'parcial' | 'conciliado';
-  filas_importadas: number | null;
-  duplicados_declarados: number;
 };
 
 const FECHA_ISO = /^\d{4}-\d{2}-\d{2}$/;
-const ROLES_CONSULTA = new Set(['administrador', 'supervisor', 'auditor']);
+const ROLES_CONSULTA = new Set(['administrador', 'supervisor', 'auditor', 'consulta']);
 
 export async function consultarResumenesHistoricosAction(desde: string, hasta: string): Promise<
   { success: true; resumenes: ResumenHistoricoConsulta[] } |
@@ -39,41 +35,65 @@ export async function consultarResumenesHistoricosAction(desde: string, hasta: s
     const admin = createAdminClient();
     const { data: perfil, error: perfilError } = await admin
       .from('profiles')
-      .select('rol, activo, estado_cuenta, vigencia_institucional_hasta, modulos_permitidos')
+      .select('rol, activo, estado_cuenta, vigencia_institucional_hasta, requiere_cambio_clave, modulos_permitidos')
       .eq('id', user.id)
       .maybeSingle();
     const rol = normalizarRolUsuario(perfil?.rol);
     const esGestion = rol === 'administrador' || rol === 'supervisor';
-    if (perfilError || !perfil || !perfilTieneAcceso(perfil) || !ROLES_CONSULTA.has(rol) ||
+    if (perfilError || !perfil || !perfilTieneAcceso(perfil) || perfil.requiere_cambio_clave !== false || !ROLES_CONSULTA.has(rol) ||
         (!esGestion && !perfil.modulos_permitidos?.includes('allanamientos'))) {
       return { success: false, error: 'No tenés permiso para consultar los resúmenes.' };
     }
 
+    if (rol === 'consulta') {
+      // Consulta recibe estadísticas: no IDs documentales ni nombres de archivos.
+      const [resumenes, padron] = await Promise.all([
+        admin.from('resumenes_historicos_semanales')
+          .select('semana_inicio, semana_fin, total_presentado, resumenes_historicos_unidades(nombre_fuente, total_informado)')
+          .eq('estado', 'vigente')
+          .lte('semana_inicio', hasta)
+          .gte('semana_fin', desde)
+          .order('semana_inicio', { ascending: false })
+          .limit(500),
+        admin.from('superintendencias').select('nombre'),
+      ]);
+      if (resumenes.error) throw resumenes.error;
+      if (padron.error) throw padron.error;
+      const nombres = new Map((padron.data ?? []).map((s) => [s.nombre.trim().toUpperCase(), s.nombre]));
+      return {
+        success: true,
+        resumenes: (resumenes.data ?? []).map((item) => {
+          const unidades = new Map<string, number | null>();
+          for (const unidad of item.resumenes_historicos_unidades ?? []) {
+            const nombre = nombres.get(unidad.nombre_fuente.trim().toUpperCase()) ?? 'Sin especificar';
+            const anterior = unidades.get(nombre) ?? null;
+            unidades.set(nombre, anterior === null && unidad.total_informado === null
+              ? null : (anterior ?? 0) + (unidad.total_informado ?? 0));
+          }
+          return {
+            id: item.semana_inicio,
+            semana_inicio: item.semana_inicio,
+            semana_fin: item.semana_fin,
+            total_presentado: item.total_presentado,
+            archivo_excel: '',
+            archivo_pdf: '',
+            unidades: Array.from(unidades, ([nombre_fuente, total_informado]) => ({ nombre_fuente, total_informado })),
+          };
+        }),
+      };
+    }
+
     // Los resúmenes representan semanas completas. Un período parcial puede
     // solaparse con una semana, pero el total nunca se prorratea por día.
-    const especiales = INFORMES_HISTORICOS.filter((informe) => informe.tipo !== 'documental' &&
-      informe.semana_inicio <= hasta && informe.semana_fin >= desde);
-    const consultaLotes = especiales.length > 0
-      ? admin.from('importaciones_allanamientos')
-          .select('semana_inicio, filas_importadas, archivo_nombre')
-          .eq('estado', 'completado')
-          .in('semana_inicio', especiales.map((informe) => informe.semana_inicio))
-      : Promise.resolve({ data: [], error: null });
-    const [{ data, error }, { data: lotes, error: lotesError }] = await Promise.all([
-      admin.from('resumenes_historicos_semanales')
+    const { data, error } = await admin.from('resumenes_historicos_semanales')
       .select('id, semana_inicio, semana_fin, total_presentado, archivo_excel, archivo_pdf, resumenes_historicos_unidades(nombre_fuente, total_informado)')
       .eq('estado', 'vigente')
       .lte('semana_inicio', hasta)
       .gte('semana_fin', desde)
       .order('semana_inicio', { ascending: false })
-      .limit(500),
-      consultaLotes,
-    ]);
-    if (error || lotesError) throw error ?? lotesError;
-    const semanasConDetalle = new Set(especiales.map((informe) => informe.semana_inicio));
-    const documentales: ResumenHistoricoConsulta[] = (data ?? [])
-      .filter((item) => !semanasConDetalle.has(item.semana_inicio))
-      .map((item) => ({
+      .limit(500);
+    if (error) throw error;
+    const resumenes: ResumenHistoricoConsulta[] = (data ?? []).map((item) => ({
       id: item.id,
       semana_inicio: item.semana_inicio,
       semana_fin: item.semana_fin,
@@ -84,30 +104,7 @@ export async function consultarResumenesHistoricosAction(desde: string, hasta: s
         nombre_fuente: unidad.nombre_fuente,
         total_informado: unidad.total_informado,
       })),
-      tipo: 'documental',
-      filas_importadas: null,
-      duplicados_declarados: 0,
-      }));
-    const individuales: ResumenHistoricoConsulta[] = especiales.map((informe) => {
-      const archivos = (lotes ?? []).filter((lote) => lote.semana_inicio === informe.semana_inicio);
-      const filasImportadas = archivos.reduce((total, lote) => total + Number(lote.filas_importadas || 0), 0);
-      const conciliado = informe.tipo === 'parcial' && !!informe.duplicados_declarados &&
-        filasImportadas === informe.total_informe - informe.duplicados_declarados;
-      return {
-        id: `informe-${informe.semana_inicio}`,
-        semana_inicio: informe.semana_inicio,
-        semana_fin: informe.semana_fin,
-        total_presentado: informe.total_informe,
-        archivo_excel: archivos.map((lote) => lote.archivo_nombre).join(', '),
-        archivo_pdf: informe.archivo_pdf,
-        unidades: [],
-        tipo: conciliado ? 'conciliado' : informe.tipo,
-        filas_importadas: filasImportadas,
-        duplicados_declarados: conciliado ? informe.duplicados_declarados! : 0,
-      };
-    });
-    const resumenes = [...documentales, ...individuales]
-      .sort((a, b) => b.semana_inicio.localeCompare(a.semana_inicio));
+    }));
     return { success: true, resumenes };
   } catch (error) {
     console.error('No se pudieron consultar los resúmenes históricos.', error);

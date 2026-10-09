@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   AlertTriangle,
+  ArrowLeft,
   CheckCircle2,
   Download,
   FileSpreadsheet,
@@ -14,7 +15,6 @@ import {
   Upload,
   XCircle,
 } from 'lucide-react';
-import CopAdminHeader from '@/components/CopAdminHeader';
 import { createClient } from '@/lib/supabase/client';
 import { obtenerRangoSemanaRendida } from '@/lib/allanamientos';
 import {
@@ -59,6 +59,7 @@ function formatearFechaCorta(fechaIso: string): string {
 }
 
 export default function ImportacionHistoricaPage() {
+  const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const semanaMaxima = obtenerRangoSemanaRendida().inicio;
   const semanasDisponibles = useMemo(() => {
@@ -70,14 +71,12 @@ export default function ImportacionHistoricaPage() {
       lunes = sumarDias(lunes, 7);
     }
 
-    return semanas.reverse();
+    return semanas;
   }, [semanaMaxima]);
 
-  const [miEmail, setMiEmail] = useState('');
-  const [cerrandoSesion, setCerrandoSesion] = useState(false);
   const [superintendencias, setSuperintendencias] = useState<SuperintendenciaImportacion[]>([]);
   const [lotes, setLotes] = useState<LoteReciente[]>([]);
-  const [semanaInicio, setSemanaInicio] = useState(() => semanaMaxima);
+  const [semanaInicio, setSemanaInicio] = useState('2026-06-01');
   const [archivo, setArchivo] = useState<File | null>(null);
   const [archivoHash, setArchivoHash] = useState('');
   const [filas, setFilas] = useState<FilaImportacionHistorica[]>([]);
@@ -96,11 +95,7 @@ export default function ImportacionHistoricaPage() {
 
   useEffect(() => {
     async function cargarCatalogos() {
-      const [
-        { data: supers, error: supersError },
-        { data: lotesData, error: lotesError },
-        { data: usuarioData },
-      ] =
+      const [{ data: supers, error: supersError }, { data: lotesData, error: lotesError }] =
         await Promise.all([
           supabase.from('superintendencias').select('id, nombre').order('nombre'),
           supabase
@@ -110,7 +105,6 @@ export default function ImportacionHistoricaPage() {
             )
             .order('creado_at', { ascending: false })
             .limit(8),
-          supabase.auth.getUser(),
         ]);
 
       if (supersError) {
@@ -118,26 +112,12 @@ export default function ImportacionHistoricaPage() {
         return;
       }
       setSuperintendencias((supers ?? []) as SuperintendenciaImportacion[]);
-      setMiEmail(usuarioData.user?.email || '');
 
       if (!lotesError) setLotes((lotesData ?? []) as LoteReciente[]);
     }
 
     cargarCatalogos();
   }, [supabase]);
-
-  async function cerrarSesion() {
-    if (cerrandoSesion) return;
-    setCerrandoSesion(true);
-    setError(null);
-    const { error: cierreError } = await supabase.auth.signOut();
-    if (cierreError) {
-      setError('No se pudo cerrar sesión. Intentá nuevamente.');
-      setCerrandoSesion(false);
-      return;
-    }
-    window.location.replace('/login');
-  }
 
   const resumen = useMemo(() => {
     const aptas = revisiones.filter((revision) => revision.estado === 'apto').length;
@@ -338,51 +318,46 @@ export default function ImportacionHistoricaPage() {
   }
 
   return (
-    <div className="cop-shell min-h-screen text-slate-100">
-      <CopAdminHeader
-        active="importacion"
-        email={miEmail}
-        role="administrador"
-        onLogout={cerrarSesion}
-        loggingOut={cerrandoSesion}
-      />
-
-      <main className="mx-auto max-w-7xl space-y-6 px-4 pt-6 pb-12 sm:px-6 lg:px-8">
-        <section className="flex flex-col gap-5 border-b border-[#26364d] pb-5 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex items-start gap-4">
-            <span className="cop-module-index mt-1 hidden sm:block">04 / IMPORTACIÓN</span>
-            <span className="hidden h-12 w-px bg-[#26364d] sm:block" />
+    <main className="cop-shell min-h-screen px-4 py-6 text-slate-200 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <header className="flex flex-col gap-4 border-b border-slate-800 pb-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <button
+              type="button"
+              onClick={() => router.push('/allanamientos')}
+              className="border border-[#33465f] bg-[#050e1c] p-2.5 text-slate-400 transition hover:border-[#c4a35a] hover:text-white"
+              aria-label="Volver a Allanamientos"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
             <div>
-              <p className="cop-kicker mb-2">Carga histórica · operación controlada</p>
-              <h1 className="text-xl font-black uppercase tracking-[0.035em] text-white sm:text-2xl">
-                Importación histórica de allanamientos
-              </h1>
-              <p className="mt-2 text-xs text-slate-400">
-                Acceso exclusivo del Administrador · un archivo por semana · operación atómica y auditada
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-6 w-6 text-[#c4a35a]" />
+                <h1 className="text-xl font-extrabold text-white sm:text-2xl">
+                  Importación histórica controlada
+                </h1>
+              </div>
+              <p className="mt-1 text-xs text-slate-400">
+                Acceso exclusivo del Administrador · un lote por archivo · operación atómica y auditada
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/admin/importar-allanamientos/resumen" className="cop-action-secondary inline-flex items-center justify-center gap-2 px-4 py-2.5">
-              Resumen documental semanal
-            </Link>
-            <button
-              type="button"
-              onClick={descargarPlantillaHistorica}
-              className="cop-action-secondary inline-flex items-center justify-center gap-2 px-4 py-2.5"
-            >
-              <Download className="h-4 w-4" /> Descargar plantilla oficial
-            </button>
-          </div>
-        </section>
+          <button
+            type="button"
+            onClick={descargarPlantillaHistorica}
+            className="cop-action-secondary inline-flex items-center justify-center gap-2 px-4 py-2.5"
+          >
+            <Download className="h-4 w-4" /> Descargar plantilla oficial
+          </button>
+        </header>
 
         <section className="grid gap-4 lg:grid-cols-3">
-          <div className="min-w-0 border border-[#33465f] bg-[#071426] p-5 lg:col-span-2">
+          <div className="border border-[#33465f] bg-[#071426] p-5 lg:col-span-2">
             <div className="mb-5 flex items-center gap-2">
               <FileSpreadsheet className="h-5 w-5 text-[#c4a35a]" />
               <h2 className="font-bold text-white">1. Seleccionar y comprobar la semana</h2>
             </div>
-            <div className="grid min-w-0 gap-4 md:grid-cols-[220px_minmax(0,1fr)_auto] md:items-end">
+            <div className="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)_auto] md:items-end">
               <label className="space-y-1.5 text-xs font-semibold text-slate-400">
                 Lunes de la semana
                 <select
@@ -399,15 +374,12 @@ export default function ImportacionHistoricaPage() {
                     </option>
                   ))}
                 </select>
-                <span className="block font-normal leading-relaxed text-slate-500">
-                  Más reciente primero. Las semanas se habilitan automáticamente al finalizar cada domingo.
-                </span>
               </label>
               <label className="min-w-0 space-y-1.5 text-xs font-semibold text-slate-400">
                 Archivo normalizado
-                <div className="flex min-h-10 min-w-0 max-w-full items-center border border-dashed border-[#33465f] bg-[#050e1c] px-3 py-2 text-xs text-slate-300">
-                  <Upload className="mr-2 h-4 w-4 shrink-0 text-[#c4a35a]" />
-                  <span className="min-w-0 flex-1 truncate" title={archivo?.name || undefined}>{archivo?.name || 'Elegir archivo .xlsx'}</span>
+                <div className="flex min-h-10 items-center border border-dashed border-[#33465f] bg-[#050e1c] px-3 py-2 text-xs text-slate-300">
+                  <Upload className="mr-2 h-4 w-4 text-[#c4a35a]" />
+                  <span className="truncate">{archivo?.name || 'Elegir archivo .xlsx'}</span>
                 </div>
                 <input
                   type="file"
@@ -420,7 +392,7 @@ export default function ImportacionHistoricaPage() {
                 type="button"
                 onClick={prevalidar}
                 disabled={procesando || !archivo}
-                className="cop-action-primary inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap px-4 disabled:cursor-not-allowed disabled:opacity-40"
+                className="cop-action-primary inline-flex h-10 items-center justify-center gap-2 px-4 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {procesando ? (
                   <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -670,7 +642,7 @@ export default function ImportacionHistoricaPage() {
             </div>
           )}
         </section>
-      </main>
+      </div>
 
       {loteAnular && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4">
@@ -710,7 +682,8 @@ export default function ImportacionHistoricaPage() {
               </label>
 
               <div className="rounded-xl border border-amber-900/50 bg-amber-950/20 p-3 text-xs leading-relaxed text-amber-200">
-                Si existe un informe consolidado de esta semana, quedará invalidado y deberá generarse nuevamente.
+                Si existe un informe consolidado de esta semana, revisalo y generá una nueva versión
+                después de anular el lote. Los PDF ya descargados conservan sus datos originales.
               </div>
             </div>
 
@@ -736,6 +709,6 @@ export default function ImportacionHistoricaPage() {
           </div>
         </div>
       )}
-    </div>
+    </main>
   );
 }

@@ -7,11 +7,10 @@ export type InformeHistorico = {
   total_informe: number;
   archivo_pdf: string;
   sha256: string;
-  duplicados_declarados?: number;
 };
 
 export const INFORMES_HISTORICOS: readonly InformeHistorico[] = [
-  { semana_inicio: "2026-06-01", semana_fin: "2026-06-07", tipo: "parcial", total_informe: 472, duplicados_declarados: 2, archivo_pdf: "INF. EST. ALLANAMIENTOS 01-07JUN26.pdf", sha256: "c97654fe788c0e3b0e9964c6b3ac9638b4e3209d4057199953f450a74a676067" },
+  { semana_inicio: "2026-06-01", semana_fin: "2026-06-07", tipo: "parcial", total_informe: 472, archivo_pdf: "INF. EST. ALLANAMIENTOS 01-07JUN26.pdf", sha256: "c97654fe788c0e3b0e9964c6b3ac9638b4e3209d4057199953f450a74a676067" },
   { semana_inicio: "2026-06-08", semana_fin: "2026-06-14", tipo: "documental", total_informe: 470, archivo_pdf: "INF. EST. ALLANAMIENTOS 8 AL 14 JUN26.pdf", sha256: "03d1877ccf75983aed4567bbab368703fa496a2bf00e4e54ab3dca9534ed069c" },
   { semana_inicio: "2026-06-15", semana_fin: "2026-06-21", tipo: "documental", total_informe: 440, archivo_pdf: "INF. EST. ALLANAMIENTOS 15-21 JUN.pdf", sha256: "63d046646ef7070d99d7db56ef72018b0baa8fe62430bf3bf1787a66da139254" },
   { semana_inicio: "2026-06-22", semana_fin: "2026-06-28", tipo: "documental", total_informe: 427, archivo_pdf: "INF. EST. ALLANAMIENTOS 22-28 JUN.pdf", sha256: "fffb218515b563a6674fca62960723216fb13f451b7d9bb16f46d6a824b599ca" },
