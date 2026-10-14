@@ -244,7 +244,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <footer className="mt-12 border-t border-[#26364d] bg-[#071426] py-5 text-xs text-slate-500">
         <div className="mx-auto flex max-w-[1500px] flex-col justify-between gap-1 px-6 sm:flex-row sm:items-center">
           <p className="font-bold uppercase tracking-[0.12em] text-slate-400">Dirección Centro de Operaciones Policiales</p>
-          <p className="text-[10px]">Sistema de Allanamientos · Desarrollo: Emmanuel Machado</p>
+          <p className="text-[10px]">Sistema de Allanamientos · Desarrollado por <a href="https://vertam.com.ar" target="_blank" rel="noopener noreferrer" className="text-inherit no-underline hover:underline focus-visible:underline">VERTAM</a></p>
         </div>
       </footer> 
     </div>

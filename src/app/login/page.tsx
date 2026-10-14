@@ -309,7 +309,7 @@ export default function LoginPage() {
       <footer className="border-t border-[#26364d] bg-[#071426] py-4 text-[10px] text-slate-500">
         <div className="mx-auto flex max-w-[1500px] flex-col justify-between gap-1 px-5 sm:flex-row sm:items-center sm:px-8">
           <span className="font-bold uppercase tracking-[0.12em] text-slate-400">Dirección Centro de Operaciones Policiales</span>
-          <span>Plataforma Integral de Gestión · Desarrollo: Emmanuel Machado</span>
+          <span>Plataforma Integral de Gestión · Desarrollado por <a href="https://vertam.com.ar" target="_blank" rel="noopener noreferrer" className="text-inherit no-underline hover:underline focus-visible:underline">VERTAM</a></span>
         </div>
       </footer>
     </div>
