@@ -497,7 +497,7 @@ export default function GestionUsuariosAdminPage() {
         </Modal>
       )}
 
-      <footer className="w-full border-t border-[#26364d] bg-[#071426] py-6 text-center"><p className="text-xs text-slate-400">Plataforma Integral de Gestión · Desarrollo: Emmanuel Machado</p></footer>
+      <footer className="w-full border-t border-[#26364d] bg-[#071426] py-6 text-center"><p className="text-xs text-slate-400">Plataforma Integral de Gestión · Desarrollado por <a href="https://vertam.com.ar" target="_blank" rel="noopener noreferrer" className="text-inherit no-underline hover:underline focus-visible:underline">VERTAM</a></p></footer>
       <style jsx global>{`.input { width: 100%; padding: .7rem .875rem; background: #050e1c; border: 1px solid #33465f; border-radius: .25rem; color: white; font-size: .75rem; outline: none; } .input:focus { border-color: #c4a35a; }`}</style>
     </div>
   );
