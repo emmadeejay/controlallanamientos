@@ -349,9 +349,14 @@ export default function GestionUsuariosAdminPage() {
             <span className="hidden h-12 w-px bg-[#26364d] sm:block" />
             <div><p className="cop-kicker mb-2">Administración de identidades</p><h1 className="text-xl font-black uppercase tracking-[0.035em] text-white sm:text-2xl">Gestión de usuarios</h1><p className="mt-2 text-xs text-slate-400">Identidad única, destino, vigencia y trazabilidad institucional</p></div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {rolNormalizado === 'administrador' && <button onClick={() => { setErrorConciliacion(null); setModalConciliacion(true); }} className="cop-action-secondary flex items-center justify-center gap-2 px-4 py-2.5"><ShieldAlert className="w-4 h-4" /> Conciliar operación</button>}
-            {rolNormalizado === 'administrador' && <button onClick={() => { setErrorConciliacion(null); setModalConciliacionClave(true); }} className="cop-action-secondary flex items-center justify-center gap-2 px-4 py-2.5"><KeyRound className="w-4 h-4" /> Conciliar clave</button>}
+          <div className="flex flex-wrap items-start gap-2">
+            {rolNormalizado === 'administrador' && <details className="group border border-[#33465f] bg-[#071426] text-xs text-slate-200">
+              <summary className="flex min-h-11 cursor-pointer items-center gap-2 px-4 font-semibold hover:text-white">Herramientas administrativas <span aria-hidden="true" className="text-[#c4a35a] group-open:rotate-180">▾</span></summary>
+              <div className="flex flex-col gap-2 border-t border-[#33465f] p-2">
+                <button onClick={() => { setErrorConciliacion(null); setModalConciliacion(true); }} className="cop-action-secondary flex min-h-11 items-center gap-2 px-4"><ShieldAlert className="h-4 w-4" /> Conciliar operación</button>
+                <button onClick={() => { setErrorConciliacion(null); setModalConciliacionClave(true); }} className="cop-action-secondary flex min-h-11 items-center gap-2 px-4"><KeyRound className="h-4 w-4" /> Conciliar clave</button>
+              </div>
+            </details>}
             {puedeCrearUsuarios && <button onClick={() => { setModulosSeleccionados(['allanamientos']); setModalAbierto(true); }} className="cop-action-primary flex items-center justify-center gap-2 px-4 py-2.5"><UserPlus className="w-4 h-4" /> Nuevo usuario</button>}
           </div>
         </section>
@@ -396,14 +401,19 @@ export default function GestionUsuariosAdminPage() {
                       </div>
                     </div>
                     {gestionable && !esPropio && (
-                      <div className="flex flex-wrap gap-1 bg-[#0b0e17] p-1 rounded-xl border border-slate-800 shrink-0">
-                        <button title="Editar perfil" onClick={() => { setUsuarioEditando(usuario); setModulosSeleccionados(usuario.modulos_permitidos || ['allanamientos']); }} className="p-2 text-slate-400 hover:text-[#c4a35a]"><Edit className="w-4 h-4" /></button>
-                        {(estado === 'activo' || estado === 'por_vencer' || estado === 'validacion_vencida') && <button title="Restablecer clave" onClick={() => setUsuarioACambiarPass(usuario)} className="p-2 text-slate-400 hover:text-amber-400"><KeyRound className="w-4 h-4" /></button>}
-                        {normalizarRol(usuario.rol) !== 'administrador' && (estado === 'activo' || estado === 'por_vencer' || estado === 'validacion_vencida') && <button title="Revalidar por 60 días" onClick={() => setUsuarioRevalidando(usuario)} className="p-2 text-slate-400 hover:text-[#c4a35a]"><RefreshCw className="w-4 h-4" /></button>}
-                        {(estado === 'activo' || estado === 'por_vencer' || estado === 'validacion_vencida') && <button title="Registrar traslado" onClick={() => { setErrorTraslado(null); setUsuarioTrasladando(usuario); }} className="p-2 text-slate-400 hover:text-[#c4a35a]"><ArrowRightLeft className="w-4 h-4" /></button>}
-                        {(estado === 'activo' || estado === 'por_vencer' || estado === 'validacion_vencida') && <button title="Pausa temporal" onClick={() => setModalEstado({ usuario, estado: 'pausado' })} className="p-2 text-slate-400 hover:text-amber-400"><PauseCircle className="w-4 h-4" /></button>}
-                        {(estado === 'pausado' || estado === 'deshabilitado') && <button title="Reactivar identidad" onClick={() => setModalEstado({ usuario, estado: 'activo' })} className="p-2 text-emerald-500 hover:text-emerald-300"><PlayCircle className="w-4 h-4" /></button>}
-                        {estado !== 'deshabilitado' && <button title="Baja operativa" onClick={() => setModalEstado({ usuario, estado: 'deshabilitado' })} className="p-2 text-slate-400 hover:text-red-400"><UserX className="w-4 h-4" /></button>}
+                      <div className="flex shrink-0 flex-wrap items-start gap-2">
+                        <button type="button" onClick={() => { setUsuarioEditando(usuario); setModulosSeleccionados(usuario.modulos_permitidos || ['allanamientos']); }} className="cop-action-secondary flex min-h-11 items-center gap-2 px-3 text-xs"><Edit className="h-4 w-4" /> Editar</button>
+                        <details className="group border border-[#33465f] bg-[#0b0e17] text-xs text-slate-200">
+                          <summary className="flex min-h-11 cursor-pointer items-center gap-2 px-3 font-semibold hover:text-white">Gestionar <span aria-hidden="true" className="text-[#c4a35a] group-open:rotate-180">▾</span></summary>
+                          <div className="grid gap-2 border-t border-[#33465f] p-2 sm:grid-cols-2 xl:grid-cols-1">
+                            {(estado === 'activo' || estado === 'por_vencer' || estado === 'validacion_vencida') && <button type="button" onClick={() => setUsuarioACambiarPass(usuario)} className="flex min-h-11 items-center gap-2 border border-[#33465f] px-3 text-left hover:text-amber-400"><KeyRound className="h-4 w-4 shrink-0" /> Restablecer clave</button>}
+                            {normalizarRol(usuario.rol) !== 'administrador' && (estado === 'activo' || estado === 'por_vencer' || estado === 'validacion_vencida') && <button type="button" onClick={() => setUsuarioRevalidando(usuario)} className="flex min-h-11 items-center gap-2 border border-[#33465f] px-3 text-left hover:text-[#c4a35a]"><RefreshCw className="h-4 w-4 shrink-0" /> Revalidar 60 días</button>}
+                            {(estado === 'activo' || estado === 'por_vencer' || estado === 'validacion_vencida') && <button type="button" onClick={() => { setErrorTraslado(null); setUsuarioTrasladando(usuario); }} className="flex min-h-11 items-center gap-2 border border-[#33465f] px-3 text-left hover:text-[#c4a35a]"><ArrowRightLeft className="h-4 w-4 shrink-0" /> Registrar traslado</button>}
+                            {(estado === 'activo' || estado === 'por_vencer' || estado === 'validacion_vencida') && <button type="button" onClick={() => setModalEstado({ usuario, estado: 'pausado' })} className="flex min-h-11 items-center gap-2 border border-[#33465f] px-3 text-left hover:text-amber-400"><PauseCircle className="h-4 w-4 shrink-0" /> Pausar identidad</button>}
+                            {(estado === 'pausado' || estado === 'deshabilitado') && <button type="button" onClick={() => setModalEstado({ usuario, estado: 'activo' })} className="flex min-h-11 items-center gap-2 border border-[#33465f] px-3 text-left hover:text-emerald-300"><PlayCircle className="h-4 w-4 shrink-0" /> Reactivar identidad</button>}
+                            {estado !== 'deshabilitado' && <button type="button" onClick={() => setModalEstado({ usuario, estado: 'deshabilitado' })} className="flex min-h-11 items-center gap-2 border border-[#33465f] px-3 text-left hover:text-red-400"><UserX className="h-4 w-4 shrink-0" /> Baja operativa</button>}
+                          </div>
+                        </details>
                       </div>
                     )}
                   </article>
