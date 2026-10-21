@@ -201,6 +201,9 @@ export function obtenerValoresSecuestros(item: Record<string, unknown>) {
     totalDesglose(personas) ||
     numeroSeguro(item.detenidos_aprehendidos);
 
+  // El total sólo respalda registros legados sin desglose; no sustituye una categoría ausente.
+  const hayDesglosePersonas = totalDesglose(personas) > 0;
+
   return {
     corta: armas['Arma Corta'] ?? 0,
     larga: armas['Arma Larga'] ?? 0,
@@ -212,7 +215,7 @@ export function obtenerValoresSecuestros(item: Record<string, unknown>) {
     camionetas: vehiculos.Camioneta ?? 0,
     otrosVeh: vehiculos.Otros ?? 0,
     totalVehiculos,
-    detenidos: personas.Detenido ?? totalPersonas,
+    detenidos: personas.Detenido ?? (hayDesglosePersonas ? 0 : totalPersonas),
     aprehendidos: personas.Aprehendido ?? 0,
     totalPersonas,
   };
