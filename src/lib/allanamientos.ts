@@ -68,6 +68,56 @@ export function validarFechasAllanamiento({
   return null;
 }
 
+const CORTE_HORARIO_OBLIGATORIO = '2026-09-28';
+
+export type HorarioOriginal = {
+  fechaEjecucion: string;
+  horarioEjecucion: string | null;
+  enElActo: boolean;
+};
+
+export function esHorarioHistoricoSinInformar(
+  fechaEjecucion: string,
+  original: HorarioOriginal | null | undefined,
+): boolean {
+  return Boolean(
+    original &&
+    original.fechaEjecucion < CORTE_HORARIO_OBLIGATORIO &&
+    fechaEjecucion === original.fechaEjecucion &&
+    original.horarioEjecucion === null,
+  );
+}
+
+export function prepararHorarioEjecucion({
+  fechaEjecucion,
+  hora,
+  minuto,
+  original,
+}: {
+  fechaEjecucion: string;
+  hora: string;
+  minuto: string;
+  original?: HorarioOriginal | null;
+}):
+  | { ok: true; horarioEjecucion: string | null; enElActo: boolean }
+  | { ok: false; error: string } {
+  // Una edición ajena al horario no reescribe un valor legado anterior al corte.
+  if (
+    original &&
+    esHorarioHistoricoSinInformar(fechaEjecucion, original) &&
+    hora === '' &&
+    minuto === ''
+  ) {
+    return { ok: true, horarioEjecucion: null, enElActo: original.enElActo };
+  }
+
+  if (!/^(?:[01]\d|2[0-3])$/.test(hora) || !/^[0-5]\d$/.test(minuto)) {
+    return { ok: false, error: 'Seleccioná una hora y un minuto de ejecución válidos.' };
+  }
+
+  return { ok: true, horarioEjecucion: `${hora}:${minuto}`, enElActo: false };
+}
+
 export function sanitizarDetalles(detalles: DetalleSecuestro[]): DetalleSecuestro[] {
   return detalles
     .map((detalle) => ({

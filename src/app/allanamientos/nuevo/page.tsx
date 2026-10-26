@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { ArrowLeft, Plus, Trash2, Save, Building2, Loader2, Lock } from 'lucide-react'
 import {
   obtenerRangoSemanaRendida,
+  prepararHorarioEjecucion,
   sanitizarDetalles,
   sumarDetalles,
   validarFechasAllanamiento,
@@ -79,9 +80,8 @@ export default function NuevoAllanamientosPage() {
   const [superintendenciaSeleccionada, setSuperintendenciaSeleccionada] = useState<string>('')
 
   // Estados separados para hora y minuto en formato 24hs
-  const [horaEjecucion, setHoraEjecucion] = useState('12')
-  const [minutoEjecucion, setMinutoEjecucion] = useState('00')
-  const [enElActo, setEnElActo] = useState(false)
+  const [horaEjecucion, setHoraEjecucion] = useState('')
+  const [minutoEjecucion, setMinutoEjecucion] = useState('')
 
   // Estado del formulario principal
   const [formData, setFormData] = useState({
@@ -246,19 +246,33 @@ export default function NuevoAllanamientosPage() {
       return
     }
 
+    const horario = prepararHorarioEjecucion({
+      fechaEjecucion: formData.fecha_ejecucion,
+      hora: horaEjecucion,
+      minuto: minutoEjecucion,
+    })
+    if (!horario.ok) {
+      setError(horario.error)
+      return
+    }
+
     setLoading(true)
     setError(null)
 
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser()
-      if (userError || !user) throw new Error('No se encontró una sesión de usuario activa.')
+      if (userError || !user) {
+        setError('Tu sesión no está activa. Volvé a iniciar sesión antes de guardar.')
+        return
+      }
 
       let targetSuperintendenciaId = esElevado 
         ? superintendenciaSeleccionada 
         : superintendenciaUsuario
 
       if (!targetSuperintendenciaId) {
-        throw new Error('Debe seleccionar o tener asignada una Superintendencia válida.')
+        setError('Seleccioná una Superintendencia válida antes de guardar.')
+        return
       }
 
       if (!esElevado) {
@@ -273,10 +287,10 @@ export default function NuevoAllanamientosPage() {
         }
       }
 
-      const horarioFinal = enElActo ? null : `${horaEjecucion}:${minutoEjecucion}`
       const provincia = formData.es_exhorto ? formData.provincia : 'Buenos Aires'
       if (!provincia || (provincia === 'Buenos Aires' ? !formData.partido : !formData.localidad.trim())) {
-        throw new Error('Indicá el partido o la localidad de destino del exhorto.')
+        setError('Indicá el partido o la localidad de destino del exhorto.')
+        return
       }
 
       const secuestrosPositivos = formData.resultado_secuestros === 'Positivo'
@@ -295,8 +309,8 @@ export default function NuevoAllanamientosPage() {
         ufi_juzgado: formData.ufi_juzgado || 'Sin especificar',
         fecha_solicitud: formData.fecha_solicitud || null,
         fecha_ejecucion: formData.fecha_ejecucion,
-        horario_ejecucion: horarioFinal,
-        en_el_acto: enElActo,
+        horario_ejecucion: horario.horarioEjecucion,
+        en_el_acto: horario.enElActo,
         es_exhorto: formData.es_exhorto,
         provincia,
         localidad: provincia === 'Buenos Aires' ? null : formData.localidad.trim(),
@@ -337,9 +351,8 @@ export default function NuevoAllanamientosPage() {
 
       router.push('/allanamientos')
 
-    } catch (err: any) {
-      console.error('Error detallado:', err)
-      setError(err.message || 'Ocurrió un error al guardar el registro.')
+    } catch {
+      setError('No se pudo guardar el allanamiento. Revisá los datos y tus permisos e intentá nuevamente.')
     } finally {
       setLoading(false)
     }
@@ -628,18 +641,16 @@ export default function NuevoAllanamientosPage() {
 
               <div>
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-medium text-slate-400">Horario de Ejecución (24hs)</span>
-                  <label className="flex items-center gap-2 text-xs text-slate-200">
-                    <input type="checkbox" checked={enElActo} onChange={e => setEnElActo(e.target.checked)} className="h-4 w-4 accent-blue-500" /> En el acto
-                  </label>
+                  <span className="text-xs font-medium text-slate-400">Horario de Ejecución (24hs) *</span>
                 </div>
-                <div className={`flex items-center gap-2 transition-opacity ${enElActo ? 'opacity-40' : ''}`}>
+                <div className="flex items-center gap-2">
                   <select
-                    disabled={enElActo}
+                    aria-label="Hora de ejecución"
                     value={horaEjecucion}
                     onChange={(e) => setHoraEjecucion(e.target.value)}
-                    className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer text-center disabled:cursor-not-allowed"
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer text-center"
                   >
+                    <option value="">Hora</option>
                     {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map((h) => (
                       <option key={h} value={h} className="bg-slate-900 text-white">
                         {h} hs
@@ -648,11 +659,12 @@ export default function NuevoAllanamientosPage() {
                   </select>
                   <span className="text-white font-bold">:</span>
                   <select
-                    disabled={enElActo}
+                    aria-label="Minuto de ejecución"
                     value={minutoEjecucion}
                     onChange={(e) => setMinutoEjecucion(e.target.value)}
-                    className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer text-center disabled:cursor-not-allowed"
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer text-center"
                   >
+                    <option value="">Minuto</option>
                     {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')).map((m) => (
                       <option key={m} value={m} className="bg-slate-900 text-white">
                         {m} min

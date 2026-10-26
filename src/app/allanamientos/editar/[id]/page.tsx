@@ -5,7 +5,10 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { ArrowLeft, Plus, Trash2, Save, Loader2, Building2 } from 'lucide-react'
 import {
+  esHorarioHistoricoSinInformar,
   obtenerRangoSemanaRendida,
+  prepararHorarioEjecucion,
+  type HorarioOriginal,
   sanitizarDetalles,
   sumarDetalles,
   validarFechasAllanamiento,
@@ -33,9 +36,9 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
   const [superintendenciasList, setSuperintendenciasList] = useState<{ id: string; nombre: string }[]>([])
 
   // Horario en formato 24hs
-  const [horaEjecucion, setHoraEjecucion] = useState('12')
-  const [minutoEjecucion, setMinutoEjecucion] = useState('00')
-  const [enElActo, setEnElActo] = useState(false)
+  const [horaEjecucion, setHoraEjecucion] = useState('')
+  const [minutoEjecucion, setMinutoEjecucion] = useState('')
+  const [horarioOriginal, setHorarioOriginal] = useState<HorarioOriginal | null>(null)
 
   // Estado del formulario
   const [formData, setFormData] = useState({
@@ -149,12 +152,18 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         return
       }
 
+      setHoraEjecucion('')
+      setMinutoEjecucion('')
       if (data.horario_ejecucion) {
         const [h, m] = data.horario_ejecucion.split(':')
         if (h) setHoraEjecucion(h.padStart(2, '0'))
         if (m) setMinutoEjecucion(m.padStart(2, '0'))
       }
-      setEnElActo(data.en_el_acto === true)
+      setHorarioOriginal({
+        fechaEjecucion: data.fecha_ejecucion,
+        horarioEjecucion: data.horario_ejecucion,
+        enElActo: data.en_el_acto === true,
+      })
 
       // Cargar Armas desde JSON o columnas de BD
       let loadedArmas: { subtipo: string; cantidad: number }[] = []
@@ -279,8 +288,8 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         setColaboraciones([{ especialidad: '', cant_solicitada: 1, cant_afectada: 1 }])
       }
 
-    } catch (err: any) {
-      setError(err.message || 'Error al obtener los datos.')
+    } catch {
+      setError('No se pudo obtener el allanamiento. Volvé a intentarlo.')
     } finally {
       setLoading(false)
     }
@@ -320,14 +329,25 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
       return
     }
 
+    const horario = prepararHorarioEjecucion({
+      fechaEjecucion: formData.fecha_ejecucion,
+      hora: horaEjecucion,
+      minuto: minutoEjecucion,
+      original: horarioOriginal,
+    })
+    if (!horario.ok) {
+      setError(horario.error)
+      return
+    }
+
     setSaving(true)
     setError(null)
 
     try {
-      const horarioFinal = enElActo ? null : `${horaEjecucion}:${minutoEjecucion}`
       const provincia = formData.es_exhorto ? formData.provincia : 'Buenos Aires'
       if (!provincia || (provincia === 'Buenos Aires' ? !formData.partido : !formData.localidad.trim())) {
-        throw new Error('Indicá el partido o la localidad de destino del exhorto.')
+        setError('Indicá el partido o la localidad de destino del exhorto.')
+        return
       }
 
       const secuestrosPositivos = formData.resultado_secuestros === 'Positivo'
@@ -345,8 +365,8 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         ufi_juzgado: formData.ufi_juzgado || 'Sin especificar',
         fecha_solicitud: formData.fecha_solicitud || null,
         fecha_ejecucion: formData.fecha_ejecucion,
-        horario_ejecucion: horarioFinal,
-        en_el_acto: enElActo,
+        horario_ejecucion: horario.horarioEjecucion,
+        en_el_acto: horario.enElActo,
         es_exhorto: formData.es_exhorto,
         provincia,
         localidad: provincia === 'Buenos Aires' ? null : formData.localidad.trim(),
@@ -389,9 +409,8 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
       router.refresh()
       router.push('/allanamientos')
 
-    } catch (err: any) {
-      console.error('Error al actualizar:', err)
-      setError(err.message || 'Ocurrió un error al actualizar el registro.')
+    } catch {
+      setError('No se pudo actualizar el allanamiento. Revisá los datos y tus permisos e intentá nuevamente.')
     } finally {
       setSaving(false)
     }
@@ -648,18 +667,21 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
 
               <div>
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-medium text-slate-400">Horario de Ejecución (24hs)</span>
-                  <label className="flex items-center gap-2 text-xs text-slate-200">
-                    <input type="checkbox" checked={enElActo} onChange={e => setEnElActo(e.target.checked)} className="h-4 w-4 accent-blue-500" /> En el acto
-                  </label>
+                  <span className="text-xs font-medium text-slate-400">Horario de Ejecución (24hs) *</span>
                 </div>
-                <div className={`flex items-center gap-2 transition-opacity ${enElActo ? 'opacity-40' : ''}`}>
+                {horarioOriginal && esHorarioHistoricoSinInformar(formData.fecha_ejecucion, horarioOriginal) && (
+                    <p className="mb-2 text-xs text-slate-400">
+                      Horario histórico {horarioOriginal.enElActo ? '«En el acto»' : 'sin informar'}: se conservará si no seleccionás uno nuevo.
+                    </p>
+                  )}
+                <div className="flex items-center gap-2">
                   <select
-                    disabled={enElActo}
+                    aria-label="Hora de ejecución"
                     value={horaEjecucion}
                     onChange={(e) => setHoraEjecucion(e.target.value)}
-                    className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer text-center disabled:cursor-not-allowed"
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer text-center"
                   >
+                    <option value="">Hora</option>
                     {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map((h) => (
                       <option key={h} value={h} className="bg-slate-900 text-white">
                         {h} hs
@@ -668,11 +690,12 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
                   </select>
                   <span className="text-white font-bold">:</span>
                   <select
-                    disabled={enElActo}
+                    aria-label="Minuto de ejecución"
                     value={minutoEjecucion}
                     onChange={(e) => setMinutoEjecucion(e.target.value)}
-                    className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer text-center disabled:cursor-not-allowed"
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 cursor-pointer text-center"
                   >
+                    <option value="">Minuto</option>
                     {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')).map((m) => (
                       <option key={m} value={m} className="bg-slate-900 text-white">
                         {m} min
