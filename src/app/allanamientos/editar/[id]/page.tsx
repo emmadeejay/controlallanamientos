@@ -15,6 +15,7 @@ import {
 } from '@/lib/allanamientos'
 import { perfilTieneAcceso } from '@/lib/usuarios'
 import { JURISDICCIONES_ARGENTINA } from '@/lib/jurisdicciones'
+import { crearColaboracionVacia, tieneCantidadSinEspecialidad } from '@/lib/colaboraciones-form'
 
 export default function EditarAllanamientoPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
@@ -285,7 +286,7 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
           cant_afectada: c.cant_afectada
         })))
       } else {
-        setColaboraciones([{ especialidad: '', cant_solicitada: 1, cant_afectada: 1 }])
+        setColaboraciones([crearColaboracionVacia()])
       }
 
     } catch {
@@ -300,7 +301,7 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
     setFormData(prev => ({ ...prev, [name]: value }))
   }
 
-  const addColaboracion = () => setColaboraciones(prev => [...prev, { especialidad: '', cant_solicitada: 1, cant_afectada: 1 }])
+  const addColaboracion = () => setColaboraciones(prev => [...prev, crearColaboracionVacia()])
   const removeColaboracion = (index: number) => setColaboraciones(prev => prev.filter((_, i) => i !== index))
   const handleColabChange = (index: number, field: string, value: any) => {
     const updated = [...colaboraciones]
@@ -326,6 +327,11 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
 
     if (errorFechas) {
       setError(errorFechas)
+      return
+    }
+
+    if (tieneCantidadSinEspecialidad(colaboraciones)) {
+      setError('Seleccioná una especialidad para las cantidades ingresadas, o dejá ambas cantidades en 0.')
       return
     }
 
@@ -391,9 +397,9 @@ export default function EditarAllanamientoPage({ params }: { params: Promise<{ i
         observaciones: formData.observaciones.trim() || null,
       }
 
-      const colabValidas = colaboraciones.filter(c => c.especialidad)
+      const colabValidas = colaboraciones.filter(c => c.especialidad.trim())
       const colabToInsert = colabValidas.map(c => ({
-        especialidad: c.especialidad,
+        especialidad: c.especialidad.trim(),
         cant_solicitada: Number(c.cant_solicitada) || 0,
         cant_afectada: Number(c.cant_afectada) || 0
       }))

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { ArrowLeft, Plus, Trash2, Save, Building2, Loader2, Lock } from 'lucide-react'
 import {
@@ -13,6 +13,7 @@ import {
 } from '@/lib/allanamientos'
 import { perfilTieneAcceso } from '@/lib/usuarios'
 import { JURISDICCIONES_ARGENTINA } from '@/lib/jurisdicciones'
+import { crearColaboracionVacia, tieneCantidadSinEspecialidad } from '@/lib/colaboraciones-form'
 
 
 // Sincronización precisa con la hora oficial de Argentina (UTC-3)
@@ -55,9 +56,6 @@ async function rendicionOperadorCerrada(superintendenciaId: string): Promise<boo
 
 export default function NuevoAllanamientosPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-
-  const superintendenciaUrl = searchParams.get('superintendencia_id')
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -107,9 +105,7 @@ export default function NuevoAllanamientosPage() {
   })
 
   // Tarjeta 4: Personal en colaboración
-  const [colaboraciones, setColaboraciones] = useState([
-    { especialidad: '', cant_solicitada: 1, cant_afectada: 1 }
-  ])
+  const [colaboraciones, setColaboraciones] = useState([crearColaboracionVacia()])
 
   // Tarjeta 5: Secuestros detallados
   const [armas, setArmas] = useState<{ subtipo: string; cantidad: number }[]>([])
@@ -170,12 +166,6 @@ export default function NuevoAllanamientosPage() {
 
         setEsElevado(elevado)
         setSuperintendenciaUsuario(profile?.superintendencia_id || null)
-
-        if (superintendenciaUrl && superintendenciaUrl !== 'TODAS') {
-          setSuperintendenciaSeleccionada(superintendenciaUrl)
-        } else if (profile?.superintendencia_id) {
-          setSuperintendenciaSeleccionada(profile.superintendencia_id)
-        }
       }
 
       // 2. Cargar tablas maestras
@@ -203,7 +193,7 @@ export default function NuevoAllanamientosPage() {
 
   // Manejadores para Colaboraciones
   const addColaboracion = () => {
-    setColaboraciones(prev => [...prev, { especialidad: '', cant_solicitada: 1, cant_afectada: 1 }])
+    setColaboraciones(prev => [...prev, crearColaboracionVacia()])
   }
   const removeColaboracion = (index: number) => {
     setColaboraciones(prev => prev.filter((_, i) => i !== index))
@@ -246,6 +236,11 @@ export default function NuevoAllanamientosPage() {
       return
     }
 
+    if (tieneCantidadSinEspecialidad(colaboraciones)) {
+      setError('Seleccioná una especialidad para las cantidades ingresadas, o dejá ambas cantidades en 0.')
+      return
+    }
+
     const horario = prepararHorarioEjecucion({
       fechaEjecucion: formData.fecha_ejecucion,
       hora: horaEjecucion,
@@ -266,11 +261,13 @@ export default function NuevoAllanamientosPage() {
         return
       }
 
-      let targetSuperintendenciaId = esElevado 
-        ? superintendenciaSeleccionada 
+      const targetSuperintendenciaId = esElevado
+        ? superintendenciaSeleccionada
         : superintendenciaUsuario
 
-      if (!targetSuperintendenciaId) {
+      if (!targetSuperintendenciaId || (esElevado && !superintendenciasList.some(
+        (superintendencia) => superintendencia.id === targetSuperintendenciaId,
+      ))) {
         setError('Seleccioná una Superintendencia válida antes de guardar.')
         return
       }
@@ -335,9 +332,9 @@ export default function NuevoAllanamientosPage() {
         observaciones: formData.observaciones.trim() || null
       }
 
-      const colaboracionesValidas = colaboraciones.filter(c => c.especialidad)
+      const colaboracionesValidas = colaboraciones.filter(c => c.especialidad.trim())
       const colabToInsert = colaboracionesValidas.map(c => ({
-        especialidad: c.especialidad,
+        especialidad: c.especialidad.trim(),
         cant_solicitada: Number(c.cant_solicitada) || 0,
         cant_afectada: Number(c.cant_afectada) || 0
       }))
