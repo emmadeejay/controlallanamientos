@@ -45,6 +45,12 @@ test('FIX-02: impide guardar cantidades en una fila sin especialidad', () => {
   assert.equal(tieneCantidadSinEspecialidad([
     { especialidad: '', cant_solicitada: 0, cant_afectada: 0 },
   ]), false);
+  assert.equal(tieneCantidadSinEspecialidad([
+    { especialidad: '', cant_solicitada: '0', cant_afectada: '0' },
+  ]), false);
+  assert.equal(tieneCantidadSinEspecialidad([
+    { especialidad: '', cant_solicitada: '1', cant_afectada: '0' },
+  ]), true);
   assert.match(nuevo, /if \(tieneCantidadSinEspecialidad\(colaboraciones\)\)/);
   assert.match(editar, /if \(tieneCantidadSinEspecialidad\(colaboraciones\)\)/);
 });

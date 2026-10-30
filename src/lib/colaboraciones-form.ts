@@ -1,7 +1,7 @@
 export type ColaboracionFormulario = {
   especialidad: string
-  cant_solicitada: number
-  cant_afectada: number
+  cant_solicitada: number | string
+  cant_afectada: number | string
 }
 
 export function crearColaboracionVacia(): ColaboracionFormulario {
@@ -13,6 +13,6 @@ export function tieneCantidadSinEspecialidad(
 ): boolean {
   return colaboraciones.some((colaboracion) =>
     !colaboracion.especialidad.trim() &&
-    (colaboracion.cant_solicitada !== 0 || colaboracion.cant_afectada !== 0),
+    (Number(colaboracion.cant_solicitada) !== 0 || Number(colaboracion.cant_afectada) !== 0),
   )
 }
